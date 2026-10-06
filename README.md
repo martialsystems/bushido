@@ -81,3 +81,10 @@ The panel reads BUSHIDO top left. It is 1600 x 434 design units, with no empty l
 - Real UI driven with mouse input under a virtual display: knobs and switches turn, cables patch and stack, the stack chooser
   reorders, label hover moves cables aside, and `TRIG 5 -> RESET` loops steps 1-4 in the running plugin.
 - **Not verified:** the AU build and anything on macOS/Windows (needs those machines); behaviour inside specific DAWs.
+
+## BUSHIDO and RONIN on one page (web)
+
+`web/rack.html` puts BUSHIDO above RONIN (the MS-50 from MS50Modular) in one browser patch: one patch graph, one cable layer, MS-50 graph rules (type refusal, S-15 gate law, newest feedback cable delayed one sample). Build it with `python3 web/build_rack.py [--ms50 PATH_TO_MS50Modular]`.
+- `web/sq10_dsp.js`: the SQ-10 engine, per sample, same law as `engine/Sq10Module.cpp`.
+- `web/ms50_dsp.js`: the MS-50 modules and host glue, checked sample by sample against the C++ (max error 2.4e-7 V).
+- `web/rack_engine.js`: the shared graph, BUSHIDO's preview VCOs (into RONIN's EXT IN by default), runs in an AudioWorklet with a ScriptProcessor fallback.
