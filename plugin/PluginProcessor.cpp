@@ -30,28 +30,92 @@ Sq10Processor::Sq10Processor()
     lastSent.assign(raw.size(), -1.0f);
     bypass = dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter("TOP_BYPASS"));
 
-    static const char* colourNames[] = { "red", "white", "yellow", "green" };
     const auto d = juce::JSON::parse(juce::String::fromUTF8(BinaryData::sq10_patterns_json, BinaryData::sq10_patterns_jsonSize));
-    if (auto* list = d["patterns"].getArray())
-        for (auto& pv : *list) {
-            Pattern pat; pat.name = pv["name"].toString();
-            if (auto* o = pv["params"].getDynamicObject()) for (auto& kv : o->getProperties()) pat.params.push_back({ kv.name.toString(), (float) kv.value });
-            if (auto* cl = pv["cables"].getArray())
-                for (auto& c : *cl) { int col = 0; for (int k = 0; k < 4; ++k) if (c[2].toString() == colourNames[k]) col = k;
-                    pat.cables.push_back({ "SQ-10/" + c[0].toString(), "SQ-10/" + c[1].toString(), col, (int) pat.cables.size() }); }
-            patterns.push_back(std::move(pat));
-        }
-    setCurrentProgram(0);                       // a fresh instance opens on pattern 01; a saved session replaces it
+    if (auto* list = d["patterns"].getArray()) for (auto& pv : *list) banks[0].push_back(patternFromVar(pv));
+    factoryCount = (int) banks[0].size();
+    const auto u = juce::JSON::parse(userPatternFile());                 // patterns saved earlier, from any instance
+    for (int b = 0; b < 2; ++b) if (auto* list = u[b == 0 ? "A" : "B"].getArray())
+        for (auto& pv : *list) if ((int) banks[b].size() < kBankSize) banks[b].push_back(patternFromVar(pv));
+    loadPattern(0, 0);                          // a fresh instance opens on A001; a saved session replaces it
 }
 
-void Sq10Processor::setCurrentProgram(int i)
+static const char* kColourNames[] = { "red", "white", "yellow", "green" };
+
+Sq10Processor::Pattern Sq10Processor::patternFromVar(const juce::var& pv)
 {
-    if (! juce::isPositiveAndBelow(i, (int) patterns.size())) return;
-    const auto& pat = patterns[(size_t) i];
+    Pattern pat; pat.name = pv["name"].toString();
+    if (auto* o = pv["params"].getDynamicObject()) for (auto& kv : o->getProperties()) pat.params.push_back({ kv.name.toString(), (float) kv.value });
+    if (auto* cl = pv["cables"].getArray())
+        for (auto& c : *cl) { int col = 0; for (int k = 0; k < 4; ++k) if (c[2].toString() == kColourNames[k]) col = k;
+            pat.cables.push_back({ "SQ-10/" + c[0].toString(), "SQ-10/" + c[1].toString(), col, (int) pat.cables.size() }); }
+    return pat;
+}
+
+juce::var Sq10Processor::patternToVar(const Pattern& pat)
+{
+    auto* o = new juce::DynamicObject(); o->setProperty("name", pat.name);
+    auto* params = new juce::DynamicObject(); for (auto& [id, v] : pat.params) params->setProperty(id, v);
+    o->setProperty("params", juce::var(params));
+    juce::Array<juce::var> cl;
+    for (auto& c : pat.cables) cl.add(juce::var(juce::Array<juce::var> { c.a.fromFirstOccurrenceOf("/", false, false), c.b.fromFirstOccurrenceOf("/", false, false), kColourNames[juce::jlimit(0, 3, c.color)] }));
+    o->setProperty("cables", cl);
+    return juce::var(o);
+}
+
+juce::File Sq10Processor::userPatternFile()
+{
+    return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("BUSHIDO").getChildFile("user_patterns.json");
+}
+
+void Sq10Processor::writeUserFile() const                                // bank A's factory patterns are not written
+{
+    auto* o = new juce::DynamicObject();
+    for (int b = 0; b < 2; ++b) { juce::Array<juce::var> l; for (size_t i = b == 0 ? (size_t) factoryCount : 0; i < banks[b].size(); ++i) l.add(patternToVar(banks[b][i])); o->setProperty(b == 0 ? "A" : "B", l); }
+    const auto f = userPatternFile(); f.getParentDirectory().createDirectory();
+    f.replaceWithText(juce::JSON::toString(juce::var(o)));
+}
+
+juce::StringArray Sq10Processor::patternNames(int b) const
+{
+    const juce::ScopedLock sl(bankLock); juce::StringArray n;
+    if (b == 0 || b == 1) for (auto& p : banks[b]) n.add(p.name);
+    return n;
+}
+
+void Sq10Processor::loadPattern(int b, int i)
+{
+    Pattern pat;
+    { const juce::ScopedLock sl(bankLock); if ((b != 0 && b != 1) || ! juce::isPositiveAndBelow(i, (int) banks[b].size())) return; pat = banks[b][(size_t) i]; }
     for (auto& [id, v] : pat.params) if (auto* p = parameter(id)) { p->beginChangeGesture(); p->setValueNotifyingHost(v); p->endChangeGesture(); }   // BYPASS is never in a pattern
-    currentPattern = i;
+    curBank = b; curPattern = i;
     setCables(pat.cables);
     if (onStateLoaded) onStateLoaded();
+}
+
+int Sq10Processor::savePattern(int b, const juce::String& name)
+{
+    if (b != 0 && b != 1) return -1;
+    Pattern pat; pat.name = name.trim().isEmpty() ? juce::String("PATTERN") : name.trim();
+    for (auto& p : sq.params()) if (p.positions != -1) if (auto* ap = parameter(p.id)) pat.params.push_back({ juce::String(p.id), ap->getValue() });
+    for (auto& c : cables) if (c.a.isNotEmpty() && c.b.isNotEmpty()) pat.cables.push_back(c);
+    int index = -1;
+    { const juce::ScopedLock sl(bankLock); if ((int) banks[b].size() >= kBankSize) return -1; banks[b].push_back(std::move(pat)); index = (int) banks[b].size() - 1; writeUserFile(); }
+    curBank = b; curPattern = index;
+    return index;
+}
+
+int Sq10Processor::getNumPrograms() { const juce::ScopedLock sl(bankLock); return juce::jmax(1, (int) (banks[0].size() + banks[1].size())); }
+int Sq10Processor::getCurrentProgram() { const juce::ScopedLock sl(bankLock); return (curBank.load() == 1 ? (int) banks[0].size() : 0) + curPattern.load(); }
+void Sq10Processor::setCurrentProgram(int i)
+{
+    int b = 0; { const juce::ScopedLock sl(bankLock); if (i >= (int) banks[0].size()) { b = 1; i -= (int) banks[0].size(); } }
+    loadPattern(b, i);
+}
+const juce::String Sq10Processor::getProgramName(int i)
+{
+    const juce::ScopedLock sl(bankLock); const int b = i >= (int) banks[0].size() ? 1 : 0; if (b) i -= (int) banks[0].size();
+    if (! juce::isPositiveAndBelow(i, (int) banks[b].size())) return {};
+    return juce::String(b ? "B" : "A") + juce::String(i + 1).paddedLeft('0', 3) + " " + banks[b][(size_t) i].name;
 }
 
 bool Sq10Processor::isBusesLayoutSupported(const BusesLayout& l) const
@@ -142,7 +206,7 @@ void Sq10Processor::getStateInformation(juce::MemoryBlock& dest)
     juce::ValueTree cv("CABLES");
     for (auto& c : cables) cv.appendChild(juce::ValueTree("CABLE").setProperty("a", c.a, nullptr).setProperty("b", c.b, nullptr).setProperty("color", c.color, nullptr).setProperty("age", c.age, nullptr), nullptr);
     state.removeChild(state.getChildWithName("CABLES"), nullptr); state.appendChild(cv, nullptr);
-    state.setProperty("pattern", currentPattern.load(), nullptr);
+    state.setProperty("bank", curBank.load(), nullptr); state.setProperty("pattern", curPattern.load(), nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 
@@ -154,7 +218,7 @@ void Sq10Processor::setStateInformation(const void* data, int size)
     for (auto c : state.getChildWithName("CABLES"))                      // older states have no age: keep their list order
         loaded.push_back({ c["a"].toString(), c["b"].toString(), (int) c["color"], c.hasProperty("age") ? (int) c["age"] : (int) loaded.size() });
     state.removeChild(state.getChildWithName("CABLES"), nullptr);
-    currentPattern = juce::jlimit(0, juce::jmax(0, (int) patterns.size() - 1), (int) state.getProperty("pattern", 0));
+    curBank = juce::jlimit(0, 1, (int) state.getProperty("bank", 0)); curPattern = juce::jmax(0, (int) state.getProperty("pattern", 0));
     apvts.replaceState(state);
     setCables(loaded);
     if (onStateLoaded) onStateLoaded();

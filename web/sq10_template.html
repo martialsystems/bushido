@@ -41,7 +41,7 @@ p b{color:var(--fg);font-weight:600}
   <span class="grp"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></span>
   <span id="info"></span>
 </div>
-<div class="sc"><div id="stage"><img src="__PANEL__" alt="SQ-10 panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div></div></div>
+<div class="sc"><div id="stage"><img src="__PANEL__" alt="SQ-10 panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div></div></div>
 <div class="readout">
   <div class="cell"><span class="k">Playing</span><span class="v" id="r-step">stopped · press START</span></div>
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
@@ -49,7 +49,7 @@ p b{color:var(--fg);font-weight:600}
   <div class="cell"><span class="k">CV C</span><span class="v" id="r-c">0.00 V</span></div>
   <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
 </div>
-<p><b>Patterns:</b> click the PATTERN screen or its key to pick one of 16 patterns (the last six are acid lines) (arrow keys and Enter work while the list is open). A pattern sets the knobs, switches and cables. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
+<p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with 16 factory patterns (A011 to A016 are acid lines). <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
 <b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
 <b>Sound:</b> two Hz/V VCOs listen to CV A / GATE A and CV B / GATE B (1 V = 55 Hz × the octave setting above). In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
@@ -70,7 +70,7 @@ $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_
 // ================= controls =================
 const C=L.controls.map(c=>Object.assign({},c)),P={};C.forEach(c=>P[c.id]=c.default);
 const PATTERNS=__PATTERNS__.patterns;
-Object.assign(P,PATTERNS[0].params);C.forEach(c=>c.def=P[c.id]);   // double-click returns a control to pattern 01
+Object.assign(P,PATTERNS[0].params);C.forEach(c=>c.def=P[c.id]);   // double-click returns a control to pattern A001
 let pressed=null;
 const steps=c=>c.positions||0,idx=c=>Math.round(P[c.id]*(steps(c)-1));
 function knobBody(cx,cy,r,ang){return `<circle cx="${cx+1}" cy="${cy+2}" r="${r+4}" fill="#000" opacity=".45"/><circle cx="${cx}" cy="${cy}" r="${r+3}" fill="#08080a" stroke="#000" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="${r+1.2}" fill="none" stroke="#3c3c3f" stroke-width="2.4" stroke-dasharray=".8 1.6" opacity=".75"/><circle cx="${cx}" cy="${cy}" r="${r-.3}" fill="url(#kb)" stroke="#000" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="${r*.8}" fill="url(#kt)" stroke="#050505" stroke-width=".8"/><ellipse cx="${cx-r*.28}" cy="${cy-r*.32}" rx="${r*.45}" ry="${r*.28}" fill="url(#ks)" transform="rotate(-35 ${cx} ${cy})"/><line x1="${cx}" y1="${cy-r*.1}" x2="${cx}" y2="${cy-(r-1.5)}" stroke="#f1ede0" stroke-width="2.4" transform="rotate(${ang} ${cx} ${cy})"/>`}
@@ -162,14 +162,13 @@ menu.addEventListener("click",e=>{if(mjustDragged){mjustDragged=false;return}con
 
 // ================= pointer: controls first, then jacks =================
 let kdrag=null;
-sv.addEventListener("wheel",e=>{pt(e);const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];setP(c.id,P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)))},{passive:false});
+sv.addEventListener("wheel",e=>{pt(e);if(scrMode=="search"&&ddRowAt(mx,my)>=0){e.preventDefault();scrollList(Math.sign(e.deltaY));return}const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];setP(c.id,P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)))},{passive:false});
 sv.addEventListener("dblclick",e=>{pt(e);const i=ctlAt(mx,my);if(i>=0&&C[i].kind!="button")setP(C[i].id,C[i].def)});
-sv.addEventListener("pointermove",e=>{pt(e);if(ddOpen){const r=ddRowAt(mx,my);if(r>=0&&r!=ddHi){ddHi=r;drawDD()}sv.style.cursor=r>=0?"pointer":"default";return}if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
-  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=inR(SCREEN.bezel,mx,my)||inR(SCREEN.button,mx,my)?"pointer":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
+sv.addEventListener("pointermove",e=>{pt(e);if(scrMode){const r=ddRowAt(mx,my);if(r>=0&&r!=ddHi){ddHi=r;drawDD()}sv.style.cursor=r>=0||bankAt(mx,my)>=0?"pointer":"default";return}if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
+  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=onScreenKey(mx,my)?"pointer":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
   if(down&&!grab&&Math.hypot(mx-down.x,my-down.y)>6){down.moved=true;const pl=plugsAt(down.j);if(pl.length&&!down.shift){const p=pl[pl.length-1];startGrab(p.i,p.e,false)}else newCable(down.j,false)}});
 sv.addEventListener("pointerleave",()=>{ptrIn=false;lab=null;if(!grab)setHov(-1)});
-sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(ddOpen){const r=ddRowAt(mx,my);if(r>=0)loadPattern(r);closeDD();return}
-  if(inR(SCREEN.bezel,mx,my)||inR(SCREEN.button,mx,my)){if(!grab)openDD();return}
+sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(screenDown(mx,my))return;
   if(grab&&grab.carry){drop();ignoreUp=true;return}
   const ci=ctlAt(mx,my);
   if(ci>=0){const c=C[ci];
@@ -182,11 +181,7 @@ sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pre
   if(ignoreUp){ignoreUp=false;down=null;return}
   if(grab&&!grab.carry){drop();down=null;return}
   if(down&&!down.moved&&plugsAt(down.j).length)showMenu(down.j);down=null});
-addEventListener("keydown",e=>{if(ddOpen){
-    if(e.key=="ArrowDown"){ddHi=(ddHi+1)%PATTERNS.length;drawDD();e.preventDefault()}
-    else if(e.key=="ArrowUp"){ddHi=(ddHi+PATTERNS.length-1)%PATTERNS.length;drawDD();e.preventDefault()}
-    else if(e.key=="Enter"){loadPattern(ddHi);closeDD();e.preventDefault()}
-    else if(e.key=="Escape")closeDD();return}
+addEventListener("keydown",e=>{if(scrMode){screenKey(e);return}
   if(e.key=="Escape"){hideMenu();cancel()}
   if(e.code=="Space"&&!/^(BUTTON|SELECT|INPUT)$/.test(document.activeElement.tagName)){e.preventDefault();press("MODE:START/STOP")}});
 function loop(){if(grab)pins(cables[grab.i]);step();paint();frame();requestAnimationFrame(loop)}
@@ -269,26 +264,76 @@ const FONT={" ":[0,0,0,0,0,0,0],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14]
 "P":[30,17,17,30,16,16,16],"Q":[14,17,17,17,21,18,13],"R":[30,17,17,30,20,18,17],"S":[15,16,16,14,1,1,30],"T":[31,4,4,4,4,4,4],
 "U":[17,17,17,17,17,17,14],"V":[17,17,17,17,17,10,4],"W":[17,17,17,21,21,21,10],"X":[17,17,10,4,10,17,17],"Y":[17,17,17,10,4,4,4],
 "Z":[31,1,2,4,8,16,31],"&":[12,18,20,8,21,18,13],"-":[0,0,0,31,0,0,0],"+":[0,4,4,31,4,4,0],"/":[0,1,2,4,8,16,0],".":[0,0,0,0,0,12,12],">":[8,4,2,1,2,4,8]};
-let pattern=0,ddOpen=false,ddHi=0;
-const DD_ROW=21,DD_PAD=5,ddBox=()=>[SCREEN.bezel[0],SCREEN.bezel[1]+SCREEN.bezel[3]+3,SCREEN.button[0]+SCREEN.button[2]-SCREEN.bezel[0],DD_PAD*2+PATTERNS.length*DD_ROW-3];
+// Two banks, A and B, of up to 999 patterns each. Bank A starts with the factory patterns; SAVE adds the next number to the
+// bank whose lamp is lit. Saved patterns stay in this browser (localStorage), so they survive a reload.
+const BANK=["A","B"],MAXP=SCREEN.bankSize||999,ROWS=SCREEN.listRows||10,NCH=SCREEN.chars;
+let user={A:[],B:[]};try{const u=JSON.parse(localStorage.getItem("bushido.patterns")||"null");if(u&&Array.isArray(u.A)&&Array.isArray(u.B))user=u}catch(e){}
+const bankList=b=>b=="A"?PATTERNS.concat(user.A):user.B;
+function persist(){try{localStorage.setItem("bushido.patterns",JSON.stringify(user))}catch(e){}}
+let loaded={b:"A",i:0},view="A",scrMode=null,query="",nameBuf="",ddHi=0,ddTop=0,blink=true;
+const pad3=n=>String(n).padStart(3,"0");
+const prow=(b,i)=>(pad3(i+1)+" "+bankList(b)[i].name).toUpperCase().slice(0,NCH-1);
+const plabel=()=>bankList(loaded.b)[loaded.i]?(loaded.b+prow(loaded.b,loaded.i)).slice(0,NCH):"";
+const DD_ROW=21,DD_PAD=5,ddBox=()=>[SCREEN.bezel[0],SCREEN.bezel[1]+SCREEN.bezel[3]+3,SCREEN.button[0]+SCREEN.button[2]-SCREEN.bezel[0],DD_PAD*2+Math.max(1,Math.min(ROWS,matches().length))*DD_ROW-3];
 const inR=(r,x,y)=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3];
-const plabel=i=>(String(i+1).padStart(2,"0")+" "+PATTERNS[i].name).toUpperCase().slice(0,16);
-function dots(x,y,w,h,text,ink,ghost){const n=SCREEN.chars,p=Math.min(w/(n*6),h/8),d=p*.86,ox=x+(w-n*6*p)/2+p*.5,oy=y+(h-7*p)/2;let g="",l="";
+const bankAt=(x,y)=>SCREEN.banks.findIndex(k=>inR(k.hit,x,y));
+const onScreenKey=(x,y)=>inR(SCREEN.bezel,x,y)||inR(SCREEN.button,x,y)||inR(SCREEN.save,x,y)||bankAt(x,y)>=0;
+function matches(){const L=bankList(view),q=query.trim();return L.map((p,i)=>i).filter(i=>!q||(pad3(i+1)+" "+L[i].name).toUpperCase().includes(q))}
+function dots(x,y,w,h,text,ink,ghost,n=NCH){const p=Math.min(w/(n*6),h/8),d=p*.86,ox=x+(w-n*6*p)/2+p*.5,oy=y+(h-7*p)/2;let g="",l="";
   for(let c=0;c<n;c++){const f=FONT[text[c]||" "]||FONT[" "];for(let r=0;r<7;r++)for(let b=0;b<5;b++){const s=`<rect x="${(ox+(c*6+b)*p).toFixed(2)}" y="${(oy+r*p).toFixed(2)}" width="${d.toFixed(2)}" height="${d.toFixed(2)}"/>`;if((f[r]>>(4-b))&1)l+=s;else g+=s}}
   return `<g fill="${ink}" opacity="${ghost}">${g}</g><g fill="${ink}" opacity=".9">${l}</g>`}
-function drawLCD(){const r=SCREEN.lcd,t=plabel(pattern),el=$("lcd");el.setAttribute("aria-label","Pattern "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09)}
-function ddRowAt(x,y){const b=ddBox();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW);return i>=0&&i<PATTERNS.length?i:-1}
-function drawDD(){const el=$("dd");if(!ddOpen){el.innerHTML="";return}const b=ddBox();
+function lcdText(){const cur=blink?"_":" ";
+  if(scrMode=="search")return ("FIND "+query+cur).slice(-NCH);
+  if(scrMode=="name")return (view+pad3(bankList(view).length+1)+" "+nameBuf+cur).slice(0,NCH);
+  return plabel()}
+function drawLCD(){const r=SCREEN.lcd,t=lcdText(),el=$("lcd");el.setAttribute("aria-label",scrMode?t:"Pattern "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09);drawBanks()}
+function drawBanks(){$("banks").innerHTML=SCREEN.banks.map(k=>{const on=k.id==view;return (on?`<circle cx="${k.cx}" cy="${k.cy}" r="${k.r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${k.cx}" cy="${k.cy}" r="${k.r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${k.cx-k.r*.3}" cy="${k.cy-k.r*.3}" r="${k.r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}).join("")}
+function ddRowAt(x,y){if(scrMode!="search")return -1;const b=ddBox();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW),M=matches();return i>=0&&ddTop+i<M.length&&i<ROWS?ddTop+i:-1}
+function drawDD(){const el=$("dd");if(scrMode!="search"){el.innerHTML="";return}const b=ddBox(),M=matches(),L=bankList(view);
   let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
-  PATTERNS.forEach((_,i)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+i*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3,hi=i==ddHi;
-    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,(i==pattern?">":" ")+plabel(i),hi?"#a6b192":"#1e2419",hi?.08:.09)});
+  const row=(k,txt,hi)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+k*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3;
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,txt,hi?"#a6b192":"#1e2419",hi?.08:.09)};
+  if(!M.length)s+=row(0,L.length?" NO MATCH":" BANK "+view+" IS EMPTY",false);
+  M.slice(ddTop,ddTop+ROWS).forEach((i,k)=>{s+=row(k,(loaded.b==view&&loaded.i==i?">":" ")+prow(view,i),ddTop+k==ddHi)});
+  if(M.length>ROWS){const h=b[3]-8,y=b[1]+4+h*ddTop/M.length;s+=`<rect x="${b[0]+b[2]-4}" y="${y.toFixed(1)}" width="2" height="${(h*ROWS/M.length).toFixed(1)}" rx="1" fill="#c29f4c" opacity=".7"/>`}   // scroll position
   el.innerHTML=s}
-function openDD(){ddOpen=true;ddHi=pattern;drawDD()}
-function closeDD(){ddOpen=false;drawDD()}
+function keepHiVisible(){if(ddHi<ddTop)ddTop=ddHi;if(ddHi>=ddTop+ROWS)ddTop=ddHi-ROWS+1}
+function scrollList(d){const n=matches().length;ddTop=Math.max(0,Math.min(Math.max(0,n-ROWS),ddTop+d));drawDD()}
+function setMode(m){scrMode=m;blink=true;if(m=="search"){query="";const M=matches();ddHi=Math.max(0,loaded.b==view?M.indexOf(loaded.i):0);ddTop=0;keepHiVisible()}if(m=="name")nameBuf="";drawLCD();drawDD()}
+function setView(b){view=b;if(scrMode=="search"){query="";ddHi=0;ddTop=0}drawLCD();drawDD()}
+setInterval(()=>{if(scrMode){blink=!blink;drawLCD()}},450);
+// returns true when the click belonged to the PATTERN screen, its keys or its list
+function screenDown(x,y){const k=bankAt(x,y);
+  if(k>=0){setView(BANK[k]);return true}
+  if(scrMode=="search"){const r=ddRowAt(x,y);if(r>=0){loadPattern(view,matches()[r]);setMode(null);return true}
+    if(inR(SCREEN.bezel,x,y)||inR(SCREEN.button,x,y)){setMode(null);return true}setMode(null);return true}
+  if(scrMode=="name"){if(inR(SCREEN.save,x,y)){savePattern();return true}setMode(null);return true}
+  if(grab)return false;
+  if(inR(SCREEN.bezel,x,y)||inR(SCREEN.button,x,y)){setMode("search");return true}
+  if(inR(SCREEN.save,x,y)){if(bankList(view).length>=MAXP){info.textContent=`BANK ${view} IS FULL (${MAXP} patterns)`;return true}setMode("name");info.textContent="Type a name, then Enter (or SAVE again) to save · Esc cancels";return true}
+  return false}
+const typed=e=>e.key.length==1&&!e.ctrlKey&&!e.metaKey&&!e.altKey?(e.key.toUpperCase() in FONT?e.key.toUpperCase():null):null;
+function screenKey(e){const ch=typed(e);
+  if(e.key=="Escape"){setMode(null);e.preventDefault();return}
+  if(scrMode=="name"){
+    if(e.key=="Enter"){savePattern();e.preventDefault();return}
+    if(e.key=="Backspace"){nameBuf=nameBuf.slice(0,-1);e.preventDefault()}else if(ch&&nameBuf.length<NCH-5&&!(ch==" "&&!nameBuf)){nameBuf+=ch;e.preventDefault()}
+    blink=true;drawLCD();return}
+  const M=matches();
+  if(e.key=="ArrowDown"){if(M.length){ddHi=(ddHi+1)%M.length;keepHiVisible();drawDD()}e.preventDefault()}
+  else if(e.key=="ArrowUp"){if(M.length){ddHi=(ddHi+M.length-1)%M.length;keepHiVisible();drawDD()}e.preventDefault()}
+  else if(e.key=="Enter"){if(M.length)loadPattern(view,M[ddHi]);setMode(null);e.preventDefault()}
+  else if(e.key=="Backspace"){query=query.slice(0,-1);ddHi=0;ddTop=0;blink=true;drawLCD();drawDD();e.preventDefault()}
+  else if(ch&&query.length<NCH-6){query+=ch;ddHi=0;ddTop=0;blink=true;drawLCD();drawDD();e.preventDefault()}}
 // A pattern sets every control except BYPASS, and replaces the cables. The sequencer keeps running if it was.
-function loadPattern(i){const Q=PATTERNS[i];cancel();hideMenu();
+function loadPattern(b,i){const Q=bankList(b)[i];if(!Q)return;cancel();hideMenu();
   C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,Q.params[c.id]??c.default,true)});
-  cables=Q.cables.map(([a,b,c])=>({a:jid(a),b:jid(b),c}));build();pattern=i;drawLCD();info.textContent="PATTERN "+plabel(i)}
+  cables=Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0);build();loaded={b,i};view=b;drawLCD();info.textContent="PATTERN "+plabel()}
+function savePattern(){const L=bankList(view);if(L.length>=MAXP){setMode(null);info.textContent=`BANK ${view} IS FULL`;return}
+  const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});
+  const name=(nameBuf.trim()||"PATTERN").slice(0,NCH-5);
+  user[view].push({name,params,cables:cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[J[c.a].id,J[c.b].id,c.c])});persist();
+  loaded={b:view,i:bankList(view).length-1};setMode(null);info.textContent="SAVED "+plabel()}
 $("clr").onclick=()=>{cancel();cables=[];build();info.textContent="Cables cleared"};
-loadPattern(0);loop();
+loadPattern("A",0);loop();
 </script>

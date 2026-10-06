@@ -18,11 +18,13 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 0.0; }
-    // The 10 factory patterns (assets/sq10_patterns.json) are the host's programs and the PATTERN screen's list.
-    int getNumPrograms() override { return juce::jmax(1, (int) patterns.size()); }
-    int getCurrentProgram() override { return currentPattern.load(); }
+    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory patterns (assets/sq10_patterns.json);
+    // SAVE appends the panel as the next number of a bank. Saved patterns go to a user file shared by every instance.
+    // The host sees bank A then bank B as one program list.
+    int getNumPrograms() override;
+    int getCurrentProgram() override;
     void setCurrentProgram(int) override;
-    const juce::String getProgramName(int i) override { return juce::isPositiveAndBelow(i, (int) patterns.size()) ? patterns[(size_t) i].name : juce::String(); }
+    const juce::String getProgramName(int) override;
     juce::AudioProcessorParameter* getBypassParameter() const override { return bypass; }
     void changeProgramName(int, const juce::String&) override {}
     void getStateInformation(juce::MemoryBlock&) override;
@@ -37,7 +39,13 @@ public:
     std::vector<CableSpec> getCables() const { return cables; }
     std::function<void()> onStateLoaded;                                 // editor reloads its cables
     struct Pattern { juce::String name; std::vector<std::pair<juce::String, float>> params; std::vector<CableSpec> cables; };
-    const std::vector<Pattern>& getPatterns() const { return patterns; }
+    static constexpr int kBankSize = 999;
+    juce::StringArray patternNames(int bank) const;
+    int loadedBank() const { return curBank.load(); }
+    int loadedPattern() const { return curPattern.load(); }
+    void loadPattern(int bank, int index);
+    int savePattern(int bank, const juce::String& name);                // returns the new index, or -1 when the bank is full
+    static juce::File userPatternFile();
     bool isBypassed() const { return bypass != nullptr && bypass->get(); }
 
     Sq10Module sq;                               // must come before apvts: the parameter layout is built from it
@@ -53,8 +61,13 @@ private:
     int maxBlock = 512;
     int midiNote[2] = { -1, -1 }; bool gatePrev[2] = { false, false };
     juce::AudioParameterBool* bypass = nullptr;  // TOP:BYPASS, the rocker at the top left
-    std::vector<Pattern> patterns;
-    std::atomic<int> currentPattern { 0 };
+    std::vector<Pattern> banks[2];
+    int factoryCount = 0;                        // bank A's first entries; never written to the user file
+    std::atomic<int> curBank { 0 }, curPattern { 0 };
+    juce::CriticalSection bankLock;
+    static Pattern patternFromVar(const juce::var&);
+    static juce::var patternToVar(const Pattern&);
+    void writeUserFile() const;
     void applyCables();
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout(const Sq10Module&);
 };

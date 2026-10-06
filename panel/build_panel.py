@@ -124,6 +124,9 @@ BP_RK=[round(M+4+NAME_W+28+tw("BYPASS",FL)+14+tw("OFF",FL)+6),CH_Y+5,40,20]     
 controls.append(dict(id="TOP:BYPASS",kind="switch",style="rocker",tone="dark",cx=BP_RK[0]+BP_RK[2]/2,cy=BP_RK[1]+BP_RK[3]/2,r=BP_RK[2]/2,default=0.0,positions=2,
                      angles=[-50,50],marks=["OFF","ON"],rect=BP_RK,hit=[BP_RK[0]-2,BP_RK[1]-4,BP_RK[2]+4,BP_RK[3]+8]))
 SCR_BEZEL=[680,CH_Y+1,240,28]; SCR_LCD=[684,CH_Y+5,232,20]; SCR_KEY=[926,CH_Y+3,26,24]   # same geometry as the MS-50 PRESET screen
+# bank lamps A and B right of the dropdown key (the lit one is the bank the list shows and SAVE writes to), then the SAVE key
+BANKS=[dict(id=b,cx=968+32*i,cy=CH_Y+15,r=4.5,hit=[958+32*i,CH_Y+3,30,24]) for i,b in enumerate("AB")]
+SAVE_KEY=[1032,CH_Y+3,26,24]
 # ---------------- checks ----------------
 bad=[]
 for i,a in enumerate(texts):
@@ -165,6 +168,11 @@ svg=(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}"
  f'<rect x="{SCR_KEY[0]}" y="{SCR_KEY[1]}" width="{SCR_KEY[2]}" height="{SCR_KEY[3]}" rx="3" fill="url(#bs)" stroke="#6f6a5a" stroke-width=".9"/>'
  f'<rect x="{SCR_KEY[0]}" y="{SCR_KEY[1]+SCR_KEY[3]-4}" width="{SCR_KEY[2]}" height="4" rx="2" fill="#7e7764" opacity=".55"/>'
  f'<polygon points="{SCR_KEY[0]+8},{SCR_KEY[1]+9} {SCR_KEY[0]+18},{SCR_KEY[1]+9} {SCR_KEY[0]+13},{SCR_KEY[1]+15}" fill="#2a2620"/>'
+ +"".join(f'<circle cx="{b["cx"]}" cy="{b["cy"]}" r="{b["r"]+2}" fill="#050505" stroke="#2a2a2c"/><g class="live"><circle cx="{b["cx"]}" cy="{b["cy"]}" r="{b["r"]}" fill="#4a0c08"/></g>'+tl(b["cx"]+9,b["id"]) for b in BANKS)
+ +f'<rect x="{SAVE_KEY[0]}" y="{SAVE_KEY[1]}" width="{SAVE_KEY[2]}" height="{SAVE_KEY[3]}" rx="3" fill="url(#bs)" stroke="#6f6a5a" stroke-width=".9"/>'
+ f'<rect x="{SAVE_KEY[0]}" y="{SAVE_KEY[1]+SAVE_KEY[3]-4}" width="{SAVE_KEY[2]}" height="4" rx="2" fill="#7e7764" opacity=".55"/>'
+ f'<rect x="{SAVE_KEY[0]+12}" y="{SAVE_KEY[1]+6}" width="2" height="10" fill="#2a2620"/><rect x="{SAVE_KEY[0]+8}" y="{SAVE_KEY[1]+10}" width="10" height="2" fill="#2a2620"/>'
+ +tl(SAVE_KEY[0]+SAVE_KEY[2]+6,"SAVE")+
  f'<rect x="{M}" y="{FR_T}" width="{AVAIL}" height="{FR_B-FR_T:.1f}" fill="none" stroke="{GOLD}" stroke-width="1.6"/>'
  +"".join(f'<line x1="{r}" y1="{FR_T}" x2="{r}" y2="{FR_B:.1f}" stroke="{GOLD}" stroke-width="1.6"/>' for r in rules)+"".join(P)
  +"".join(f'<g transform="translate({sx} {sy})"><circle r="5" fill="url(#js)" stroke="#000" stroke-width=".9"/><line x1="-3.5" x2="3.5" stroke="#1a1a1a" stroke-width="1.5"/><line y1="-3.5" y2="3.5" stroke="#1a1a1a" stroke-width="1.5"/></g>' for sx,sy in((9,9),(W-9,9),(9,H-9),(W-9,H-9)))+'</svg>')
@@ -210,5 +218,5 @@ o=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets")+"/"; os
 full=text_to_paths(svg.replace("</svg>",wear_svg()+"</svg>"))
 open(o+"sq10_panel.svg","w").write(full)                                              # every part at its default
 open(o+"sq10_panel_bg.svg","w").write(re.sub(r'<g class="live">.*?</g>',"",full))     # no live parts: the editor and web page draw those on top
-json.dump(dict(rack="SQ-10",canvas=[W,H],provisional=True,frame=[M,FR_T,AVAIL,round(FR_B-FR_T,1)],lane=[M,round(FR_B,1),AVAIL,round(H-FR_B,1)],screen=dict(bezel=SCR_BEZEL,lcd=SCR_LCD,button=SCR_KEY,chars=16),name=NAME,
+json.dump(dict(rack="SQ-10",canvas=[W,H],provisional=True,frame=[M,FR_T,AVAIL,round(FR_B-FR_T,1)],lane=[M,round(FR_B,1),AVAIL,round(H-FR_B,1)],screen=dict(bezel=SCR_BEZEL,lcd=SCR_LCD,button=SCR_KEY,save=SAVE_KEY,banks=BANKS,chars=17,listRows=10,bankSize=999),name=NAME,
   columns=cols,controls=controls,leds=leds,jacks=jacks,labels=[dict(text=t[4],rect=[round(t[0],1),round(t[1],1),round(t[2]-t[0],1),round(t[3]-t[1],1)]) for t in texts]),open(o+"sq10_layout.json","w"),indent=1)

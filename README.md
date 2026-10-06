@@ -42,10 +42,16 @@ Then `python web/build_web.py` rebuilds the web version.
 The panel reads BUSHIDO top left. It is 1600 x 434 design units, with no empty lane under the frame.
 - **BYPASS** (dark rocker top left, like the MS-50 POWER switch): left half OFF, right half ON. While ON the sequencer keeps
   stepping (lamps and clock carry on), host audio passes through dry, and no MIDI notes are sent. It is also the host's bypass parameter.
-- **PATTERN** (green dot-matrix screen, top centre, same style as the MS-50 PRESET screen): click it or its cream key for the list,
-  click a row or use the arrow keys and Enter. A pattern sets every knob and switch except BYPASS and replaces the cables.
-  The 16 patterns are also the host's programs. 01-10 are general patterns; 11-16 are acid lines (fast 16ths, octave jumps,
-  PORTA slides, TIME-mode gates or a CV C filter sweep, and 7- and 5-step loops from a TRIG cable into RESET).
+- **PATTERN** (green dot-matrix screen, top centre, same style as the MS-50 PRESET screen): two banks, A and B, of up to 999
+  patterns each. The lit lamp (A or B) right of the screen is the bank you browse and save to; click a lamp to switch.
+  Click the screen or its cream key to open the list; the screen turns into a search box (`FIND ...`), so type to filter by name
+  or number, use the arrow keys or the wheel, and click a row or press Enter. Esc closes. A pattern sets every knob and switch
+  except BYPASS and replaces the cables. Bank A starts with 16 factory patterns (A011-A016 are acid lines: fast 16ths, octave
+  jumps, PORTA slides, TIME-mode gates or a CV C filter sweep, and 7- and 5-step loops from a TRIG cable into RESET).
+- **SAVE** (cream key with +): stores the panel and its cables as the next number in the lit bank. The screen shows that number;
+  type a name and press Enter (or SAVE again). Saved patterns go to `BUSHIDO/user_patterns.json` in the user application-data
+  folder, shared by every instance; factory patterns are never overwritten. The host sees bank A then bank B as its program list.
+  The web version keeps saved patterns in the browser's local storage.
 - **Knobs and switches:** drag up/down (Shift = fine), mouse wheel, double-click = default. Click a switch to step through it.
   RANGE A / B are white rockers: press the left half for 1 V, the right half for 5 V. The selected side is the raised, lit half.
 - **Buttons:** START/STOP (cream key, its red lamp lights while running), STEP and RESET (black keys, no lamp).

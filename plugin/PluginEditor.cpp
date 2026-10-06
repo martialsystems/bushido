@@ -30,9 +30,10 @@ Sq10Editor::Sq10Editor(Sq10Processor& p) : AudioProcessorEditor(p), proc(p)
     addAndMakeVisible(cables);
     swatches = std::make_unique<Swatches>(cables); addAndMakeVisible(*swatches);
     screen = std::make_unique<PatternScreen>(layout.screen, layout.width);       // on top of the cables, so its list covers them
-    screen->names = [this] { juce::StringArray n; for (auto& p : proc.getPatterns()) n.add(p.name); return n; };
-    screen->current = [this] { return proc.getCurrentProgram(); };
-    screen->choose = [this](int i) { proc.setCurrentProgram(i); panel->repaint(); };
+    screen->names = [this](int bank) { return proc.patternNames(bank); };
+    screen->loaded = [this] { return std::pair<int, int> { proc.loadedBank(), proc.loadedPattern() }; };
+    screen->choose = [this](int bank, int i) { proc.loadPattern(bank, i); panel->repaint(); };
+    screen->save = [this](int bank, const juce::String& name) { const int i = proc.savePattern(bank, name); if (i >= 0) proc.updateHostDisplay(); return i; };
     addAndMakeVisible(*screen);
     addMouseListener(&cables, true);            // cables see the pointer everywhere (hover push-away), not only over jacks
     proc.onStateLoaded = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<Sq10Editor>(this)] { if (sp) sp->cables.setPatch(sp->proc.getCables()); }); };
