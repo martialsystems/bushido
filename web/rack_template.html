@@ -40,11 +40,12 @@ p b{color:var(--fg);font-weight:600}
   <button class="t" id="clr">Clear cables</button>
   <span class="grp"><label for="mon">BUSHIDO VCOs</label><select id="mon"><option value="ext">into RONIN EXT IN</option><option value="out">straight out</option><option value="off">off</option></select></span>
   <span class="grp"><label for="octA">VCO A</label><select id="octA"></select><label for="octB">VCO B</label><select id="octB"></select></span>
+  <span class="grp"><label for="top">On top</label><select id="top"><option value="S">BUSHIDO</option><option value="R">RONIN</option></select></span>
   <button class="t" id="xp" title="CV A to VCO HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1">Play RONIN's VCO</button>
   <span class="grp"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></span>
 </div>
 <div id="info" aria-live="polite"></div>
-<div class="sc"><div id="stage"><img src="__PANEL__" alt="BUSHIDO sequencer panel" draggable="false" style="top:0;height:__SQPCT__%"><img src="__RPANEL__" alt="RONIN synthesizer panel" draggable="false" style="top:__SQPCT__%;height:__RPCT__%"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g><g id="rlcd" role="img"></g><g id="rpw"></g><g id="rbt"></g><g id="rvu" clip-path="url(#vuclip)"></g><g id="rkn"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g><g id="rdd"></g></svg><div id="menu"></div></div></div>
+<div class="sc"><div id="stage"><img id="imS" src="__PANEL__" alt="BUSHIDO sequencer panel" draggable="false" style="top:0;height:__SQPCT__%"><img id="imR" src="__RPANEL__" alt="RONIN synthesizer panel" draggable="false" style="top:__SQPCT__%;height:__RPCT__%"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="shade"></g><g id="gS"><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g></g><g id="gR"><g id="rart"></g><g id="rlcd" role="img"></g><g id="rbanks"></g><g id="rpw"></g><g id="rbt"></g><g id="rvu" clip-path="url(#vuclip)"></g><g id="rkn"></g></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="gSo"><g id="dd"></g></g><g id="gRo"><g id="rdd"></g></g></svg><div id="menu"></div></div></div>
 <div class="readout">
   <div class="cell"><span class="k">Playing</span><span class="v" id="r-step">stopped · press START</span></div>
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
@@ -53,9 +54,9 @@ p b{color:var(--fg);font-weight:600}
   <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
   <div class="cell"><span class="k">RONIN</span><span class="v" id="r-ronin">–</span></div>
 </div>
-<p><b>Two instruments, one patch:</b> BUSHIDO (the SQ-10 sequencer) sits above RONIN (the MS-50 synth from the MS50Modular repo). They share one patch graph and one set of cables, so you can patch any BUSHIDO jack to any RONIN jack. The graph follows the MS-50's rules: Audio or CV into a Gate input is refused, a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high), and in a feedback loop the newest cable is delayed one sample. CV A into VCO HZ/V plays RONIN's VCO on the Hz/V law. <b>Play RONIN's VCO</b> sets that up for you: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default BUSHIDO's own two VCOs play into RONIN's EXT IN, the way a track feeds an effect in a DAW, so RONIN's presets (03 VOICE is the default) process them. Choose "straight out" to hear them dry, or "off".
-<b>RONIN:</b> click the screen or its key for the 13 factory presets (08 to 13 are the self-modulating patches, which play with no HOLD press). A preset sets RONIN's knobs and RONIN-only cables and leaves cables to BUSHIDO alone. Press and hold HOLD to open the EXT IN gate. The rocker is the plugin's Effect switch: off passes OUTPUT L/R dry, on blends in WET by MIX. Click a RONIN jack to point the meter at it (±5 V full scale); it starts on OUTPUT WET. VCA 1/2 INITIAL and MOD, the DIV RATIO SWITCH and the DIV /16 jack are not wired in the plugin either.
-<b>BUSHIDO patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, type to search, use the arrows or scroll, then click a row or press Enter. A pattern sets BUSHIDO's knobs, switches and its own cables. Bank A has 28 factory patterns (A011 to A016 acid, A017 to A028 90s scenes). <b>SAVE</b> stores the panel as the next number in the lit bank (type a name, then Enter). Saved patterns stay in this browser. <b>BYPASS</b> on keeps BUSHIDO stepping with its gates muted.
+<p><b>Two instruments, one patch:</b> BUSHIDO (the SQ-10 sequencer) and RONIN (the MS-50 synth from the MS50Modular repo) share one patch graph and one set of cables. Patch either way: BUSHIDO's CV and gates into RONIN, and RONIN's outputs back into BUSHIDO's CLOCK, TEMPO CV, START/STOP, STEP, RESET and MIXER inputs (an MG PULSE into CLOCK with SOURCE on EXT clocks the sequencer). <b>On top</b> picks which panel sits above; the one below gets a shadow along its top edge, and cables stay on their jacks. The graph follows the MS-50's rules: Audio or CV into a Gate input is refused, a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high), and in a feedback loop the newest cable is delayed one sample. CV A into VCO HZ/V plays RONIN's VCO on the Hz/V law. <b>Play RONIN's VCO</b> sets that up for you: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default BUSHIDO's own two VCOs play into RONIN's EXT IN, the way a track feeds an effect in a DAW, so RONIN's presets (03 VOICE is the default) process them. Choose "straight out" to hear them dry, or "off".
+<b>RONIN presets:</b> the same screen as BUSHIDO's: banks A and B of up to 999, click the PRESET screen or its key, type to search, arrows or scroll, Enter or click; SAVE stores RONIN's knobs, Effect switch and own cables as the next number in the lit bank. Bank A holds the 13 factory presets (A008 to A013 are the self-modulating patches, which play with no HOLD press). A factory preset sets RONIN's knobs and RONIN-only cables and leaves cables to BUSHIDO alone. Press and hold HOLD to open the EXT IN gate. The rocker is the plugin's Effect switch: off passes OUTPUT L/R dry, on blends in WET by MIX. Click a RONIN jack to point the meter at it (±5 V full scale); it starts on OUTPUT WET. VCA 1/2 INITIAL and MOD, the DIV RATIO SWITCH and the DIV /16 jack are not wired in this build (MS50Modular main at 5dcf0cc).<br><b>Rack patches (bank B on both screens):</b> B001 LOOP BASS (08 FILTER LOOP, the filter re-driving its own cutoff, with BUSHIDO's row C pushing the loop) and B002 RING SEED (13 SELF RING, woken by BUSHIDO's row C summed into RING B). Loading one from either screen sets both instruments and every cable, then press START. Details in sequenced_selfmod/README.md.
+<b>BUSHIDO patterns:</b> two banks, A and B, of up to 999 patterns each (bank B starts with the two rack patches); the lit lamp is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, type to search, use the arrows or scroll, then click a row or press Enter. A pattern sets BUSHIDO's knobs, switches and its own cables. Bank A has 28 factory patterns (A011 to A016 acid, A017 to A028 90s scenes). <b>SAVE</b> stores the panel as the next number in the lit bank (type a name, then Enter). Saved patterns stay in this browser. <b>BYPASS</b> on keeps BUSHIDO stepping with its gates muted.
 <b>Play:</b> START/STOP (or Space), STEP and RESET. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> drag the green digits next to TEMPO; DIV sets steps per beat (120 BPM at 1/16 is 8 steps per second).
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels.</p>
 </div>
@@ -68,7 +69,13 @@ const L=__LAYOUT__,RL=__RLAYOUT__,VW=L.canvas[0],VH=__H__,NS="http://www.w3.org/
 const DESC=RACK.describe(48000),RK=DESC.rack;   // port directions and types for every jack, RONIN's knob map and presets
 const J=L.jacks.map(j=>Object.assign({},j,{gid:"SQ-10/"+j.id,inst:"S"})).concat(RL.jacks.map(j=>{const id="MS-50/"+j.section+":"+j.label,d=DESC.ports[id];
   return {id,gid:id,x:j.x,y:j.y,section:j.section,label:j.label,dir:d?d.dir.toLowerCase():"",inst:"R"}}));
-const LABELS=L.labels.map(l=>l.rect).concat(RL.labels.map(l=>l.rect));
+J.forEach(j=>j.ly=j.y);
+const LAB0=L.labels.map(l=>[l.rect,0]).concat(RL.labels.map(l=>[l.rect,1]));let LABELS=LAB0.map(l=>l[0]);
+// Panel order. Layout space always has BUSHIDO on top (y 0 to SH) and RONIN under it (build_rack.py moved RONIN down by SH).
+// With RONIN on top, the screen shows RONIN at y 0 to RH and BUSHIDO under it. Controls hit-test in layout space (qx, qy);
+// jacks, cables and labels live in screen space (mx, my), so a cable between the two panels follows them when they swap.
+const SH=L.canvas[1],RH=VH-SH;let rTop=false;
+const offS=()=>rTop?RH:0,offR=()=>rTop?-SH:0,toLay=(x,y)=>!rTop?[x,y]:y<RH?[x,y+SH]:[x,y-RH];
 const $=id=>document.getElementById(id),sv=$("sv"),cab=$("cab"),ring=$("ring"),info=$("info"),menu=$("menu"),stage=$("stage");
 const COL={red:["#d23a30","#6e100c","#ff9a8a"],white:["#ece8da","#86836f","#fff"],yellow:["#eabd2c","#80600a","#fff2a8"],green:["#33a352","#10521f","#98e6aa"]};
 $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_${n}" cx=".38" cy=".32" r=".85"><stop offset="0" stop-color="${l}"/><stop offset=".35" stop-color="${b}"/><stop offset="1" stop-color="${k}"/></radialGradient>`).join("")+
@@ -77,6 +84,7 @@ $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_
  '<linearGradient id="ru" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f1"/><stop offset="1" stop-color="#dcd7c6"/></linearGradient><linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8e897a"/><stop offset="1" stop-color="#bdb8a6"/></linearGradient>'+
  '<linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4eedc"/><stop offset="1" stop-color="#b3ab94"/></linearGradient><radialGradient id="bd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#f8f3e4"/><stop offset="1" stop-color="#d0c8b2"/></radialGradient>'+
  '<linearGradient id="bk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4a4e"/><stop offset="1" stop-color="#0e0e10"/></linearGradient><radialGradient id="bkd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#36363a"/><stop offset="1" stop-color="#161618"/></radialGradient>'+
+ '<linearGradient id="shd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".92"/><stop offset=".3" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>'+
  '<linearGradient id="lcdg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f9a7c"/><stop offset=".5" stop-color="#a6b192"/><stop offset="1" stop-color="#94a083"/></linearGradient>'+
  '<linearGradient id="vug" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff8e0" stop-opacity=".3"/><stop offset=".45" stop-color="#fff1c8" stop-opacity=".06"/><stop offset="1" stop-color="#e8c870" stop-opacity=".08"/></linearGradient>'+
  `<clipPath id="vuclip"><rect x="${RL.meter.face[0]}" y="${RL.meter.face[1]}" width="${RL.meter.face[2]}" height="${RL.meter.face[3]}" rx="2"/></clipPath>`+
@@ -123,7 +131,7 @@ function describe(c){const v=P[c.id];
 const ctlAt=(x,y)=>C.findIndex(c=>x>=c.hit[0]&&x<=c.hit[0]+c.hit[2]&&y>=c.hit[1]&&y<=c.hit[1]+c.hit[3]);
 
 // ================= cables (same model as the MS-50 patch bay) =================
-let lab=null,ptrIn=false,cur="red",cables=[],hov=-1,mx=0,my=0,grab=null,down=null,ignoreUp=false;const N=36,R=40,RP=28,PADL=10;
+let lab=null,ptrIn=false,cur="red",cables=[],hov=-1,mx=0,my=0,qx=0,qy=0,grab=null,down=null,ignoreUp=false;const N=36,R=40,RP=28,PADL=10;
 $("sws").innerHTML=Object.keys(COL).map(c=>`<button class="sw${c==cur?" on":""}" data-c="${c}" aria-label="${c} cable" style="background:${COL[c][0]}"></button>`).join("");
 $("sws").onclick=e=>{const c=e.target.dataset.c;if(!c)return;cur=c;[...$("sws").children].forEach(b=>b.classList.toggle("on",b.dataset.c==c))};
 function plug(x,y,c,k){x-=2*k;y-=3*k;const r=12*(1+.04*k);return `<circle cx="${x+2}" cy="${y+3}" r="${r+1.5}" fill="#000" opacity=".4"/><circle cx="${x}" cy="${y}" r="${r}" fill="url(#g_${c})" stroke="${COL[c][1]}" stroke-width="1.4"/><circle cx="${x}" cy="${y}" r="${r*.62}" fill="url(#sl)" stroke="#3a3a3a" stroke-width=".8"/><circle cx="${x}" cy="${y}" r="${r*.36}" fill="#050505"/><ellipse cx="${x-r*.4}" cy="${y-r*.55}" rx="${r*.38}" ry="${r*.2}" fill="#fff" opacity=".35" transform="rotate(-30 ${x-r*.4} ${y-r*.55})"/>`}
@@ -158,7 +166,7 @@ function push(c,p){const g=grab&&cables[grab.i]===c;
     if(n[1]>VH-8)n[1]=VH-8}}
 function labelAt(x,y){for(const r of LABELS){if(x>=r[0]-3&&x<=r[0]+r[2]+3&&y>=r[1]-3&&y<=r[1]+r[3]+3)return r}return null}
 function paint(){for(const c of cables){const d=dstr(c.p);c.el.forEach(e=>e.setAttribute("d",d))}}
-function pt(e){const r=sv.getBoundingClientRect();mx=(e.clientX-r.left)/r.width*VW;my=(e.clientY-r.top)/r.height*VH}
+function pt(e){const r=sv.getBoundingClientRect();mx=(e.clientX-r.left)/r.width*VW;my=(e.clientY-r.top)/r.height*VH;[qx,qy]=toLay(mx,my)}
 function near(){let b=-1,bd=17;J.forEach((j,i)=>{const d=Math.hypot(j.x-mx,j.y-my);if(d<bd){bd=d;b=i}});return b}
 const jname=j=>J[j].inst=="R"?"RONIN "+J[j].section+" · "+J[j].label+(DESC.ports[J[j].gid]?"":" (not wired in the plugin)"):"BUSHIDO "+(/^\d+$/.test(J[j].section)?"TRIG "+J[j].section:J[j].section+" · "+J[j].label);
 function setHov(h){hov=h;ring.innerHTML=h<0?"":`<circle cx="${J[h].x}" cy="${J[h].y}" r="16" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="1.5"/>`;if(grab)info.textContent="Drop on a jack to plug in · empty space to unplug · Esc to cancel";else if(h>=0)info.textContent=jname(h)+(J[h].dir=="in"?" (input)":" (output)")}
@@ -187,28 +195,33 @@ menu.addEventListener("pointerup",()=>{if(!mdrag)return;const m=mdrag;mdrag=null
 menu.addEventListener("click",e=>{if(mjustDragged){mjustDragged=false;return}const b=e.target.closest("button");if(!b)return;const j=+menu.dataset.j;hideMenu();if(b.dataset.n)newCable(j,true);else startGrab(+b.dataset.i,b.dataset.e,true)});
 
 // ================= pointer: controls first, then jacks =================
+// Controls hit-test at (qx, qy), the layout point under the pointer. Jacks and cables use (mx, my) on screen.
 let kdrag=null;
-sv.addEventListener("wheel",e=>{pt(e);if(scrMode=="search"&&ddRowAt(mx,my)>=0){e.preventDefault();scrollList(Math.sign(e.deltaY));return}
-  const ri=rKnobAt(mx,my);if(ri>=0&&!rOpen){e.preventDefault();const k=KN[ri];rSetKnob(ri,k.v+(isSw(k)?-Math.sign(e.deltaY)*.5:-e.deltaY*(e.shiftKey?.0002:.001)));return}const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];
+const openScreen=()=>SCREENS.find(o=>o.mode);
+sv.addEventListener("wheel",e=>{pt(e);const o=openScreen();if(o){if(o.mode=="search"&&o.rowAt(qx,qy)>=0){e.preventDefault();o.scroll(Math.sign(e.deltaY))}return}
+  const ri=rKnobAt(qx,qy);if(ri>=0){e.preventDefault();const k=KN[ri];rSetKnob(ri,k.v+(isSw(k)?-Math.sign(e.deltaY)*.5:-e.deltaY*(e.shiftKey?.0002:.001)));return}const i=ctlAt(qx,qy);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];
   if(c.kind=="readout"){if(P["CLOCK:SOURCE"]<=.5){const st=e.shiftKey?.1:1;setP("CLOCK:TEMPO",tempoFor(Math.round((bpmNow()-Math.sign(e.deltaY)*st)/st)*st),true);info.textContent=describe(c)}return}
   setP(c.id,P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)))},{passive:false});
-sv.addEventListener("dblclick",e=>{pt(e);const ri=rKnobAt(mx,my);if(ri>=0){rSetKnob(ri,KN[ri].def);return}const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;const id=C[i].kind=="readout"?C[i].param:C[i].id;setP(id,C[C.findIndex(c=>c.id==id)].def)});
+sv.addEventListener("dblclick",e=>{pt(e);if(openScreen())return;const ri=rKnobAt(qx,qy);if(ri>=0){rSetKnob(ri,KN[ri].def);return}const i=ctlAt(qx,qy);if(i<0||C[i].kind=="button")return;const id=C[i].kind=="readout"?C[i].param:C[i].id;setP(id,C[C.findIndex(c=>c.id==id)].def)});
 sv.addEventListener("pointermove",e=>{pt(e);if(kdrag&&kdrag.bpm!==undefined){const dy=kdrag.y-e.clientY,b=kdrag.bpm+(e.shiftKey?dy*.05:dy*.5),st=e.shiftKey?.1:1;
     setP("CLOCK:TEMPO",tempoFor(Math.round(b/st)*st),true);info.textContent=describe(C[kdrag.i]);return}
   if(kdrag&&kdrag.r){const k=KN[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;rSetKnob(kdrag.i,kdrag.v+dy/(isSw(k)?60:e.shiftKey?1000:200));return}
-  if(rOpen){const r=rRowAt(mx,my);if(r>=0&&r!=rHi){rHi=r;drawRDD()}sv.style.cursor=r>=0?"pointer":"default";return}
-  if(scrMode){const r=ddRowAt(mx,my);if(r>=0&&r!=ddHi){ddHi=r;drawDD()}sv.style.cursor=r>=0||bankAt(mx,my)>=0?"pointer":"default";return}if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
-  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=onScreenKey(mx,my)||onRKey(mx,my)?"pointer":rKnobAt(mx,my)>=0?"ns-resize":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"||C[ctlAt(mx,my)].kind=="readout"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
+  const o=openScreen();if(o){const r=o.rowAt(qx,qy);if(r>=0&&r!=o.hi){o.hi=r;o.drawList()}sv.style.cursor=r>=0||o.bankAt(qx,qy)>=0?"pointer":"default";return}
+  if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
+  ptrIn=true;lab=labelAt(mx,my);setHov(near());const ci=ctlAt(qx,qy);
+  sv.style.cursor=SCREENS.some(o=>o.onKey(qx,qy))||onRKey(qx,qy)?"pointer":rKnobAt(qx,qy)>=0?"ns-resize":ci>=0?(C[ci].kind=="knob"||C[ci].kind=="readout"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
   if(down&&!grab&&Math.hypot(mx-down.x,my-down.y)>6){down.moved=true;const pl=plugsAt(down.j);if(pl.length&&!down.shift){const p=pl[pl.length-1];startGrab(p.i,p.e,false)}else newCable(down.j,false)}});
 sv.addEventListener("pointerleave",()=>{ptrIn=false;lab=null;if(!grab)setHov(-1)});
-sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();audio();if(screenDown(mx,my))return;
+sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();audio();
+  const o=openScreen();if(o){o.down(qx,qy);return}            // an open list or name entry takes the click
+  if(SCREENS.some(o=>o.down(qx,qy)))return;
   if(rDown(e))return;
   if(grab&&grab.carry){drop();ignoreUp=true;return}
-  const ci=ctlAt(mx,my);
+  const ci=ctlAt(qx,qy);
   if(ci>=0){const c=C[ci];
     if(c.kind=="button"){pressed=ci;drawCtl(ci);sv.setPointerCapture(e.pointerId);press(c.id);return}
-    if(c.style=="rocker"){setP(c.id,mx>c.cx?1:0);return}
-    if(c.kind=="readout"){if(P["CLOCK:SOURCE"]<=.5){kdrag={i:ci,y:e.clientY,bpm:Math.round(bpmNow()*10)/10};sv.setPointerCapture(e.pointerId)}info.textContent=describe(c);return}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
+    if(c.style=="rocker"){setP(c.id,qx>c.cx?1:0);return}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
+    if(c.kind=="readout"){if(P["CLOCK:SOURCE"]<=.5){kdrag={i:ci,y:e.clientY,bpm:Math.round(bpmNow()*10)/10};sv.setPointerCapture(e.pointerId)}info.textContent=describe(c);return}
     kdrag={i:ci,y:e.clientY,v:P[c.id],moved:false};sv.setPointerCapture(e.pointerId);return}
   const h=near();if(h>=0){down={j:h,x:mx,y:my,moved:false,shift:e.shiftKey};sv.setPointerCapture(e.pointerId)}});
 sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pressed=null;drawCtl(i);return}
@@ -218,9 +231,16 @@ sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pre
   if(ignoreUp){ignoreUp=false;down=null;return}
   if(grab&&!grab.carry){drop();down=null;return}
   if(down&&!down.moved){if(isR(down.j)&&DESC.ports[J[down.j].gid])setMeter(down.j);if(plugsAt(down.j).length)showMenu(down.j)}down=null});
-addEventListener("keydown",e=>{if(rOpen){rKey(e);return}if(scrMode){screenKey(e);return}
+addEventListener("keydown",e=>{const o=openScreen();if(o){o.key(e);return}
   if(e.key=="Escape"){hideMenu();cancel()}
   if(e.code=="Space"&&!/^(BUTTON|SELECT|INPUT)$/.test(document.activeElement.tagName)){e.preventDefault();press("MODE:START/STOP")}});
+// Which panel is on top. The panel underneath gets a shadow along its top edge, cast by the one above.
+function applyOrder(){$("imS").style.top=(rTop?RH/VH*100:0)+"%";$("imR").style.top=(rTop?0:SH/VH*100)+"%";
+  ["gS","gSo"].forEach(id=>$(id).setAttribute("transform",`translate(0 ${offS()})`));["gR","gRo"].forEach(id=>$(id).setAttribute("transform",`translate(0 ${offR()})`));
+  const y=rTop?RH:SH;$("shade").innerHTML=`<rect x="0" y="${y}" width="${VW}" height="46" fill="url(#shd)"/><rect x="0" y="${y}" width="${VW}" height="1.2" fill="#000" opacity=".85"/>`;
+  J.forEach(j=>j.y=j.ly+(j.inst=="S"?offS():offR()));LABELS=LAB0.map(([r,k])=>[r[0],r[1]+(k?offR():offS()),r[2],r[3]]);
+  cancel();hideMenu();setHov(-1);cables.forEach(c=>{c.p=null});build()}
+$("top").onchange=()=>{rTop=$("top").value=="R";try{localStorage.setItem("rack.top",$("top").value)}catch(e){}applyOrder();info.textContent=(rTop?"RONIN":"BUSHIDO")+" is on top · cables keep their jacks"};
 function loop(){if(grab)pins(cables[grab.i]);step();paint();frame();requestAnimationFrame(loop)}
 
 // ================= audio: one engine runs both instruments in one patch graph (AudioWorklet, ScriptProcessor fallback) =================
@@ -258,7 +278,7 @@ function frame(){const q=st&&st.sq;setLed("MODE:RUN",!!(q&&q.running));vuStep();
   $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${Math.max(0,q.pos)+1}`]).toFixed(0)}% of the step</small>`:`${q.cv[2].toFixed(2)} V`;
   if(q.gate[q.jk])lastNote={jk:q.jk,v:q.cv[q.jk]};
   const n=lastNote?midiOf(lastNote.v):-1;$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":!lastNote?"–":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${lastNote.jk+1} · ${(55*lastNote.v).toFixed(1)} Hz on a Hz/V VCO</small>`;
-  $("r-ronin").innerHTML=`${RPRE[rPre].screen} <small>· effect ${power?"on":"off"} · meter on ${meterId} ${(st.meter*5).toFixed(2)} V${st.delayed?" · 1 cable delayed a sample":""}</small>`}
+  $("r-ronin").innerHTML=`${RS.label()} <small>· effect ${power?"on":"off"} · meter on ${meterId} ${(st.meter*5).toFixed(2)} V${st.delayed?" · 1 cable delayed a sample":""}</small>`}
 
 // ================= RONIN panel: knobs, HOLD, Effect rocker, meter, preset screen (same behaviour as the MS-50 plugin) =================
 const RSCR=RL.screen,POWER=RL.power,METER=RL.meter,HOLDB=RL.buttons[0],RPRE=RK.presets;
@@ -269,7 +289,7 @@ const drawKnob=i=>{const k=KN[i];rknEls[i].innerHTML=knobBody(k.cx,k.cy,k.radius
 function rSetKnob(i,v,quiet){const k=KN[i];v=Math.min(1,Math.max(0,v));if(isSw(k))v=Math.round(v*2)/2;k.v=v;drawKnob(i);if(k.live)send({t:"knob",id:k.id,v});
   if(!quiet)info.textContent="RONIN "+k.section+" · "+(isSw(k)?"÷ "+["2","4","16"][v*2]:k.label+" "+v.toFixed(2))+(k.live?"":" · not wired in the plugin")}
 const rKnobAt=(x,y)=>KN.findIndex(k=>inR(k.hit,x,y));
-let hold=false,holdDown=false,power=false,meterId="OUTPUT:WET",vuA=METER.minAngle,rPre=RK.defaultPreset,rOpen=false,rHi=0;
+let hold=false,holdDown=false,power=false,meterId="OUTPUT:WET",vuA=METER.minAngle,rPre=RK.defaultPreset;   // rPre: the factory program RONIN last started from
 function drawHold(){const b=HOLDB;$("rbt").innerHTML=(hold?`<circle cx="${b.cx}" cy="${b.cy}" r="24" fill="url(#lg)"/>`:"")+keyBody(b.cx,b.cy,false,hold)}
 function setHold(on){hold=on;drawHold();send({t:"hold",on});info.textContent=on?"RONIN HOLD · EXT IN GATE open while held":"RONIN HOLD released"}
 function drawPower(){const[x,y,w,h]=POWER.rocker;$("rpw").innerHTML=rockerBody(x,y,w,h,power,true)}
@@ -278,24 +298,29 @@ $("rvu").innerHTML=`<line id="vuN" x1="${METER.pivot[0]}" y1="${METER.pivot[1]}"
 function vuStep(){const u=st?st.meter:0,tgt=METER.minAngle+(METER.maxAngle-METER.minAngle)*(u+1)/2;vuA+=(tgt-vuA)*.3;   // ±5 V across the arc, as PatchBayView draws it
   const[px,py]=METER.pivot,r=METER.radius+5*(METER.scale||1),a=vuA*Math.PI/180,n=$("vuN");n.setAttribute("x2",(px+r*Math.sin(a)).toFixed(2));n.setAttribute("y2",(py-r*Math.cos(a)).toFixed(2))}
 function setMeter(j){meterId=J[j].gid.slice(6);send({t:"meter",id:meterId});info.textContent="RONIN meter now reads "+meterId}
-const RROW=21,RPAD=5,rBox=()=>[RSCR.bezel[0],RSCR.bezel[1]+RSCR.bezel[3]+3,RSCR.button[0]+RSCR.button[2]-RSCR.bezel[0],RPAD*2+RPRE.length*RROW-3];
-function drawRLCD(){const r=RSCR.lcd,t=RPRE[rPre].screen;$("rlcd").setAttribute("aria-label","RONIN preset "+t);$("rlcd").innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09,RSCR.chars)}
-function rRowAt(x,y){const b=rBox();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-RPAD)/RROW);return i>=0&&i<RPRE.length?i:-1}
-function drawRDD(){const el=$("rdd");if(!rOpen){el.innerHTML="";return}const b=rBox();
-  let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
-  RPRE.forEach((p,i)=>{const x=b[0]+RPAD,y=b[1]+RPAD+i*RROW,w=b[2]-RPAD*2,h=RROW-3,hi=i==rHi;
-    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,((i==rPre?">":" ")+p.screen).slice(0,RSCR.chars+1),hi?"#a6b192":"#1e2419",hi?.08:.09,RSCR.chars+1)});
-  el.innerHTML=s}
-function rSetOpen(o){rOpen=o;rHi=rPre;drawRDD()}
 const isR=i=>i>=0&&J[i].inst=="R",isS=i=>i>=0&&J[i].inst=="S",gidx=g=>J.findIndex(j=>j.gid==g);
 const colFor=g=>{const d=DESC.ports[g];return !d?"white":d.type=="Audio"?"red":d.type=="CV"?"yellow":"white"};
 // A RONIN preset sets RONIN's knobs, Effect switch and RONIN-only cables, and resets its modules, as setCurrentProgram does.
 // Cables between BUSHIDO and RONIN, and BUSHIDO's own, stay.
-function loadRPreset(i){const p=RPRE[i];cancel();hideMenu();send({t:"preset",i});rPre=i;
+function rProgram(i){const p=RPRE[i];send({t:"preset",i});rPre=i;
   KN.forEach((k,ki)=>{if(p.knobs[k.id]!==undefined){k.v=p.knobs[k.id];drawKnob(ki)}});
-  power=p.power;drawPower();send({t:"power",on:power});
-  cables=cables.filter(c=>!(isR(c.a)&&isR(c.b))).concat(p.cables.map(([a,b])=>({a:gidx("MS-50/"+a),b:gidx("MS-50/"+b),c:/OUTPUT/.test(b)?"green":colFor("MS-50/"+a)}))).filter(c=>c.a>=0&&c.b>=0);
-  build();drawRLCD();info.textContent="RONIN PRESET "+p.screen}
+  power=p.power;drawPower();send({t:"power",on:power});return p}
+const rCable=([a,b])=>({a:gidx(a),b:gidx(b),c:/OUTPUT/.test(b)?"green":colFor(a)});
+function loadRPreset(i){const p=rProgram(i);
+  cables=cables.filter(c=>!(isR(c.a)&&isR(c.b))).concat(p.cables.map(([a,b])=>rCable(["MS-50/"+a,"MS-50/"+b]))).filter(c=>c.a>=0&&c.b>=0);build()}
+// A saved RONIN preset: the factory program it started from, then every knob, the Effect switch and RONIN's own cables.
+function loadRUser(Q){rProgram(Q.base);KN.forEach((k,ki)=>{if(Q.knobs[k.id]!==undefined)rSetKnob(ki,Q.knobs[k.id],true)});
+  power=!!Q.power;drawPower();send({t:"power",on:power});
+  cables=cables.filter(c=>!(isR(c.a)&&isR(c.b))).concat(Q.cables.map(([a,b,c])=>({a:gidx(a),b:gidx(b),c}))).filter(c=>c.a>=0&&c.b>=0);build()}
+function saveRUser(name){const knobs={};KN.forEach(k=>knobs[k.id]=+k.v.toFixed(4));
+  return {name,base:rPre,knobs,power,cables:cables.filter(c=>isR(c.a)&&isR(c.b)).map(c=>[J[c.a].gid,J[c.b].gid,c.c])}}
+// A rack patch sets both instruments and replaces every cable, oldest first (the newest loop-closing cable is the delayed one).
+// RONIN starts from its factory program, then the patch's knobs. BUSHIDO's controls not named go to their defaults. Its VCOs go off.
+function loadRack(R){rProgram(R.preset);KN.forEach((k,ki)=>{if(R.knobs[k.id]!==undefined)rSetKnob(ki,R.knobs[k.id],true)});
+  power=R.power!==false;drawPower();send({t:"power",on:power});
+  C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,R.params[c.id]??c.default,true)});
+  $("mon").value=R.monitor||"off";send(monMsg());
+  cables=R.cables.map(rCable).filter(c=>c.a>=0&&c.b>=0);build()}
 // One click: BUSHIDO plays RONIN's VCO (CV A on the Hz/V input, GATE A as EG 1's S-trig), through VCF and VCA 1 to OUTPUT WET.
 $("xp").onclick=()=>{cancel();hideMenu();audio();
   const X=[["SQ-10/OUTPUTS:CV A","MS-50/VCO:HZ/V","yellow"],["SQ-10/OUTPUTS:GATE A","MS-50/EG 1:TRIG","white"],["MS-50/VCO:SAW","MS-50/VCF:IN","red"],["MS-50/VCF:OUT","MS-50/VCA 1:IN","red"],
@@ -306,16 +331,12 @@ $("xp").onclick=()=>{cancel();hideMenu();audio();
   if(!power)setPower(true);$("mon").value="off";send(monMsg());
   info.textContent="BUSHIDO CV A and GATE A now play RONIN's VCO · BUSHIDO's own VCOs are off · press START"};
 function rDown(e){
-  if(rOpen){const r=rRowAt(mx,my);if(r>=0)loadRPreset(r);rSetOpen(false);return true}
   if(grab)return false;
-  if(inR(RSCR.bezel,mx,my)||inR(RSCR.button,mx,my)){rSetOpen(true);return true}
-  if(inR(HOLDB.hit,mx,my)){holdDown=true;setHold(true);sv.setPointerCapture(e.pointerId);return true}
-  if(inR(POWER.off,mx,my)){setPower(false);return true}if(inR(POWER.on,mx,my)){setPower(true);return true}
-  const ki=rKnobAt(mx,my);if(ki>=0){kdrag={r:true,i:ki,y:e.clientY,v:KN[ki].v,moved:false};sv.setPointerCapture(e.pointerId);return true}
+  if(inR(HOLDB.hit,qx,qy)){holdDown=true;setHold(true);sv.setPointerCapture(e.pointerId);return true}
+  if(inR(POWER.off,qx,qy)){setPower(false);return true}if(inR(POWER.on,qx,qy)){setPower(true);return true}
+  const ki=rKnobAt(qx,qy);if(ki>=0){kdrag={r:true,i:ki,y:e.clientY,v:KN[ki].v,moved:false};sv.setPointerCapture(e.pointerId);return true}
   return false}
-function rKey(e){if(e.key=="ArrowDown"){rHi=(rHi+1)%RPRE.length;drawRDD();e.preventDefault()}else if(e.key=="ArrowUp"){rHi=(rHi+RPRE.length-1)%RPRE.length;drawRDD();e.preventDefault()}
-  else if(e.key=="Enter"){loadRPreset(rHi);rSetOpen(false);e.preventDefault()}else if(e.key=="Escape"){rSetOpen(false);e.preventDefault()}}
-const onRKey=(x,y)=>inR(RSCR.bezel,x,y)||inR(RSCR.button,x,y)||inR(HOLDB.hit,x,y)||inR(POWER.rocker,x,y);
+const onRKey=(x,y)=>inR(HOLDB.hit,x,y)||inR(POWER.rocker,x,y);
 // Can these two jacks take a cable? Same answers as PatchGraph::attemptConnect.
 function legal(a,b){const pa=DESC.ports[J[a].gid],pb=DESC.ports[J[b].gid];if(!pa||!pb)return null;
   if(pa.dir==pb.dir)return pa.dir=="Out"?"Two outputs can't be patched together":"Two inputs can't be patched together";
@@ -331,78 +352,98 @@ const FONT={" ":[0,0,0,0,0,0,0],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14]
 "P":[30,17,17,30,16,16,16],"Q":[14,17,17,17,21,18,13],"R":[30,17,17,30,20,18,17],"S":[15,16,16,14,1,1,30],"T":[31,4,4,4,4,4,4],
 "U":[17,17,17,17,17,17,14],"V":[17,17,17,17,17,10,4],"W":[17,17,17,21,21,21,10],"X":[17,17,10,4,10,17,17],"Y":[17,17,17,10,4,4,4],
 "Z":[31,1,2,4,8,16,31],"&":[12,18,20,8,21,18,13],"-":[0,0,0,31,0,0,0],"+":[0,4,4,31,4,4,0],"/":[0,1,2,4,8,16,0],".":[0,0,0,0,0,12,12],">":[8,4,2,1,2,4,8]};
-// Two banks, A and B, of up to 999 patterns each. Bank A starts with the factory patterns; SAVE adds the next number to the
-// bank whose lamp is lit. Saved patterns stay in this browser (localStorage), so they survive a reload.
+// Each instrument's screen holds two banks, A and B, of up to 999 entries. Click the screen or its key for the list, type to
+// search, arrows or scroll, then click a row or press Enter. SAVE adds the panel as the next number in the bank whose lamp is lit.
+// Saved entries stay in this browser (localStorage), so they survive a reload. Bank B starts with the rack patches on both screens.
 const BANK=["A","B"],MAXP=SCREEN.bankSize||999,ROWS=SCREEN.listRows||10,NCH=SCREEN.chars;
 readyDots=true;drawReadouts();
-let user={A:[],B:[]};try{const u=JSON.parse(localStorage.getItem("bushido.patterns")||"null");if(u&&Array.isArray(u.A)&&Array.isArray(u.B))user=u}catch(e){}
-const bankList=b=>b=="A"?PATTERNS.concat(user.A):user.B;
-function persist(){try{localStorage.setItem("bushido.patterns",JSON.stringify(user))}catch(e){}}
-let loaded={b:"A",i:0},view="A",scrMode=null,query="",nameBuf="",ddHi=0,ddTop=0,blink=true;
+const RACKP=__RACKP__;
 const pad3=n=>String(n).padStart(3,"0");
-const prow=(b,i)=>(pad3(i+1)+" "+bankList(b)[i].name).toUpperCase().slice(0,NCH-1);
-const plabel=()=>bankList(loaded.b)[loaded.i]?(loaded.b+prow(loaded.b,loaded.i)).slice(0,NCH):"";
-const DD_ROW=21,DD_PAD=5,ddBox=()=>[SCREEN.bezel[0],SCREEN.bezel[1]+SCREEN.bezel[3]+3,SCREEN.button[0]+SCREEN.button[2]-SCREEN.bezel[0],DD_PAD*2+Math.max(1,Math.min(ROWS,matches().length))*DD_ROW-3];
+const DD_ROW=21,DD_PAD=5;
 const inR=(r,x,y)=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3];
-const bankAt=(x,y)=>SCREEN.banks.findIndex(k=>inR(k.hit,x,y));
-const onScreenKey=(x,y)=>inR(SCREEN.bezel,x,y)||inR(SCREEN.button,x,y)||inR(SCREEN.save,x,y)||bankAt(x,y)>=0;
-function matches(){const L=bankList(view),q=query.trim();return L.map((p,i)=>i).filter(i=>!q||(pad3(i+1)+" "+L[i].name).toUpperCase().includes(q))}
+const lamp=(cx,cy,r,on)=>(on?`<circle cx="${cx}" cy="${cy}" r="${r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${cx-r*.3}" cy="${cy-r*.3}" r="${r*.35}" fill="#ffd2c8" opacity=".8"/>`:"");
 function dots(x,y,w,h,text,ink,ghost,n=NCH){const p=Math.min(w/(n*6),h/8),d=p*.86,ox=x+(w-n*6*p)/2+p*.5,oy=y+(h-7*p)/2;let g="",l="";
   for(let c=0;c<n;c++){const f=FONT[text[c]||" "]||FONT[" "];for(let r=0;r<7;r++)for(let b=0;b<5;b++){const s=`<rect x="${(ox+(c*6+b)*p).toFixed(2)}" y="${(oy+r*p).toFixed(2)}" width="${d.toFixed(2)}" height="${d.toFixed(2)}"/>`;if((f[r]>>(4-b))&1)l+=s;else g+=s}}
   return `<g fill="${ink}" opacity="${ghost}">${g}</g><g fill="${ink}" opacity=".9">${l}</g>`}
-function lcdText(){const cur=blink?"_":" ";
-  if(scrMode=="search")return ("FIND "+query+cur).slice(-NCH);
-  if(scrMode=="name")return (view+pad3(bankList(view).length+1)+" "+nameBuf+cur).slice(0,NCH);
-  return plabel()}
-function drawLCD(){const r=SCREEN.lcd,t=lcdText(),el=$("lcd");el.setAttribute("aria-label",scrMode?t:"Pattern "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09);drawBanks()}
-function drawBanks(){$("banks").innerHTML=SCREEN.banks.map(k=>{const on=k.id==view;return (on?`<circle cx="${k.cx}" cy="${k.cy}" r="${k.r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${k.cx}" cy="${k.cy}" r="${k.r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${k.cx-k.r*.3}" cy="${k.cy-k.r*.3}" r="${k.r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}).join("")}
-function ddRowAt(x,y){if(scrMode!="search")return -1;const b=ddBox();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW),M=matches();return i>=0&&ddTop+i<M.length&&i<ROWS?ddTop+i:-1}
-function drawDD(){const el=$("dd");if(scrMode!="search"){el.innerHTML="";return}const b=ddBox(),M=matches(),L=bankList(view);
-  let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
-  const row=(k,txt,hi)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+k*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3;
-    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,txt,hi?"#a6b192":"#1e2419",hi?.08:.09)};
-  if(!M.length)s+=row(0,L.length?" NO MATCH":" BANK "+view+" IS EMPTY",false);
-  M.slice(ddTop,ddTop+ROWS).forEach((i,k)=>{s+=row(k,(loaded.b==view&&loaded.i==i?">":" ")+prow(view,i),ddTop+k==ddHi)});
-  if(M.length>ROWS){const h=b[3]-8,y=b[1]+4+h*ddTop/M.length;s+=`<rect x="${b[0]+b[2]-4}" y="${y.toFixed(1)}" width="2" height="${(h*ROWS/M.length).toFixed(1)}" rx="1" fill="#c29f4c" opacity=".7"/>`}   // scroll position
-  el.innerHTML=s}
-function keepHiVisible(){if(ddHi<ddTop)ddTop=ddHi;if(ddHi>=ddTop+ROWS)ddTop=ddHi-ROWS+1}
-function scrollList(d){const n=matches().length;ddTop=Math.max(0,Math.min(Math.max(0,n-ROWS),ddTop+d));drawDD()}
-function setMode(m){scrMode=m;blink=true;if(m=="search"){query="";const M=matches();ddHi=Math.max(0,loaded.b==view?M.indexOf(loaded.i):0);ddTop=0;keepHiVisible()}if(m=="name")nameBuf="";drawLCD();drawDD()}
-function setView(b){view=b;if(scrMode=="search"){query="";ddHi=0;ddTop=0}drawLCD();drawDD()}
-setInterval(()=>{if(scrMode){blink=!blink;drawLCD()}},450);
-// returns true when the click belonged to the PATTERN screen, its keys or its list
-function screenDown(x,y){const k=bankAt(x,y);
-  if(k>=0){setView(BANK[k]);return true}
-  if(scrMode=="search"){const r=ddRowAt(x,y);if(r>=0){loadPattern(view,matches()[r]);setMode(null);return true}
-    if(inR(SCREEN.bezel,x,y)||inR(SCREEN.button,x,y)){setMode(null);return true}setMode(null);return true}
-  if(scrMode=="name"){if(inR(SCREEN.save,x,y)){savePattern();return true}setMode(null);return true}
-  if(grab)return false;
-  if(inR(SCREEN.bezel,x,y)||inR(SCREEN.button,x,y)){setMode("search");return true}
-  if(inR(SCREEN.save,x,y)){if(bankList(view).length>=MAXP){info.textContent=`BANK ${view} IS FULL (${MAXP} patterns)`;return true}setMode("name");info.textContent="Type a name, then Enter (or SAVE again) to save · Esc cancels";return true}
-  return false}
 const typed=e=>e.key.length==1&&!e.ctrlKey&&!e.metaKey&&!e.altKey?(e.key.toUpperCase() in FONT?e.key.toUpperCase():null):null;
-function screenKey(e){const ch=typed(e);
-  if(e.key=="Escape"){setMode(null);e.preventDefault();return}
-  if(scrMode=="name"){
-    if(e.key=="Enter"){savePattern();e.preventDefault();return}
-    if(e.key=="Backspace"){nameBuf=nameBuf.slice(0,-1);e.preventDefault()}else if(ch&&nameBuf.length<NCH-5&&!(ch==" "&&!nameBuf)){nameBuf+=ch;e.preventDefault()}
-    blink=true;drawLCD();return}
-  const M=matches();
-  if(e.key=="ArrowDown"){if(M.length){ddHi=(ddHi+1)%M.length;keepHiVisible();drawDD()}e.preventDefault()}
-  else if(e.key=="ArrowUp"){if(M.length){ddHi=(ddHi+M.length-1)%M.length;keepHiVisible();drawDD()}e.preventDefault()}
-  else if(e.key=="Enter"){if(M.length)loadPattern(view,M[ddHi]);setMode(null);e.preventDefault()}
-  else if(e.key=="Backspace"){query=query.slice(0,-1);ddHi=0;ddTop=0;blink=true;drawLCD();drawDD();e.preventDefault()}
-  else if(ch&&query.length<NCH-6){query+=ch;ddHi=0;ddTop=0;blink=true;drawLCD();drawDD();e.preventDefault()}}
+class Screen{
+  // o: G (bezel, lcd, button, save, banks), el (lcd, lamps, list group ids), title, store (localStorage key), factory {A, B},
+  //    apply(entry) for a non-rack entry, capture(name) returns a new entry from the panel
+  constructor(o){Object.assign(this,o);this.chars=NCH;this.mode=null;this.view="A";this.loaded={b:"A",i:0};this.query="";this.nameBuf="";this.hi=0;this.top=0;this.blink=true;this.user={A:[],B:[]};
+    try{const u=JSON.parse(localStorage.getItem(o.store)||"null");if(u&&Array.isArray(u.A)&&Array.isArray(u.B))this.user=u}catch(e){}}
+  list(b){return this.factory[b].concat(this.user[b])}
+  persist(){try{localStorage.setItem(this.store,JSON.stringify(this.user))}catch(e){}}
+  row(b,i){return (pad3(i+1)+" "+this.list(b)[i].name).toUpperCase().slice(0,this.chars-1)}
+  label(){return this.list(this.loaded.b)[this.loaded.i]?(this.loaded.b+this.row(this.loaded.b,this.loaded.i)).slice(0,this.chars):""}
+  matches(){const L=this.list(this.view),q=this.query.trim();return L.map((p,i)=>i).filter(i=>!q||(pad3(i+1)+" "+L[i].name).toUpperCase().includes(q))}
+  box(){const G=this.G;return [G.bezel[0],G.bezel[1]+G.bezel[3]+3,G.button[0]+G.button[2]-G.bezel[0],DD_PAD*2+Math.max(1,Math.min(ROWS,this.matches().length))*DD_ROW-3]}
+  bankAt(x,y){return this.G.banks.findIndex(k=>inR(k.hit,x,y))}
+  onKey(x,y){const G=this.G;return inR(G.bezel,x,y)||inR(G.button,x,y)||inR(G.save,x,y)||this.bankAt(x,y)>=0}
+  text(){const cur=this.blink?"_":" ",n=this.chars;
+    if(this.mode=="search")return ("FIND "+this.query+cur).slice(-n);
+    if(this.mode=="name")return (this.view+pad3(this.list(this.view).length+1)+" "+this.nameBuf+cur).slice(0,n);
+    return this.label()}
+  draw(){const r=this.G.lcd,t=this.text(),el=$(this.el[0]);el.setAttribute("aria-label",this.mode?t:this.title+" "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09,this.chars);
+    $(this.el[1]).innerHTML=this.G.banks.map(k=>lamp(k.cx,k.cy,k.r,k.id==this.view)).join("")}
+  rowAt(x,y){if(this.mode!="search")return -1;const b=this.box();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW),M=this.matches();return i>=0&&this.top+i<M.length&&i<ROWS?this.top+i:-1}
+  drawList(){const el=$(this.el[2]);if(this.mode!="search"){el.innerHTML="";return}const b=this.box(),M=this.matches(),L=this.list(this.view),n=this.chars;
+    let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
+    const row=(k,txt,hi)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+k*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3;
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,txt,hi?"#a6b192":"#1e2419",hi?.08:.09,n)};
+    if(!M.length)s+=row(0,L.length?" NO MATCH":" BANK "+this.view+" IS EMPTY",false);
+    M.slice(this.top,this.top+ROWS).forEach((i,k)=>{s+=row(k,(this.loaded.b==this.view&&this.loaded.i==i?">":" ")+this.row(this.view,i),this.top+k==this.hi)});
+    if(M.length>ROWS){const h=b[3]-8,y=b[1]+4+h*this.top/M.length;s+=`<rect x="${b[0]+b[2]-4}" y="${y.toFixed(1)}" width="2" height="${(h*ROWS/M.length).toFixed(1)}" rx="1" fill="#c29f4c" opacity=".7"/>`}   // scroll position
+    el.innerHTML=s}
+  keepHi(){if(this.hi<this.top)this.top=this.hi;if(this.hi>=this.top+ROWS)this.top=this.hi-ROWS+1}
+  scroll(d){const n=this.matches().length;this.top=Math.max(0,Math.min(Math.max(0,n-ROWS),this.top+d));this.drawList()}
+  setMode(m){if(m)SCREENS.forEach(o=>{if(o!==this&&o.mode)o.setMode(null)});   // one list open at a time
+    this.mode=m;this.blink=true;if(m=="search"){this.query="";const M=this.matches();this.hi=Math.max(0,this.loaded.b==this.view?M.indexOf(this.loaded.i):0);this.top=0;this.keepHi()}if(m=="name")this.nameBuf="";this.draw();this.drawList()}
+  setView(b){this.view=b;if(this.mode=="search"){this.query="";this.hi=0;this.top=0}this.draw();this.drawList()}
+  // true when the click belonged to this screen, its keys or its list
+  down(x,y){const G=this.G,k=this.bankAt(x,y);
+    if(k>=0){this.setView(BANK[k]);return true}
+    if(this.mode=="search"){const r=this.rowAt(x,y);if(r>=0)this.load(this.view,this.matches()[r]);this.setMode(null);return true}
+    if(this.mode=="name"){if(inR(G.save,x,y)){this.save();return true}this.setMode(null);return true}
+    if(grab)return false;
+    if(inR(G.bezel,x,y)||inR(G.button,x,y)){this.setMode("search");return true}
+    if(inR(G.save,x,y)){if(this.list(this.view).length>=MAXP){info.textContent=`${this.title} BANK ${this.view} IS FULL (${MAXP})`;return true}this.setMode("name");info.textContent="Type a name, then Enter (or SAVE again) to save · Esc cancels";return true}
+    return false}
+  key(e){const ch=typed(e);
+    if(e.key=="Escape"){this.setMode(null);e.preventDefault();return}
+    if(this.mode=="name"){
+      if(e.key=="Enter"){this.save();e.preventDefault();return}
+      if(e.key=="Backspace"){this.nameBuf=this.nameBuf.slice(0,-1);e.preventDefault()}else if(ch&&this.nameBuf.length<this.chars-5&&!(ch==" "&&!this.nameBuf)){this.nameBuf+=ch;e.preventDefault()}
+      this.blink=true;this.draw();return}
+    const M=this.matches();
+    if(e.key=="ArrowDown"){if(M.length){this.hi=(this.hi+1)%M.length;this.keepHi();this.drawList()}e.preventDefault()}
+    else if(e.key=="ArrowUp"){if(M.length){this.hi=(this.hi+M.length-1)%M.length;this.keepHi();this.drawList()}e.preventDefault()}
+    else if(e.key=="Enter"){if(M.length)this.load(this.view,M[this.hi]);this.setMode(null);e.preventDefault()}
+    else if(e.key=="Backspace"){this.query=this.query.slice(0,-1);this.hi=0;this.top=0;this.blink=true;this.draw();this.drawList();e.preventDefault()}
+    else if(ch&&this.query.length<this.chars-6){this.query+=ch;this.hi=0;this.top=0;this.blink=true;this.draw();this.drawList();e.preventDefault()}}
+  load(b,i){const Q=this.list(b)[i];if(!Q)return;cancel();hideMenu();
+    if(Q.rack){loadRack(Q.rack);SCREENS.forEach(o=>{if(o.list(b)[i]===Q){o.loaded={b,i};o.view=b;o.draw()}});info.textContent=`RACK PATCH ${Q.name} · BUSHIDO and RONIN set, ${Q.rack.cables.length} cables · press START`;return}   // the same patch sits at the same number on both screens
+    this.apply(Q);this.loaded={b,i};this.view=b;this.draw();info.textContent=this.title+" "+this.label()}
+  save(){const L=this.list(this.view);if(L.length>=MAXP){this.setMode(null);info.textContent=`${this.title} BANK ${this.view} IS FULL`;return}
+    this.user[this.view].push(this.capture((this.nameBuf.trim()||this.title).slice(0,this.chars-5)));this.persist();
+    this.loaded={b:this.view,i:this.list(this.view).length-1};this.setMode(null);info.textContent="SAVED "+this.title+" "+this.label()}}
 const jid=id=>J.findIndex(j=>j.inst=="S"&&j.id==id);
-// A pattern sets every BUSHIDO control except BYPASS, and replaces BUSHIDO's own cables (cables to RONIN stay). The sequencer keeps running if it was.
-function loadPattern(b,i){const Q=bankList(b)[i];if(!Q)return;cancel();hideMenu();
-  C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,Q.params[c.id]??c.default,true)});
-  cables=cables.filter(c=>!(isS(c.a)&&isS(c.b))).concat(Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0));build();loaded={b,i};view=b;drawLCD();info.textContent="PATTERN "+plabel()}
-function savePattern(){const L=bankList(view);if(L.length>=MAXP){setMode(null);info.textContent=`BANK ${view} IS FULL`;return}
-  const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});
-  const name=(nameBuf.trim()||"PATTERN").slice(0,NCH-5);
-  user[view].push({name,params,cables:cables.filter(c=>isS(c.a)&&isS(c.b)).map(c=>[J[c.a].id,J[c.b].id,c.c])});persist();
-  loaded={b:view,i:bankList(view).length-1};setMode(null);info.textContent="SAVED "+plabel()}
+// BUSHIDO: a pattern sets every control except BYPASS and replaces BUSHIDO's own cables (cables to RONIN stay). The sequencer keeps running if it was.
+const SQS=new Screen({G:SCREEN,el:["lcd","banks","dd"],title:"PATTERN",store:"bushido.patterns",factory:{A:PATTERNS,B:RACKP},
+  apply(Q){C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,Q.params[c.id]??c.default,true)});
+    cables=cables.filter(c=>!(isS(c.a)&&isS(c.b))).concat(Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0));build()},
+  capture(name){const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});
+    return {name,params,cables:cables.filter(c=>isS(c.a)&&isS(c.b)).map(c=>[J[c.a].id,J[c.b].id,c.c])}}});
+// RONIN: same screen, keys and lamps, at the same spot on its own panel (layout y moved down by SH). Its art has no lamps or SAVE,
+// so BUSHIDO's sockets, + key and labels are copied onto it.
+const shiftR=r=>[r[0],r[1]+SH,r[2],r[3]];
+const RG={bezel:RSCR.bezel,lcd:RSCR.lcd,button:RSCR.button,save:shiftR(SCREEN.save),banks:SCREEN.banks.map(k=>({id:k.id,cx:k.cx,cy:k.cy+SH,r:k.r,hit:shiftR(k.hit)}))};
+$("rart").innerHTML=`<g transform="translate(0 ${SH})">${__BANKART__}</g>`;
+const RS=new Screen({G:RG,el:["rlcd","rbanks","rdd"],title:"PRESET",store:"ronin.presets",
+  factory:{A:RPRE.map((p,i)=>({name:p.screen.replace(/^\d+ /,""),preset:i})),B:RACKP},
+  apply(Q){if(Q.base!==undefined)loadRUser(Q);else loadRPreset(Q.preset)},capture:saveRUser});
+const SCREENS=[SQS,RS];
+setInterval(()=>SCREENS.forEach(o=>{if(o.mode){o.blink=!o.blink;o.draw()}}),450);
 $("clr").onclick=()=>{cancel();cables=[];build();info.textContent="Cables cleared"};
-drawHold();drawPower();drawRLCD();loadRPreset(RK.defaultPreset);loadPattern("A",0);info.textContent="";loop();
+try{rTop=localStorage.getItem("rack.top")=="R"}catch(e){}$("top").value=rTop?"R":"S";
+drawHold();drawPower();RS.load("A",RK.defaultPreset);SQS.load("A",0);applyOrder();info.textContent="";loop();
 </script>
