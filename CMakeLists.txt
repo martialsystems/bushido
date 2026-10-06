@@ -15,6 +15,7 @@ juce_add_binary_data(BushidoAssets SOURCES assets/sq10_panel_bg.svg assets/sq10_
 
 juce_add_plugin(BUSHIDO
     COMPANY_NAME "Martial Systems"
+    BUNDLE_ID com.martialsystems.bushido
     PLUGIN_MANUFACTURER_CODE Sqcl
     PLUGIN_CODE Sq10
     FORMATS VST3 AU Standalone
