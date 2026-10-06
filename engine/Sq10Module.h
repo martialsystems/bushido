@@ -20,7 +20,8 @@ public:
 
     // test helpers
     int  currentStep() const    { return pos; }      // 0..11, -1 = none
-    int  currentChannel() const { return chan; }     // 0 = A, 1 = B
+    int  currentChannel() const { return chan; }     // row being read: 0 = A, 1 = B
+    int  outJacks() const { return mode() == 2 ? chan : 0; }   // jacks it plays on: 0 = CV/GATE A, 1 = CV/GATE B (only ALT uses B)
     bool isRunning() const      { return running; }
 
     // jack indices

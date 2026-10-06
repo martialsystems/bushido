@@ -40,8 +40,8 @@ Regenerating the panel needs Python 3 with `cairosvg numpy scipy pillow` and Lib
 - **Cables:** pick a colour top-right. Drag from a jack to another jack. Drag a plug to move it; drop on empty space to unplug.
   Click a jack with cables to choose which to pick up, drag rows to reorder the stack, or add another. Shift-drag adds one. Esc cancels.
   Cables hang below the panel and slide away from the jack, label, or cord under the pointer.
-- **MODE:** `A` loops row A (12 steps), `A+B` loops row A then row B (24 steps), `ALT` plays one row per pass, swapping A and B.
-  All three run until START/STOP. START always begins at A step 1; RESET goes to A step 1 and keeps running.
+- **MODE:** `A` loops row A (12 steps) on the A jacks. `A+B` is one 24-step sequence on the A jacks (row A, then row B), with the
+  B jacks holding. `ALT` plays one row per pass on that row's own jacks, swapping A and B. All three run until START/STOP. START always begins at A step 1; RESET goes to A step 1 and keeps running.
 - **C MODE** (toggle): CV = row C is a third CV. TIME = the C knob is gate length for A and B (5-95 % of the step), and CV C stays at 0 V.
 - **Lamps:** one lamp per step under the step numbers shows the playing step for all three rows.
 - **Sequence length:** patch `TRIG N+1` into `INPUTS > RESET` for an N-step loop.
@@ -50,7 +50,7 @@ Regenerating the panel needs Python 3 with `cairosvg numpy scipy pillow` and Lib
   notes follow the Hz/V curve of an MS-series VCO (1 V = A1), see `ENGINE_NOTES.md`.
 
 ## What was verified (Linux, JUCE 8.0.4)
-- Unit tests: 59 engine checks, 18 cable checks (`ctest`), including `testModeALoops`, `testModeABLoops24`, `testAltSwapsEachPass`,
+- Unit tests: 64 engine checks, 18 cable checks (`ctest`), including `testModeALoops`, `testModeABLoops24`, `testAltSwapsEachPass`,
   `testTrigIntoResetSkipsStep`, `testMidiUsesHzPerVolt`, `testFeedbackDelayIsOneSample`.
 - Last change (loop modes, Hz/V MIDI, 1-sample feedback, step lamps, C MODE toggle): VST3 and Standalone rebuilt on Linux with JUCE 8.0.4,
   tests pass, and the Standalone opens under a virtual display with the new panel and a working C MODE toggle. pluginval and audio-device

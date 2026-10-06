@@ -62,10 +62,10 @@ void Sq10Module::reset()                                          // A step 1, k
     if (running) { phase = 0.0; fire(); } else gateOn = false;     // A1 gets a full clock period
 }
 
-// Every mode loops until Stop. Only what happens after step 12 differs:
-//   A    (0): back to A step 1            -> 12-step loop of row A
-//   A+B  (1): A -> B, B -> A              -> 24-step loop, row A then row B
-//   ALT  (2): swap rows after each pass   -> A, B, A, B ... one row per pass
+// Every mode loops until Stop. `chan` is the row being read; outJacks() is the jack pair it plays on.
+//   A    (0): row A, 12 steps, on the A jacks. The B jacks hold.
+//   A+B  (1): one 24-step sequence on the A jacks: steps 1-12 = row A, 13-24 = row B, then A1. The B jacks hold.
+//   ALT  (2): one row per pass, each on its own jacks: row A on the A jacks, then row B on the B jacks, and so on.
 void Sq10Module::tick()
 {
     if (pos >= 0) lastPeriod = std::clamp(sinceTick, 0.005, 4.0);   // gate length for EXT and STEP: time since the last tick
@@ -73,7 +73,7 @@ void Sq10Module::tick()
     if (pos < 0) { pos = 0; chan = 0; fire(); return; }
     if (++pos < 12) { fire(); return; }
     pos = 0;
-    if (mode() != 0) chan = 1 - chan; else chan = 0;
+    chan = mode() == 0 ? 0 : 1 - chan;
     fire();
 }
 
@@ -108,11 +108,14 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
         }
         sinceTick += 1.0 / sr; samplesInStep += 1.0;
 
-        // CV: the channel playing follows its knob at the current step (live edits are heard); the other holds.
+        if (mode() == 0) chan = 0;                               // switched to A mid-row B: carry on in row A
+        const int jk = outJacks();
+        // CV: the jacks playing follow the knob at the current step (live edits are heard); the other jacks hold.
         // A new step waits `settle` (0.6 ms) before CV and gate change, so a reset patched from a TRIG jack lands first.
         const bool settled = samplesInStep >= settle;
         if (pos >= 0 && settled) {
-            if (chan == 0) tgtA = p(STEPS + pos) * rangeA; else tgtB = p(STEPS + 12 + pos) * rangeB;
+            const float knob = p(STEPS + 12 * chan + pos);       // row A or row B
+            if (jk == 0) tgtA = knob * rangeA; else tgtB = knob * rangeB;   // range and portamento belong to the jacks
             cvC = p(STEPS + 24 + pos) * 5.0f;
         }
         if (cIsTime) cvC = 0.0f;                                 // TIME: row C sets gate length only and is never emitted as CV
@@ -123,11 +126,11 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
         const bool g = gateOn && pos >= 0 && settled && samplesInStep < settle + frac * period * sr;
 
         out[CV_A][i] = cvA; out[CV_B][i] = cvB; out[CV_C][i] = cvC;
-        out[GATE_A][i] = (g && chan == 0) ? 5.0f : 0.0f;
-        out[GATE_B][i] = (g && chan == 1) ? 5.0f : 0.0f;
+        out[GATE_A][i] = (g && jk == 0) ? 5.0f : 0.0f;
+        out[GATE_B][i] = (g && jk == 1) ? 5.0f : 0.0f;
         out[MIX_OUT][i] = in[MIX_IN1][i] * p(LEVEL1) + in[MIX_IN2][i] * p(LEVEL2);
         for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = (pos == s) ? 5.0f : 0.0f;
     }
-    ind[0].store(pos >= 0 && chan == 0 ? 1.0f : 0.0f); ind[1].store(pos >= 0 && chan == 1 ? 1.0f : 0.0f);
+    ind[0].store(pos >= 0 && chan == 0 ? 1.0f : 0.0f); ind[1].store(pos >= 0 && chan == 1 ? 1.0f : 0.0f);   // which row is being read
     for (int s = 0; s < 12; ++s) ind[(size_t) s + 2].store(pos == s ? 1.0f : 0.0f);   // one lamp per step, shared by rows A, B and C
 }

@@ -52,6 +52,27 @@ struct Rig {
 };
 static const float kModeA = 0.0f, kModeAB = 0.5f, kModeAlt = 1.0f;
 
+// Rows A and B set to distinct voltages: A step n = n x 0.01, B step n = 0.5 + n x 0.01 (x 5 V range).
+static void distinctRows(Rig& r) { for (int i = 0; i < 12; ++i) { r.sq.setParam(Sq10Module::STEPS + i, (i + 1) * 0.01f); r.sq.setParam(Sq10Module::STEPS + 12 + i, 0.5f + (i + 1) * 0.01f); } }
+struct JackLog { int gateA = 0, gateB = 0; std::vector<float> cvAAtGate, cvBAtGate; float cvBMin = 1e9f, cvBMax = -1e9f; };
+// Runs `samples` and records every gate rise on each jack pair, with that jack's CV 2 ms into the gate.
+static JackLog logJacks(Rig& r, long samples)
+{
+    JackLog L; bool pa = false, pb = false; long riseA = -1000, riseB = -1000, t = 0;
+    for (long s = 0; s < samples; s += 16) { r.g.process(16);
+        const float* ga = r.g.output(r.S, Sq10Module::GATE_A); const float* gb = r.g.output(r.S, Sq10Module::GATE_B);
+        const float* ca = r.g.output(r.S, Sq10Module::CV_A);   const float* cb = r.g.output(r.S, Sq10Module::CV_B);
+        for (int i = 0; i < 16; ++i, ++t) {
+            if (ga[i] > 1 && ! pa) { ++L.gateA; riseA = t; }
+            if (gb[i] > 1 && ! pb) { ++L.gateB; riseB = t; }
+            if (t == riseA + 96) L.cvAAtGate.push_back(ca[i]);
+            if (t == riseB + 96) L.cvBAtGate.push_back(cb[i]);
+            L.cvBMin = std::min(L.cvBMin, cb[i]); L.cvBMax = std::max(L.cvBMax, cb[i]);
+            pa = ga[i] > 1; pb = gb[i] > 1; } }
+    return L;
+}
+static bool near(float a, float b) { return std::abs(a - b) < 1e-3f; }
+
 static void testModeALoops()
 {
     Rig r; r.sq.setParam(Sq10Module::MODE, kModeA); r.press("MODE:START/STOP"); r.run(0.01);
@@ -62,6 +83,12 @@ static void testModeALoops()
     CHECK(r.sq.isRunning(), "mode A: still running after 2.5 passes");
     r.press("MODE:START/STOP"); r.run(1.0);
     CHECK(! r.sq.isRunning() && r.out("OUTPUTS:GATE A") == 0, "mode A: only Stop stops it");
+
+    Rig q; distinctRows(q); q.sq.setParam(Sq10Module::MODE, kModeA); q.press("MODE:START/STOP");
+    auto L = logJacks(q, 24 * 12000L - 2000);
+    bool cv = L.cvAAtGate.size() == 24; for (size_t k = 0; k < L.cvAAtGate.size() && cv; ++k) cv = near(L.cvAAtGate[k], (k % 12 + 1) * 0.05f);
+    CHECK(L.gateA == 24 && cv, "mode A: CV A and GATE A carry row A, 24 gates in two passes");
+    CHECK(L.gateB == 0 && L.cvBMin == L.cvBMax, "mode A: row B holds (no GATE B, CV B unchanged)");
 }
 
 static void testModeABLoops24()
@@ -72,6 +99,13 @@ static void testModeABLoops24()
     for (size_t k = 0; k < seq.size() && ok; ++k) { const int n = (int) (k % 24); ok = seq[k].first == (n < 12 ? 0 : 1) && seq[k].second == n % 12; }
     CHECK(ok, "mode A+B: A1..A12 then B1..B12, then back to A1 (24-step loop)");
     CHECK(r.sq.isRunning(), "mode A+B: still running after two passes of 24");
+
+    Rig q; distinctRows(q); q.sq.setParam(Sq10Module::MODE, kModeAB); q.press("MODE:START/STOP");
+    auto L = logJacks(q, 48 * 12000L - 2000);
+    bool cv = L.cvAAtGate.size() == 48;
+    for (size_t k = 0; k < L.cvAAtGate.size() && cv; ++k) { const int n = (int) (k % 24); cv = near(L.cvAAtGate[k], n < 12 ? (n + 1) * 0.05f : 2.5f + (n - 11) * 0.05f); }
+    CHECK(L.gateA == 48 && cv, "mode A+B: one 24-step sequence on the A jacks, steps 13-24 are row B");
+    CHECK(L.gateB == 0 && L.cvBMin == L.cvBMax, "mode A+B: CV B and GATE B hold");
 }
 
 static void testAltSwapsEachPass()
@@ -88,6 +122,18 @@ static void testAltSwapsEachPass()
         const float* ga = q.g.output(q.S, Sq10Module::GATE_A); const float* gb = q.g.output(q.S, Sq10Module::GATE_B);
         for (int i = 0; i < 16; ++i) { gateA += (ga[i] > 1) && ! pa; gateB += (gb[i] > 1) && ! pb; pa = ga[i] > 1; pb = gb[i] > 1; } }
     CHECK(gateA == 12 && gateB == 12, "mode ALT: 12 gates on A and 12 on B over two passes");
+
+    Rig w; distinctRows(w); w.sq.setParam(Sq10Module::MODE, kModeAlt); w.press("MODE:START/STOP");
+    auto L = logJacks(w, 48 * 12000L - 2000);
+    bool cvA = L.cvAAtGate.size() == 24, cvB = L.cvBAtGate.size() == 24;
+    for (size_t k = 0; k < L.cvAAtGate.size() && cvA; ++k) cvA = near(L.cvAAtGate[k], (k % 12 + 1) * 0.05f);
+    for (size_t k = 0; k < L.cvBAtGate.size() && cvB; ++k) cvB = near(L.cvBAtGate[k], 2.5f + (k % 12 + 1) * 0.05f);
+    CHECK(cvA && cvB, "mode ALT: row A plays on the A jacks, row B on the B jacks");
+
+    Rig t; t.sq.setParam(Sq10Module::MODE, kModeAlt); t.g.setCables({ t.c("5:TRIG", "INPUTS:RESET") }); t.press("MODE:START/STOP"); t.run(0.01);
+    auto loop = t.play(12); bool a14 = loop.size() >= 12;
+    for (size_t k = 0; k < loop.size() && a14; ++k) a14 = loop[k].first == 0 && loop[k].second == (int) (k % 4);
+    CHECK(a14, "mode ALT + TRIG 5 -> RESET: RESET means A1, so the loop is A1-4");
 }
 
 static void testTrigIntoResetSkipsStep()

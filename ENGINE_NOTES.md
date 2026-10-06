@@ -17,17 +17,20 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 | `CH:C MODE` | Two-position toggle. CV: row C is a third CV (0..5 V) and does not set gate length (gates are 50 % of the step). TIME: the C knob of the playing step is the gate length for A and B, 5 %..95 % of the step, and `OUTPUTS:CV C` stays at 0 V |
 | `CLOCK:TEMPO` | Internal clock, 0.5..32 steps per second (exponential). `CLOCK:TEMPO CV` adds 1 octave of rate per volt. Both act in INT only |
 | `CLOCK:SOURCE` | INT: internal clock. EXT: steps on rising edges at the CLOCK jack; TEMPO and TEMPO CV are ignored |
-| `MODE:MODE` | Every mode loops until Stop. `A`: row A, 12 steps, then A1 again. `A+B`: row A then row B, 24 steps, then A1 again. `ALT`: one row per pass, swapping A and B each pass. The panel legend under the switch reads `A · LOOP 12`, `A+B · LOOP 24`, `ALT · SWAP A/B` |
+| `MODE:MODE` | Every mode loops until Stop. `A`: 12-step loop of row A on CV A / GATE A; the B jacks hold. `A+B`: the long sequence, one 24-step loop on CV A / GATE A (steps 1-12 = row A, 13-24 = row B, then A1); CV B holds its last value and GATE B stays low. `ALT`: one row per pass, each on its own jacks (row A on the A jacks, then row B on the B jacks, then A again). The panel legend under the switch reads `A · LOOP 12`, `A+B · LOOP 24`, `ALT · SWAP A/B` |
 | `MODE:START/STOP`, `MODE:STEP`, `MODE:RESET` | Buttons (same as the matching INPUTS jacks) |
 | `MIXER:LEVEL 1`, `MIXER:LEVEL 2` | Two-input mixer gains, 0..1 |
 
 ## Sequencing
 - START toggles running. Every start, including one after a stop, begins at A step 1.
 - Each clock tick moves one step. After step 12 the MODE decides the next row (A: A again; A+B and ALT: the other row). Nothing stops
-  the sequence except START/STOP. (With this law A+B and ALT play the same order, A then B; the switch keeps both positions.)
+  the sequence except START/STOP. A+B and ALT read the rows in the same order but differ in where they play: A+B puts both rows on
+  the A jacks, ALT keeps each row on its own jacks. RANGE and PORTA belong to the jacks, so row B in A+B uses RANGE A and PORTA A.
+- Switching to `A` while row B is playing carries on at the same step of row A.
 - STEP (button or jack) moves one step even while stopped, and plays that step's gate.
 - RESET (button or jack) goes to A step 1 without stopping, and restarts the internal clock so A1 gets a full step.
-  **Sequence length:** patch `TRIG N+1` into `INPUTS:RESET` for an N-step loop.
+  **Sequence length:** patch `TRIG N+1` into `INPUTS:RESET` for an N-step loop. RESET means "back to A1" in every mode, so in ALT a
+  TRIG-into-RESET loop stays on row A (A1..AN, A1..AN); it does not restart or advance the A/B swap.
 - C always plays the same step number as whichever of A/B is playing.
 - The channel that is playing follows its knob live; the other channel's CV holds its last value.
 - One lamp per step (`STEP:1`..`STEP:12`, under the step numbers) lights for the current step, whichever row is playing.
@@ -49,7 +52,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
   These normals belong to this plugin's processor (`PatchGraph::setNormal`), not to `Sq10Module`, so if the module is ever added to
   another graph they are off unless that host sets them.
 - Main output = `MIXER:OUT` (5 V = 1.0), on both channels.
-- MIDI out is a **convenience, not the patch**: channel A gates -> MIDI channel 1, B -> channel 2, velocity 100, note taken when the gate
+- MIDI out is a **convenience, not the patch**: GATE A -> MIDI channel 1, GATE B -> channel 2 (so A+B plays all 24 steps on channel 1), velocity 100, note taken when the gate
   opens. CV A and CV B stay in volts on the jacks. The note uses the **Hz/V curve of a Korg MS-series VCO** (`rack/HzPerVolt.h`):
   frequency is proportional to the voltage, doubling the voltage is one octave, and 1 V = 55 Hz = A1 (MIDI 33). So
   note = 33 + 12 x log2(V), rounded to the nearest semitone and clamped to 0..127; 0 V or below sends no note (a Hz/V VCO is silent
