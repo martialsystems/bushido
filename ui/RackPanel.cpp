@@ -63,7 +63,7 @@ void RackPanel::drawRocker(juce::Graphics& g, juce::Rectangle<float> r, bool rig
         g.fillRoundedRectangle(h, 2.5f);
         if (! pressed) { g.setColour(juce::Colour(dark ? 0xff77777c : 0xfffffdf4)); g.drawLine(h.getX() + 2, h.getY() + 1.2f, h.getRight() - 2, h.getY() + 1.2f, 1.0f); }
     };
-    half(left, ! right); half(rightHalf, right);
+    half(left, right); half(rightHalf, ! right);                       // the selected side is the raised, lit half
     g.setColour(juce::Colour(dark ? 0xff000000 : 0xff6b675a)); g.drawLine(r.getCentreX(), r.getY() + 1, r.getCentreX(), r.getBottom() - 1, 1.0f);
 }
 

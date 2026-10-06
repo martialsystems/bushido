@@ -55,10 +55,10 @@ def button(sec,lab,cx,cy,style="black",lamp=None):
     if lamp: led(lamp,cx,cy+26,r=3.5); ly=cy+30
     T(cx,ly+14,lab,FL)
 def rocker_svg(x,y,w,h,right,dark=False):   # pressed half sits low and shaded, raised half catches the light
-    hw=w/2; up,dn=("#3a3a3e","#101012") if dark else ("url(#ru)","url(#rd)"); a,b=(up,dn) if right else (dn,up)   # the active half is pressed in
+    hw=w/2; up,dn=("#3a3a3e","#101012") if dark else ("url(#ru)","url(#rd)"); a,b=(dn,up) if right else (up,dn)   # the selected side is the raised, lit half
     hl,sep=("#77777c","#000") if dark else ("#fffdf4","#6b675a")
     return (f'<rect x="{x:.1f}" y="{y}" width="{hw}" height="{h}" rx="2.5" fill="{a}"/><rect x="{x+hw:.1f}" y="{y}" width="{hw}" height="{h}" rx="2.5" fill="{b}"/>'
-            f'<line x1="{x+(2 if right else hw+2):.1f}" y1="{y+1.2}" x2="{x+(hw-2 if right else w-2):.1f}" y2="{y+1.2}" stroke="{hl}" stroke-width="1"/>'
+            f'<line x1="{x+(hw+2 if right else 2):.1f}" y1="{y+1.2}" x2="{x+(w-2 if right else hw-2):.1f}" y2="{y+1.2}" stroke="{hl}" stroke-width="1"/>'
             f'<line x1="{x+hw:.1f}" y1="{y+1}" x2="{x+hw:.1f}" y2="{y+h-1}" stroke="{sep}" stroke-width="1"/>')
 def rocker(sec,lab,cx,cy,marks,default,text=None):   # two-position rocker like the MS-50 POWER switch, in white: press the left or right half
     w,h=34,18; x,y=cx-w/2,cy-h/2

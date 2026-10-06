@@ -47,7 +47,7 @@ The panel reads BUSHIDO top left. It is 1600 x 434 design units, with no empty l
   The 16 patterns are also the host's programs. 01-10 are general patterns; 11-16 are acid lines (fast 16ths, octave jumps,
   PORTA slides, TIME-mode gates or a CV C filter sweep, and 7- and 5-step loops from a TRIG cable into RESET).
 - **Knobs and switches:** drag up/down (Shift = fine), mouse wheel, double-click = default. Click a switch to step through it.
-  RANGE A / B are white rockers: press the left half for 1 V, the right half for 5 V. The active half sits pressed in.
+  RANGE A / B are white rockers: press the left half for 1 V, the right half for 5 V. The selected side is the raised, lit half.
 - **Buttons:** START/STOP (cream key, its red lamp lights while running), STEP and RESET (black keys, no lamp).
   The INPUTS jacks do the same from a cable.
 - **Cables:** pick a colour top-right. Drag from a jack to another jack. Drag a plug to move it; drop on empty space to unplug.
