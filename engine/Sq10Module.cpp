@@ -17,7 +17,8 @@ Sq10Module::Sq10Module() : ind(15)
         {"CH:PORTA A", 0.0f, 0}, {"CH:PORTA B", 0.0f, 0}, {"CH:RANGE A", 1.0f, 2}, {"CH:RANGE B", 1.0f, 2}, {"CH:C MODE", 0.0f, 2},
         {"CLOCK:TEMPO", 0.5f, 0}, {"CLOCK:SOURCE", 0.0f, 2}, {"MODE:MODE", 0.5f, 3},
         {"MODE:START/STOP", 0.0f, -1}, {"MODE:STEP", 0.0f, -1}, {"MODE:RESET", 0.0f, -1},
-        {"MIXER:LEVEL 1", 0.7f, 0}, {"MIXER:LEVEL 2", 0.7f, 0} });
+        {"MIXER:LEVEL 1", 0.7f, 0}, {"MIXER:LEVEL 2", 0.7f, 0},
+        {"CLOCK:DIV", 0.5f, 3} });                                // 1/8, 1/16, 1/32: the BPM readout's unit only
     for (size_t i = 0; i < values.size(); ++i) values[i].store(paramList[i].def);
 
     indList = { {"CH:A"}, {"CH:B"} };
@@ -85,7 +86,7 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
 
     const float rangeA = p(RANGE_A) > 0.5f ? 5.0f : 1.0f, rangeB = p(RANGE_B) > 0.5f ? 5.0f : 1.0f;
     const bool cIsTime = p(C_MODE) > 0.5f, external = p(SOURCE) > 0.5f;
-    const double tempoRate = 0.5 * std::pow(2.0, p(TEMPO) * 6.0);          // 0.5..32 steps/s, INT only
+    const double tempoRate = stepsPerSecond(p(TEMPO));                      // 0.5..32 steps/s, INT only; DIV does not change it
     auto slew = [this](float porta) { const double tau = (double) porta * porta * 2.0; return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr))); };
     const float kA = slew(p(PORTA_A)), kB = slew(p(PORTA_B));
 

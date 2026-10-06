@@ -4,6 +4,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <algorithm>
 
 class Sq10Module : public rack::Module {
 public:
@@ -18,6 +19,15 @@ public:
     float getParam(int index) const override { return values[(size_t) index].load(std::memory_order_relaxed); }
     float indicator(int index) const override { return ind[(size_t) index].load(std::memory_order_relaxed); }
 
+    // Tempo in two units. TEMPO is the internal clock in steps per second; the BPM readout shows the same parameter as
+    // BPM = steps per second x 60 / steps per beat, where DIV (1/8, 1/16, 1/32) sets 2, 4 or 8 steps per beat.
+    // DIV only changes the unit shown: it never changes the clock. TEMPO CV bends around TEMPO; EXT ignores both.
+    static double stepsPerSecond(float tempo) { return 0.5 * std::pow(2.0, (double) tempo * 6.0); }     // 0.5..32 steps/s
+    static int    stepsPerBeat(float div)     { return 2 << (int) std::lround(std::clamp(div, 0.0f, 1.0f) * 2.0f); }
+    static double bpm(float tempo, float div) { return stepsPerSecond(tempo) * 60.0 / stepsPerBeat(div); }
+    static float  tempoForBpm(double bpm, float div)
+    { return (float) std::clamp(std::log2(std::max(1e-6, bpm * stepsPerBeat(div) / 60.0 / 0.5)) / 6.0, 0.0, 1.0); }
+
     // test helpers
     int  currentStep() const    { return pos; }      // 0..11, -1 = none
     int  currentChannel() const { return chan; }     // row being read: 0 = A, 1 = B
@@ -29,7 +39,7 @@ public:
     enum Out { CV_A = NUM_IN, GATE_A, CV_B, GATE_B, CV_C, MIX_OUT, TRIG1 };   // TRIG1..TRIG1+11
     // param indices
     enum P { STEPS = 0 /* A1..A12, B1..B12, C1..C12 */, PORTA_A = 36, PORTA_B, RANGE_A, RANGE_B, C_MODE,
-             TEMPO, SOURCE, MODE, BTN_START, BTN_STEP, BTN_RESET, LEVEL1, LEVEL2, NUM_PARAMS };
+             TEMPO, SOURCE, MODE, BTN_START, BTN_STEP, BTN_RESET, LEVEL1, LEVEL2, DIV, NUM_PARAMS };
 
 private:
     std::vector<rack::JackInfo> jackList;

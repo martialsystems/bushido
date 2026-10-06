@@ -50,7 +50,7 @@ p b{color:var(--fg);font-weight:600}
   <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
 </div>
 <p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with 16 factory patterns (A011 to A016 are acid lines). <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
-<b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
+<b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> the green readout next to TEMPO is the same control in BPM; drag its digits (Shift = 0.1 BPM) or scroll. DIV sets the steps per beat (1/8, 1/16, 1/32): at 120 BPM and 1/16 the clock runs 8 steps per second. TEMPO CV still bends around it, and with SOURCE on EXT the readout shows EXT. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
 <b>Sound:</b> two Hz/V VCOs listen to CV A / GATE A and CV B / GATE B (1 V = 55 Hz × the octave setting above). In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
 </div>
@@ -79,8 +79,17 @@ function rockerBody(x,y,w,h,right,dark){const hw=w/2,[up,dn,hl,sep]=dark?["#3a3a
 function keyBody(cx,cy,black,down){const o=down?1:0,[k,d,e,s]=black?["bk","bkd","#000","#3a3a3e"]:["bs","bd","#7e7764","#6f6a5a"];
   return `<g transform="translate(${o} ${o})"${down?' opacity=".92"':""}><rect x="${cx-13}" y="${cy-13}" width="26" height="26" rx="3" fill="url(#${k})" stroke="${s}" stroke-width=".9"/><rect x="${cx-13}" y="${cy+9}" width="26" height="4" rx="2" fill="${e}" opacity=".55"/><rect x="${cx-9.5}" y="${cy-10}" width="19" height="17" rx="2.5" fill="url(#${d})"/></g>`}
 function toggleBody(cx,cy,right){const lx=cx+(right?12:-12);return `<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${cy-2}" stroke="#d8d8d2" stroke-width="3.2" stroke-linecap="round"/><circle cx="${lx}" cy="${cy-2}" r="3.6" fill="url(#js)"/>`}
+// TEMPO in two units: the BPM readout shows the TEMPO parameter as steps/s x 60 / steps per beat (DIV 1/8, 1/16, 1/32 = 2, 4, 8)
+const sps=t=>.5*Math.pow(2,t*6),spb=d=>2<<Math.round(d*2),bpmNow=()=>sps(P["CLOCK:TEMPO"])*60/spb(P["CLOCK:DIV"]);
+const tempoFor=b=>Math.min(1,Math.max(0,Math.log2(b*spb(P["CLOCK:DIV"])/60/.5)/6));
+const fmtBpm=b=>{const r=Math.round(b*10)/10;return Math.abs(r-Math.round(r))<.05?String(Math.round(r)):r.toFixed(1)};
+var readyDots=false;   // the dot-matrix font is defined further down
+function readoutBody(c){if(!readyDots)return "";const ext=P["CLOCK:SOURCE"]>.5,t=ext?"EXT":fmtBpm(bpmNow()),r=c.lcd;
+  return dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t.padStart(c.chars," "),"#1e2419",.09,c.chars)}
+function drawReadouts(){C.forEach((c,i)=>{if(c.kind=="readout")drawCtl(i)})}
 function drawCtl(i){const c=C[i],v=P[c.id];let s;
-  if(c.kind=="button")s=keyBody(c.cx,c.cy,c.style=="black",pressed===i);
+  if(c.kind=="readout")s=readoutBody(c);
+  else if(c.kind=="button")s=keyBody(c.cx,c.cy,c.style=="black",pressed===i);
   else if(c.style=="rocker")s=rockerBody(c.rect[0],c.rect[1],c.rect[2],c.rect[3],v>.5,c.tone=="dark");
   else if(c.style=="toggle")s=toggleBody(c.cx,c.cy,v>.5);
   else if(c.kind=="switch")s=knobBody(c.cx,c.cy,c.r,c.angles[idx(c)]);
@@ -91,10 +100,11 @@ const ledEls={};L.leds.forEach(l=>{const g=document.createElementNS(NS,"g");$("l
 function setLed(id,on){const e=ledEls[id];if(!e||e.on===on)return;e.on=on;const{cx,cy,r}=e.l;
   e.g.innerHTML=(on?`<circle cx="${cx}" cy="${cy}" r="${r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${cx-r*.3}" cy="${cy-r*.3}" r="${r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}
 Object.keys(ledEls).forEach(id=>setLed(id,false));
-function setP(id,v,quiet){const i=C.findIndex(c=>c.id==id),c=C[i];if(i<0)return;v=Math.min(1,Math.max(0,v));if(steps(c)>=2)v=Math.round(v*(steps(c)-1))/(steps(c)-1);P[id]=v;drawCtl(i);
+function setP(id,v,quiet){const i=C.findIndex(c=>c.id==id),c=C[i];if(i<0)return;if(c.kind=="readout")return;v=Math.min(1,Math.max(0,v));if(steps(c)>=2)v=Math.round(v*(steps(c)-1))/(steps(c)-1);P[id]=v;drawCtl(i);if(id=="CLOCK:TEMPO"||id=="CLOCK:DIV"||id=="CLOCK:SOURCE")drawReadouts();
   if(id=="TOP:BYPASS"&&v>.5&&ctx)voices.forEach(x=>{x.g.gain.cancelScheduledValues(ctx.currentTime);x.g.gain.setTargetAtTime(0,ctx.currentTime,.01)});   // bypass mutes the VCOs at once
   if(!quiet)info.textContent=describe(c)}
-function describe(c){const v=P[c.id];if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
+function describe(c){const v=P[c.id];
+  if(c.kind=="readout"||c.id=="CLOCK:TEMPO"||c.id=="CLOCK:DIV")return P["CLOCK:SOURCE"]>.5?"TEMPO · SOURCE is EXT: the CLOCK jack steps the sequencer, TEMPO and the BPM readout are ignored":`TEMPO · ${fmtBpm(bpmNow())} BPM at 1/${spb(P["CLOCK:DIV"])*4} · ${sps(P["CLOCK:TEMPO"]).toFixed(2)} steps/s`;if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
 const ctlAt=(x,y)=>C.findIndex(c=>x>=c.hit[0]&&x<=c.hit[0]+c.hit[2]&&y>=c.hit[1]&&y<=c.hit[1]+c.hit[3]);
 
 // ================= cables (same model as the MS-50 patch bay) =================
@@ -162,10 +172,14 @@ menu.addEventListener("click",e=>{if(mjustDragged){mjustDragged=false;return}con
 
 // ================= pointer: controls first, then jacks =================
 let kdrag=null;
-sv.addEventListener("wheel",e=>{pt(e);if(scrMode=="search"&&ddRowAt(mx,my)>=0){e.preventDefault();scrollList(Math.sign(e.deltaY));return}const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];setP(c.id,P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)))},{passive:false});
-sv.addEventListener("dblclick",e=>{pt(e);const i=ctlAt(mx,my);if(i>=0&&C[i].kind!="button")setP(C[i].id,C[i].def)});
-sv.addEventListener("pointermove",e=>{pt(e);if(scrMode){const r=ddRowAt(mx,my);if(r>=0&&r!=ddHi){ddHi=r;drawDD()}sv.style.cursor=r>=0||bankAt(mx,my)>=0?"pointer":"default";return}if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
-  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=onScreenKey(mx,my)?"pointer":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
+sv.addEventListener("wheel",e=>{pt(e);if(scrMode=="search"&&ddRowAt(mx,my)>=0){e.preventDefault();scrollList(Math.sign(e.deltaY));return}const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];
+  if(c.kind=="readout"){if(P["CLOCK:SOURCE"]<=.5){const st=e.shiftKey?.1:1;setP("CLOCK:TEMPO",tempoFor(Math.round((bpmNow()-Math.sign(e.deltaY)*st)/st)*st),true);info.textContent=describe(c)}return}
+  setP(c.id,P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)))},{passive:false});
+sv.addEventListener("dblclick",e=>{pt(e);const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;const id=C[i].kind=="readout"?C[i].param:C[i].id;setP(id,C[C.findIndex(c=>c.id==id)].def)});
+sv.addEventListener("pointermove",e=>{pt(e);if(kdrag&&kdrag.bpm!==undefined){const dy=kdrag.y-e.clientY,b=kdrag.bpm+(e.shiftKey?dy*.05:dy*.5),st=e.shiftKey?.1:1;
+    setP("CLOCK:TEMPO",tempoFor(Math.round(b/st)*st),true);info.textContent=describe(C[kdrag.i]);return}
+  if(scrMode){const r=ddRowAt(mx,my);if(r>=0&&r!=ddHi){ddHi=r;drawDD()}sv.style.cursor=r>=0||bankAt(mx,my)>=0?"pointer":"default";return}if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
+  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=onScreenKey(mx,my)?"pointer":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"||C[ctlAt(mx,my)].kind=="readout"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
   if(down&&!grab&&Math.hypot(mx-down.x,my-down.y)>6){down.moved=true;const pl=plugsAt(down.j);if(pl.length&&!down.shift){const p=pl[pl.length-1];startGrab(p.i,p.e,false)}else newCable(down.j,false)}});
 sv.addEventListener("pointerleave",()=>{ptrIn=false;lab=null;if(!grab)setHov(-1)});
 sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(screenDown(mx,my))return;
@@ -173,7 +187,8 @@ sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(screenDown(mx,my))retu
   const ci=ctlAt(mx,my);
   if(ci>=0){const c=C[ci];
     if(c.kind=="button"){pressed=ci;drawCtl(ci);sv.setPointerCapture(e.pointerId);press(c.id);return}
-    if(c.style=="rocker"){setP(c.id,mx>c.cx?1:0);return}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
+    if(c.style=="rocker"){setP(c.id,mx>c.cx?1:0);return}
+    if(c.kind=="readout"){if(P["CLOCK:SOURCE"]<=.5){kdrag={i:ci,y:e.clientY,bpm:Math.round(bpmNow()*10)/10};sv.setPointerCapture(e.pointerId)}info.textContent=describe(c);return}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
     kdrag={i:ci,y:e.clientY,v:P[c.id],moved:false};sv.setPointerCapture(e.pointerId);return}
   const h=near();if(h>=0){down={j:h,x:mx,y:my,moved:false,shift:e.shiftKey};sv.setPointerCapture(e.pointerId)}});
 sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pressed=null;drawCtl(i);return}
@@ -267,6 +282,7 @@ const FONT={" ":[0,0,0,0,0,0,0],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14]
 // Two banks, A and B, of up to 999 patterns each. Bank A starts with the factory patterns; SAVE adds the next number to the
 // bank whose lamp is lit. Saved patterns stay in this browser (localStorage), so they survive a reload.
 const BANK=["A","B"],MAXP=SCREEN.bankSize||999,ROWS=SCREEN.listRows||10,NCH=SCREEN.chars;
+readyDots=true;drawReadouts();
 let user={A:[],B:[]};try{const u=JSON.parse(localStorage.getItem("bushido.patterns")||"null");if(u&&Array.isArray(u.A)&&Array.isArray(u.B))user=u}catch(e){}
 const bankList=b=>b=="A"?PATTERNS.concat(user.A):user.B;
 function persist(){try{localStorage.setItem("bushido.patterns",JSON.stringify(user))}catch(e){}}

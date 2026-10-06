@@ -9,6 +9,7 @@ PanelLayout PanelLayout::fromJson(const juce::String& json)
     for (auto& c : *d["controls"].getArray()) {
         Control k; k.id = c["id"].toString(); k.kind = c["kind"].toString(); k.style = c["style"].toString(); k.cx = (float) c["cx"]; k.cy = (float) c["cy"]; k.r = (float) c["r"];
         k.def = (float) c["default"]; k.positions = c.hasProperty("positions") ? (int) c["positions"] : 0; k.hit = rectOf(c["hit"]);
+        k.param = c["param"].toString(); k.chars = (int) c["chars"]; if (c.hasProperty("lcd")) k.lcd = rectOf(c["lcd"]);
         k.tone = c["tone"].toString(); k.rect = c.hasProperty("rect") ? rectOf(c["rect"]) : juce::Rectangle<float>(k.cx - 17, k.cy - 9, 34, 18);
         if (auto* a = c["angles"].getArray()) for (auto& x : *a) k.angles.push_back((float) x);
         L.controls.push_back(k);

@@ -239,6 +239,14 @@ int main() {
       int changes = 0, prev = r.sq.currentStep(); for (int s = 0; s < 48000; s += 16) { r.g.process(16); if (r.sq.currentStep() != prev) { prev = r.sq.currentStep(); ++changes; } }
       CHECK(changes == 8, "TEMPO CV +1 V doubles the internal clock (8 steps per second)"); }
 
+    { // BPM readout: same TEMPO parameter, two units. 120 BPM at 1/16 = 8 steps/s; DIV changes only the unit shown.
+      const float t = Sq10Module::tempoForBpm(120.0, 0.5f);
+      CHECK(std::abs(Sq10Module::stepsPerSecond(t) - 8.0) < 1e-4, "120 BPM at 1/16 is 8 steps per second");
+      CHECK(std::abs(Sq10Module::bpm(t, 0.0f) - 240.0) < 1e-3 && std::abs(Sq10Module::bpm(t, 1.0f) - 60.0) < 1e-3, "same TEMPO reads 240 BPM at 1/8 and 60 BPM at 1/32");
+      Rig r; r.sq.setParam(Sq10Module::TEMPO, t); r.sq.setParam(Sq10Module::DIV, 1.0f); r.press("MODE:START/STOP"); r.run(0.06);
+      int changes = 0, prev = r.sq.currentStep(); for (int s = 0; s < 48000; s += 16) { r.g.process(16); if (r.sq.currentStep() != prev) { prev = r.sq.currentStep(); ++changes; } }
+      CHECK(changes == 8, "DIV does not change the clock: still 8 steps in one second"); }
+
     { Rig r; r.sq.setParam(Sq10Module::STEPS, 0.8f); r.sq.setParam(Sq10Module::RANGE_A, 1.0f);
       r.g.setCables({ { r.S, findJack(r.sq, "OUTPUTS:CV A"), r.P, 0 } }); r.press("MODE:START/STOP"); r.run(0.02);
       CHECK(std::abs(r.pb.last - 4.0f) < 1e-4, "CV A (0.8 x 5 V) reaches a jack on another rack");

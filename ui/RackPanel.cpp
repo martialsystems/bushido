@@ -1,4 +1,5 @@
 #include "RackPanel.h"
+#include "PatternScreen.h"
 
 RackPanel::RackPanel(PanelLayout l, std::unique_ptr<juce::Drawable> b, Binding& bd) : lay(std::move(l)), bg(std::move(b)), bind(bd)
 {
@@ -86,6 +87,7 @@ void RackPanel::paint(juce::Graphics& g)
     if (bg) bg->draw(g, 1.0f);
     for (size_t i = 0; i < lay.controls.size(); ++i) {
         const auto& c = lay.controls[i]; const float v = bind.get(c.id);
+        if (c.kind == "readout") { PatternScreen::drawDots(g, c.lcd.reduced(2, 1), bind.readoutText(c.id).paddedLeft(' ', c.chars), c.chars, juce::Colour(0xff1e2419), 0.09f); continue; }
         if (c.kind == "button") drawKey(g, c.cx, c.cy, c.style == "black", (int) i == pressedIdx);
         else if (c.style == "rocker") drawRocker(g, c.rect, v > 0.5f, c.tone == "dark");
         else if (c.style == "toggle") drawToggle(g, c.cx, c.cy, v > 0.5f);
@@ -103,6 +105,10 @@ void RackPanel::mouseDown(const juce::MouseEvent& e)
     const int i = controlAt(toDesign(e.position)); if (i < 0) return;
     const auto& c = lay.controls[(size_t) i];
     if (c.kind == "button") { pressedIdx = i; bind.press(c.id, true); repaint(); return; }
+    if (c.kind == "readout") {                         // drag the digits like a knob: 1 unit per 2 px, Shift = 0.1
+        if (! bind.readoutEnabled(c.id)) return;
+        dragIdx = i; dragStartY = e.position.y; dragStartR = std::round(bind.readoutValue(c.id) * 10.0) / 10.0; dragMoved = false; bind.gesture(c.param, true); return;
+    }
     if (c.style == "rocker") {                         // press the left half for the first position, the right half for the second
         bind.gesture(c.id, true); bind.set(c.id, toDesign(e.position).x > c.cx ? 1.0f : 0.0f); bind.gesture(c.id, false); repaint(); return;
     }
@@ -114,6 +120,8 @@ void RackPanel::mouseDrag(const juce::MouseEvent& e)
     if (dragIdx < 0) return;
     const auto& c = lay.controls[(size_t) dragIdx]; const float dy = dragStartY - e.position.y;
     if (std::abs(dy) > 3) dragMoved = true;
+    if (c.kind == "readout") { const double st = e.mods.isShiftDown() ? 0.1 : 1.0, v = dragStartR + dy * (e.mods.isShiftDown() ? 0.05 : 0.5);
+        bind.setReadoutValue(c.id, std::round(v / st) * st); repaint(); return; }
     const float range = c.kind == "switch" ? 60.0f : (e.mods.isShiftDown() ? 1000.0f : 200.0f);   // screen pixels for full travel
     bind.set(c.id, snap(c, dragStartV + dy / range)); repaint();
 }
@@ -123,6 +131,7 @@ void RackPanel::mouseUp(const juce::MouseEvent&)
     if (pressedIdx >= 0) { bind.press(lay.controls[(size_t) pressedIdx].id, false); pressedIdx = -1; repaint(); return; }
     if (dragIdx < 0) return;
     const auto& c = lay.controls[(size_t) dragIdx];
+    if (c.kind == "readout") { bind.gesture(c.param, false); dragIdx = -1; repaint(); return; }
     if (c.kind == "switch" && ! dragMoved) { const float step = 1.0f / (float) (c.positions - 1); float v = bind.get(c.id) + step; if (v > 1.0f + 1e-4f) v = 0; bind.set(c.id, snap(c, v)); }
     bind.gesture(c.id, false); dragIdx = -1; repaint();
 }
@@ -131,6 +140,10 @@ void RackPanel::mouseDoubleClick(const juce::MouseEvent& e)
 {
     const int i = controlAt(toDesign(e.position)); if (i < 0) return;
     const auto& c = lay.controls[(size_t) i]; if (c.kind == "button") return;
+    if (c.kind == "readout") {                         // double-click resets the parameter behind the readout
+        for (auto& k : lay.controls) if (k.id == c.param) { bind.gesture(k.id, true); bind.set(k.id, k.def); bind.gesture(k.id, false); }
+        repaint(); return;
+    }
     bind.gesture(c.id, true); bind.set(c.id, c.def); bind.gesture(c.id, false); repaint();
 }
 
@@ -138,6 +151,8 @@ void RackPanel::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheel
 {
     const int i = controlAt(toDesign(e.position)); if (i < 0) return;
     const auto& c = lay.controls[(size_t) i]; if (c.kind == "button") return;
+    if (c.kind == "readout") { if (! bind.readoutEnabled(c.id)) return; const double st = e.mods.isShiftDown() ? 0.1 : 1.0;
+        bind.gesture(c.param, true); bind.setReadoutValue(c.id, std::round(bind.readoutValue(c.id) / st) * st + (w.deltaY > 0 ? st : -st)); bind.gesture(c.param, false); repaint(); return; }
     const float d = c.kind == "switch" ? (w.deltaY > 0 ? 1.0f : -1.0f) / (float) (c.positions - 1) : w.deltaY * (e.mods.isShiftDown() ? 0.05f : 0.25f);
     bind.gesture(c.id, true); bind.set(c.id, snap(c, bind.get(c.id) + d)); bind.gesture(c.id, false); repaint();
 }

@@ -55,6 +55,13 @@ void Sq10Editor::resized()
     screen->placeIn(getLocalBounds());
 }
 
+juce::String Sq10Editor::readoutText(const juce::String&)
+{
+    if (! readoutEnabled({})) return "EXT";
+    const double b = std::round(readoutValue({}) * 10.0) / 10.0;
+    return std::abs(b - std::round(b)) < 0.05 ? juce::String((int) std::round(b)) : juce::String(b, 1);
+}
+
 float Sq10Editor::get(const juce::String& id) { if (auto* p = proc.parameter(id)) return p->getValue(); return 0.0f; }
 void Sq10Editor::set(const juce::String& id, float v) { if (auto* p = proc.parameter(id)) p->setValueNotifyingHost(v); }
 void Sq10Editor::gesture(const juce::String& id, bool begin) { if (auto* p = proc.parameter(id)) { if (begin) p->beginChangeGesture(); else p->endChangeGesture(); } }

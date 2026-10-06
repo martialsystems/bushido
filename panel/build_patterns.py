@@ -8,10 +8,11 @@ def midi(n): return 12*(int(n[-1])+1)+NOTES[n[:-1]]
 def knob(n):
     if n in ("-",None): return 0.0                                   # 0 V: a Hz/V VCO is silent
     v=2**((midi(n)-33)/12); assert v<=5.0,n; return round(v/5,4)
-def tempo(steps_per_s): return round(math.log2(steps_per_s/0.5)/6,4)  # engine: rate = 0.5 * 2^(6 * TEMPO) steps/s
+def tempo(steps_per_s):            # engine: rate = 0.5 * 2^(6 * TEMPO) steps/s; rounded to a whole BPM at 1/16 (4 steps per beat)
+    bpm=round(steps_per_s*15); return round(math.log2(bpm*4/60/0.5)/6,6)
 def pat(name,mode,a,b,c,bps,cmode=0,porta=(0,0),cables=(),source=0):
     assert len(name)<=13 and len(a)==len(b)==len(c)==12,name
-    p={"MODE:MODE":{"A":0.0,"A+B":0.5,"ALT":1.0}[mode],"CH:C MODE":float(cmode),"CLOCK:TEMPO":tempo(bps),"CLOCK:SOURCE":float(source),
+    p={"MODE:MODE":{"A":0.0,"A+B":0.5,"ALT":1.0}[mode],"CH:C MODE":float(cmode),"CLOCK:TEMPO":tempo(bps),"CLOCK:SOURCE":float(source),"CLOCK:DIV":0.5,
        "CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:PORTA A":porta[0],"CH:PORTA B":porta[1],"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7}
     for i in range(12): p[f"A:{i+1}"]=knob(a[i]); p[f"B:{i+1}"]=knob(b[i]); p[f"C:{i+1}"]=round(c[i],3)
     return dict(name=name,params=p,cables=[list(x) for x in cables])

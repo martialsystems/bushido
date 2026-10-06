@@ -13,7 +13,7 @@ tw=lambda s,z:fm[z].getlength(s)/8+(LST if z==FT else LSL)*(len(s)-1)
 W,SC,M=1600,2,14; AVAIL=W-2*M; INK="#dcd6c2"; GOLD="#c29f4c"
 CH_Y=12; TI_Y=50; ROWY=[130,204,278]; LAMPY=90; TRIGY=372; KR=14; RING=21; JR=9; SWR=11
 # ---------------- module description (ids are SECTION:LABEL) ----------------
-COLS=[("CH",164)]+[(str(i),None) for i in range(1,13)]+[("CLOCK",96),("MODE",96),("INPUTS",96),("OUTPUTS",96),("MIXER",96)]
+COLS=[("CH",164)]+[(str(i),None) for i in range(1,13)]+[("CLOCK",156),("MODE",96),("INPUTS",96),("OUTPUTS",96),("MIXER",96)]
 fixed=sum(w for _,w in COLS if w); stepw=(AVAIL-fixed)/12
 P=[];LIVE=[];texts=[];circ=[];controls=[];leds=[];jacks=[];cols=[];CUR=[None,None]
 def T(cx,y,s,z,fill=INK):
@@ -83,6 +83,12 @@ def toggle(sec,lab,cx,cy,marks,default,text=None):   # two-position bat toggle (
     for m,dx in zip(marks,(-1,1)): T(cx+dx*18,cy-17,m,FL)
     T(cx,cy+SWR+17,text or lab,FL)
     lx=cx+(12 if default>.5 else -12); P.append(f'<g class="live"><line x1="{cx:.1f}" y1="{cy}" x2="{lx:.1f}" y2="{cy-2}" stroke="#d8d8d2" stroke-width="3.2" stroke-linecap="round"/><circle cx="{lx:.1f}" cy="{cy-2}" r="3.6" fill="url(#js)"/></g>')
+def readout(sec,lab,cx,cy,param,div):   # small green dot-matrix LCD you drag like a knob; the UI draws the digits
+    bz=[round(cx-35,1),cy-12,70,24]; lc=[round(cx-32,1),cy-9,64,18]
+    controls.append(dict(id=f"{sec}:{lab}",kind="readout",param=param,div=div,cx=round(cx,1),cy=cy,r=12,default=0,rect=bz,lcd=lc,chars=5,hit=bz))
+    for dx in (-24,-8,8,24): circ.append((cx+dx,cy,12,"readout "+lab))
+    P.append(f'<rect x="{bz[0]}" y="{bz[1]}" width="{bz[2]}" height="{bz[3]}" rx="3" fill="#0a0a0b" stroke="#2a2a2c" stroke-width="1.2"/><rect x="{lc[0]}" y="{lc[1]}" width="{lc[2]}" height="{lc[3]}" rx="1.5" fill="url(#lcd)"/>')
+    T(cx,cy+KR+14,lab,FL)
 def jack(sec,lab,d,cx,cy):
     jacks.append(dict(id=f"{sec}:{lab}",section=sec,label=lab,dir=d,x=round(cx,1),y=cy,radius=JR,hit=[round(cx-11,1),cy-11,22,22])); circ.append((cx,cy,JR+1.5,"jack "+lab))
     P.append(f'<circle cx="{cx:.1f}" cy="{cy}" r="{JR+1.5}" fill="#000" opacity=".55"/><circle cx="{cx:.1f}" cy="{cy}" r="{JR}" fill="url(#js)" stroke="#2a2a2c" stroke-width=".9"/>'
@@ -101,8 +107,10 @@ for title,w in COLS:
         for r,ch in enumerate("ABC"): knob(ch,title,cx,ROWY[r],[.5,.42,.58,.35,.66,.5,.3,.72,.45,.55,.38,.62][(int(title)+r*5)%12],label=False)
         lamp("STEP:"+title,cx,LAMPY); jack(title,"TRIG","out",cx,TRIGY)
     elif title=="CLOCK":
-        knob("CLOCK","TEMPO",cx,ROWY[0],.5); switch("CLOCK","SOURCE",cx,ROWY[1],["INT","EXT"],[-50,50],0.0)
-        jack("CLOCK","CLOCK","in",cx,282); jack("CLOCK","TEMPO CV","in",cx,342)
+        # TEMPO knob and the BPM readout are one control in two units (same parameter); DIV sets the readout's steps per beat
+        knob("CLOCK","TEMPO",x+40,ROWY[0],.5); readout("CLOCK","BPM",x+111,ROWY[0],"CLOCK:TEMPO","CLOCK:DIV")
+        switch("CLOCK","SOURCE",x+40,ROWY[1],["INT","EXT"],[-50,50],0.0); switch("CLOCK","DIV",x+116,ROWY[1],["1/8","1/16","1/32"],[-60,0,60],.5)
+        jack("CLOCK","CLOCK","in",x+40,282); jack("CLOCK","TEMPO CV","in",x+116,282)
     elif title=="MODE":
         switch("MODE","MODE",cx,ROWY[0],["A","A+B","ALT"],[-60,0,60],.5,rad=30)
         for i,l in enumerate(["A · LOOP 12","A+B · LOOP 24","ALT · SWAP A/B"]): T(cx,172+i*11,l,FS)   # every mode loops until STOP

@@ -14,6 +14,11 @@ public:
         virtual void  gesture(const juce::String& id, bool begin) { juce::ignoreUnused(id, begin); }
         virtual void  press(const juce::String& id, bool down) = 0;     // momentary buttons
         virtual float indicator(const juce::String& id) = 0;            // LEDs, 0..1
+        // readouts (kind "readout"): the text shown, the value dragged (in the readout's unit), and setting it
+        virtual juce::String readoutText(const juce::String& id) { juce::ignoreUnused(id); return {}; }
+        virtual bool   readoutEnabled(const juce::String& id) { juce::ignoreUnused(id); return true; }
+        virtual double readoutValue(const juce::String& id) { juce::ignoreUnused(id); return 0.0; }
+        virtual void   setReadoutValue(const juce::String& id, double v) { juce::ignoreUnused(id, v); }
     };
     RackPanel(PanelLayout layout, std::unique_ptr<juce::Drawable> background, Binding& binding);
     const PanelLayout& layout() const { return lay; }
@@ -32,7 +37,7 @@ public:
 
 private:
     PanelLayout lay; std::unique_ptr<juce::Drawable> bg; Binding& bind;
-    int dragIdx = -1; float dragStartY = 0, dragStartV = 0; bool dragMoved = false; int pressedIdx = -1;
+    int dragIdx = -1; float dragStartY = 0, dragStartV = 0; bool dragMoved = false; int pressedIdx = -1; double dragStartR = 0;
     float scale() const { return getWidth() / lay.width; }
     juce::Point<float> toDesign(juce::Point<float> p) const { return p / scale(); }
     int controlAt(juce::Point<float> design) const;

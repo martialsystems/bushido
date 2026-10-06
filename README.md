@@ -61,6 +61,9 @@ The panel reads BUSHIDO top left. It is 1600 x 434 design units, with no empty l
   Cables hang to the bottom edge of the panel and slide away from the jack, label, or cord under the pointer.
 - **MODE:** `A` loops row A (12 steps) on the A jacks. `A+B` is one 24-step sequence on the A jacks (row A, then row B), with the
   B jacks holding. `ALT` plays one row per pass on that row's own jacks, swapping A and B. All three run until START/STOP. START always begins at A step 1; RESET goes to A step 1 and keeps running.
+- **TEMPO and BPM:** the TEMPO knob is the internal clock. The green readout next to it is the same control in BPM: drag the digits
+  up or down (Shift = 0.1 BPM), scroll, or double-click to reset. DIV (1/8, 1/16, 1/32) sets the steps per beat, so at 1/16,
+  120 BPM is 8 steps per second. With SOURCE on EXT the readout shows EXT and the CLOCK jack steps the sequencer.
 - **C MODE** (toggle): CV = row C is a third CV. TIME = the C knob is gate length for A and B (5-95 % of the step), and CV C stays at 0 V.
 - **Lamps:** one lamp per step under the step numbers shows the playing step for all three rows.
 - **Sequence length:** patch `TRIG N+1` into `INPUTS > RESET` for an N-step loop.
