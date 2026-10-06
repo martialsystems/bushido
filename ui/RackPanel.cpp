@@ -53,17 +53,18 @@ void RackPanel::drawToggle(juce::Graphics& g, float cx, float cy, bool right)
     g.fillEllipse(lx - 3.6f, ly - 3.6f, 7.2f, 7.2f);
 }
 
-void RackPanel::drawRocker(juce::Graphics& g, juce::Rectangle<float> r, bool right)
+void RackPanel::drawRocker(juce::Graphics& g, juce::Rectangle<float> r, bool right, bool dark)
 {
     const auto left = r.withWidth(r.getWidth() / 2), rightHalf = left.translated(left.getWidth(), 0);
     auto half = [&](juce::Rectangle<float> h, bool pressed) {
-        g.setGradientFill(pressed ? juce::ColourGradient(juce::Colour(0xff8e897a), 0, h.getY(), juce::Colour(0xffbdb8a6), 0, h.getBottom(), false)
-                                  : juce::ColourGradient(juce::Colour(0xfffbf9f1), 0, h.getY(), juce::Colour(0xffdcd7c6), 0, h.getBottom(), false));
+        if (dark) g.setColour(juce::Colour(pressed ? 0xff101012 : 0xff3a3a3e));          // the MS-50 POWER rocker
+        else g.setGradientFill(pressed ? juce::ColourGradient(juce::Colour(0xff8e897a), 0, h.getY(), juce::Colour(0xffbdb8a6), 0, h.getBottom(), false)
+                                       : juce::ColourGradient(juce::Colour(0xfffbf9f1), 0, h.getY(), juce::Colour(0xffdcd7c6), 0, h.getBottom(), false));
         g.fillRoundedRectangle(h, 2.5f);
-        if (! pressed) { g.setColour(juce::Colour(0xfffffdf4)); g.drawLine(h.getX() + 2, h.getY() + 1.2f, h.getRight() - 2, h.getY() + 1.2f, 1.0f); }
+        if (! pressed) { g.setColour(juce::Colour(dark ? 0xff77777c : 0xfffffdf4)); g.drawLine(h.getX() + 2, h.getY() + 1.2f, h.getRight() - 2, h.getY() + 1.2f, 1.0f); }
     };
     half(left, ! right); half(rightHalf, right);
-    g.setColour(juce::Colour(0xff6b675a)); g.drawLine(r.getCentreX(), r.getY() + 1, r.getCentreX(), r.getBottom() - 1, 1.0f);
+    g.setColour(juce::Colour(dark ? 0xff000000 : 0xff6b675a)); g.drawLine(r.getCentreX(), r.getY() + 1, r.getCentreX(), r.getBottom() - 1, 1.0f);
 }
 
 void RackPanel::drawKey(juce::Graphics& g, float cx, float cy, bool black, bool down)
@@ -86,7 +87,7 @@ void RackPanel::paint(juce::Graphics& g)
     for (size_t i = 0; i < lay.controls.size(); ++i) {
         const auto& c = lay.controls[i]; const float v = bind.get(c.id);
         if (c.kind == "button") drawKey(g, c.cx, c.cy, c.style == "black", (int) i == pressedIdx);
-        else if (c.style == "rocker") drawRocker(g, { c.cx - 17, c.cy - 9, 34, 18 }, v > 0.5f);
+        else if (c.style == "rocker") drawRocker(g, c.rect, v > 0.5f, c.tone == "dark");
         else if (c.style == "toggle") drawToggle(g, c.cx, c.cy, v > 0.5f);
         else drawKnob(g, c.cx, c.cy, c.r, angleFor(c, v));
     }

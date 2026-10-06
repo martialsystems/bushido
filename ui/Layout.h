@@ -5,13 +5,15 @@
 #include <vector>
 
 struct PanelLayout {
-    struct Control { juce::String id, kind, style;   // style: "toggle" bat toggle, "rocker" white rocker, "cream"/"black" key; else a rotary
-                      float cx = 0, cy = 0, r = 0, def = 0; int positions = 0; std::vector<float> angles; juce::Rectangle<float> hit; };
+    struct Control { juce::String id, kind, style, tone;   // style: "toggle" bat toggle, "rocker" rocker (tone "dark" = MS-50 POWER style, else white), "cream"/"black" key; else a rotary
+                      float cx = 0, cy = 0, r = 0, def = 0; int positions = 0; std::vector<float> angles; juce::Rectangle<float> hit, rect; };
+    struct Screen  { juce::Rectangle<float> bezel, lcd, button; int chars = 16; };   // dot-matrix PATTERN screen and its dropdown key
     struct Led     { juce::String id; float cx = 0, cy = 0, r = 0; };
     struct Jack    { juce::String id, dir; float x = 0, y = 0, r = 0; juce::Rectangle<float> hit; };
     juce::String rack;
     float width = 0, height = 0;
     juce::Rectangle<float> lane;
+    Screen screen;
     std::vector<Control> controls;
     std::vector<Led> leds;
     std::vector<Jack> jacks;

@@ -27,7 +27,7 @@ public:
 
     static void drawKnob(juce::Graphics&, float cx, float cy, float r, float angleDeg);
     static void drawToggle(juce::Graphics&, float cx, float cy, bool right);    // lever only; the plate is in the background art
-    static void drawRocker(juce::Graphics&, juce::Rectangle<float> r, bool right);  // white rocker; the pressed half is the active one
+    static void drawRocker(juce::Graphics&, juce::Rectangle<float> r, bool right, bool dark = false);  // white (or dark) rocker; the pressed half is the active one
     static void drawKey(juce::Graphics&, float cx, float cy, bool black, bool down);
 
 private:

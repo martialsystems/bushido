@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "../rack/HzPerVolt.h"
+#include "BinaryData.h"
 
 juce::String Sq10Processor::paramIdFor(const std::string& id)
 {
@@ -16,6 +17,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout Sq10Processor::makeLayout(co
         const float step = p.positions >= 2 ? 1.0f / (float) (p.positions - 1) : 0.0f;
         l.add(std::make_unique<juce::AudioParameterFloat>(juce::ParameterID { paramIdFor(p.id), 1 }, juce::String(p.id), juce::NormalisableRange<float>(0.0f, 1.0f, step), p.def));
     }
+    l.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID { "TOP_BYPASS", 1 }, "Bypass", false));   // not an engine param: the processor applies it
     return l;
 }
 
@@ -26,6 +28,30 @@ Sq10Processor::Sq10Processor()
     sqIndex = graph.addModule(&sq);
     for (auto& p : sq.params()) raw.push_back(p.positions == -1 ? nullptr : apvts.getRawParameterValue(paramIdFor(p.id)));
     lastSent.assign(raw.size(), -1.0f);
+    bypass = dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter("TOP_BYPASS"));
+
+    static const char* colourNames[] = { "red", "white", "yellow", "green" };
+    const auto d = juce::JSON::parse(juce::String::fromUTF8(BinaryData::sq10_patterns_json, BinaryData::sq10_patterns_jsonSize));
+    if (auto* list = d["patterns"].getArray())
+        for (auto& pv : *list) {
+            Pattern pat; pat.name = pv["name"].toString();
+            if (auto* o = pv["params"].getDynamicObject()) for (auto& kv : o->getProperties()) pat.params.push_back({ kv.name.toString(), (float) kv.value });
+            if (auto* cl = pv["cables"].getArray())
+                for (auto& c : *cl) { int col = 0; for (int k = 0; k < 4; ++k) if (c[2].toString() == colourNames[k]) col = k;
+                    pat.cables.push_back({ "SQ-10/" + c[0].toString(), "SQ-10/" + c[1].toString(), col, (int) pat.cables.size() }); }
+            patterns.push_back(std::move(pat));
+        }
+    setCurrentProgram(0);                       // a fresh instance opens on pattern 01; a saved session replaces it
+}
+
+void Sq10Processor::setCurrentProgram(int i)
+{
+    if (! juce::isPositiveAndBelow(i, (int) patterns.size())) return;
+    const auto& pat = patterns[(size_t) i];
+    for (auto& [id, v] : pat.params) if (auto* p = parameter(id)) { p->beginChangeGesture(); p->setValueNotifyingHost(v); p->endChangeGesture(); }   // BYPASS is never in a pattern
+    currentPattern = i;
+    setCables(pat.cables);
+    if (onStateLoaded) onStateLoaded();
 }
 
 bool Sq10Processor::isBusesLayoutSupported(const BusesLayout& l) const
@@ -83,7 +109,12 @@ void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
             hostL[(size_t) i] = inCh > 0 ? buffer.getSample(0, o + i) * 5.0f : 0.0f;
             hostR[(size_t) i] = inCh > 1 ? buffer.getSample(1, o + i) * 5.0f : hostL[(size_t) i];
         }
-        graph.process(n);
+        graph.process(n);                                                 // keeps running while bypassed, so the lamps and clock carry on
+        if (isBypassed()) {                                               // BYPASS: host audio passes through dry and no notes are sent
+            for (int c = inCh; c < outCh; ++c) { if (inCh > 0) buffer.copyFrom(c, o, buffer, 0, o, n); else buffer.clear(c, o, n); }
+            for (int ch = 0; ch < 2; ++ch) { if (midiNote[ch] >= 0) midi.addEvent(juce::MidiMessage::noteOff(ch + 1, midiNote[ch]), o); midiNote[ch] = -1; gatePrev[ch] = false; }
+            continue;
+        }
         const float* mix = graph.output(sqIndex, Sq10Module::MIX_OUT);
         for (int c = 0; c < outCh; ++c) for (int i = 0; i < n; ++i) buffer.setSample(c, o + i, mix[i] * 0.2f);
         // MIDI out is a convenience, not the patch: channel A gates -> MIDI channel 1, B -> channel 2.
@@ -111,6 +142,7 @@ void Sq10Processor::getStateInformation(juce::MemoryBlock& dest)
     juce::ValueTree cv("CABLES");
     for (auto& c : cables) cv.appendChild(juce::ValueTree("CABLE").setProperty("a", c.a, nullptr).setProperty("b", c.b, nullptr).setProperty("color", c.color, nullptr).setProperty("age", c.age, nullptr), nullptr);
     state.removeChild(state.getChildWithName("CABLES"), nullptr); state.appendChild(cv, nullptr);
+    state.setProperty("pattern", currentPattern.load(), nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 
@@ -122,6 +154,7 @@ void Sq10Processor::setStateInformation(const void* data, int size)
     for (auto c : state.getChildWithName("CABLES"))                      // older states have no age: keep their list order
         loaded.push_back({ c["a"].toString(), c["b"].toString(), (int) c["color"], c.hasProperty("age") ? (int) c["age"] : (int) loaded.size() });
     state.removeChild(state.getChildWithName("CABLES"), nullptr);
+    currentPattern = juce::jlimit(0, juce::jmax(0, (int) patterns.size() - 1), (int) state.getProperty("pattern", 0));
     apvts.replaceState(state);
     setCables(loaded);
     if (onStateLoaded) onStateLoaded();

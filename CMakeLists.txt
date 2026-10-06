@@ -11,7 +11,7 @@ add_library(rack_core STATIC rack/PatchGraph.cpp rack/CableModel.cpp engine/Sq10
 target_include_directories(rack_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(rack_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-juce_add_binary_data(SQ10Assets SOURCES assets/sq10_panel_bg.svg assets/sq10_layout.json)
+juce_add_binary_data(SQ10Assets SOURCES assets/sq10_panel_bg.svg assets/sq10_layout.json assets/sq10_patterns.json)
 
 juce_add_plugin(SQ10
     COMPANY_NAME "SQ10Clone"
@@ -25,7 +25,7 @@ juce_add_plugin(SQ10
     IS_MIDI_EFFECT FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
-target_sources(SQ10 PRIVATE plugin/PluginProcessor.cpp plugin/PluginEditor.cpp ui/Layout.cpp ui/RackPanel.cpp ui/CableLayer.cpp)
+target_sources(SQ10 PRIVATE plugin/PluginProcessor.cpp plugin/PluginEditor.cpp ui/Layout.cpp ui/RackPanel.cpp ui/CableLayer.cpp ui/PatternScreen.cpp)
 target_compile_definitions(SQ10 PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(SQ10 PRIVATE rack_core SQ10Assets juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)

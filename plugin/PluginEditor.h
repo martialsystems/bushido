@@ -2,6 +2,7 @@
 #include "PluginProcessor.h"
 #include "../ui/RackPanel.h"
 #include "../ui/CableLayer.h"
+#include "../ui/PatternScreen.h"
 
 class Sq10Editor : public juce::AudioProcessorEditor, private RackPanel::Binding {
 public:
@@ -18,6 +19,7 @@ private:
     std::unique_ptr<RackPanel> panel;
     CableLayer cables;
     std::unique_ptr<Swatches> swatches;
+    std::unique_ptr<PatternScreen> screen;
     float get(const juce::String& id) override;
     void set(const juce::String& id, float v) override;
     void gesture(const juce::String& id, bool begin) override;

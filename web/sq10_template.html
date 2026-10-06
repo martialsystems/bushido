@@ -1,4 +1,4 @@
-<title>SQ-10 Sequencer</title>
+<title>BUSHIDO Sequencer</title>
 <style>
 /* Layout: the vector panel at full width with its cable lane, a control bar above, a jack readout below. Same chrome as the MS-50 patch bay. */
 :root{--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618;color-scheme:dark}
@@ -22,7 +22,7 @@ input[type=range]{accent-color:#c29f4c;width:90px}
 #menu .h{margin-left:auto;opacity:.45;letter-spacing:-1px}
 #menu i{width:12px;height:12px;border-radius:50%;flex:none}
 .sc{overflow-x:auto}
-#stage{position:relative;width:100%;min-width:1100px;aspect-ratio:1600/640;touch-action:none;user-select:none;-webkit-user-select:none}
+#stage{position:relative;width:100%;min-width:1100px;aspect-ratio:__W__/__H__;touch-action:none;user-select:none;-webkit-user-select:none}
 #stage img,#stage svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
 #info{margin-left:auto;color:var(--dim);min-height:1.4em}
 .readout{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px}
@@ -36,12 +36,12 @@ p b{color:var(--fg);font-weight:600}
 <div class="wrap">
 <div class="bar">
   <span class="grp"><span>Cable color</span><span id="sws" class="grp"></span></span>
-  <button class="t" id="clr">Clear cables</button><button class="t" id="rst">Demo patch</button>
+  <button class="t" id="clr">Clear cables</button>
   <span class="grp"><label for="octA">VCO A</label><select id="octA"></select><label for="octB">VCO B</label><select id="octB"></select></span>
   <span class="grp"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></span>
   <span id="info"></span>
 </div>
-<div class="sc"><div id="stage"><img src="__PANEL__" alt="SQ-10 panel" draggable="false"><svg id="sv" viewBox="0 0 1600 640"><defs id="df"></defs><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g></svg><div id="menu"></div></div></div>
+<div class="sc"><div id="stage"><img src="__PANEL__" alt="SQ-10 panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div></div></div>
 <div class="readout">
   <div class="cell"><span class="k">Playing</span><span class="v" id="r-step">stopped · press START</span></div>
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
@@ -49,12 +49,13 @@ p b{color:var(--fg);font-weight:600}
   <div class="cell"><span class="k">CV C</span><span class="v" id="r-c">0.00 V</span></div>
   <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
 </div>
-<p><b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
+<p><b>Patterns:</b> click the PATTERN screen or its key to pick one of 16 patterns (the last six are acid lines) (arrow keys and Enter work while the list is open). A pattern sets the knobs, switches and cables. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
+<b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
 <b>Sound:</b> two Hz/V VCOs listen to CV A / GATE A and CV B / GATE B (1 V = 55 Hz × the octave setting above). In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
 </div>
 <script>
-const L=__LAYOUT__,J=L.jacks,LABELS=L.labels.map(l=>l.rect),VW=1600,VH=640,NS="http://www.w3.org/2000/svg";
+const L=__LAYOUT__,J=L.jacks,LABELS=L.labels.map(l=>l.rect),VW=L.canvas[0],VH=L.canvas[1],NS="http://www.w3.org/2000/svg";
 const $=id=>document.getElementById(id),sv=$("sv"),cab=$("cab"),ring=$("ring"),info=$("info"),menu=$("menu"),stage=$("stage");
 const COL={red:["#d23a30","#6e100c","#ff9a8a"],white:["#ece8da","#86836f","#fff"],yellow:["#eabd2c","#80600a","#fff2a8"],green:["#33a352","#10521f","#98e6aa"]};
 $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_${n}" cx=".38" cy=".32" r=".85"><stop offset="0" stop-color="${l}"/><stop offset=".35" stop-color="${b}"/><stop offset="1" stop-color="${k}"/></radialGradient>`).join("")+
@@ -63,24 +64,24 @@ $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_
  '<linearGradient id="ru" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f1"/><stop offset="1" stop-color="#dcd7c6"/></linearGradient><linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8e897a"/><stop offset="1" stop-color="#bdb8a6"/></linearGradient>'+
  '<linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4eedc"/><stop offset="1" stop-color="#b3ab94"/></linearGradient><radialGradient id="bd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#f8f3e4"/><stop offset="1" stop-color="#d0c8b2"/></radialGradient>'+
  '<linearGradient id="bk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4a4e"/><stop offset="1" stop-color="#0e0e10"/></linearGradient><radialGradient id="bkd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#36363a"/><stop offset="1" stop-color="#161618"/></radialGradient>'+
+ '<linearGradient id="lcdg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f9a7c"/><stop offset=".5" stop-color="#a6b192"/><stop offset="1" stop-color="#94a083"/></linearGradient>'+
  '<radialGradient id="js" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#e6e6e1"/><stop offset="1" stop-color="#7d7d79"/></radialGradient><radialGradient id="lg"><stop offset="0" stop-color="#ff4a36" stop-opacity=".55"/><stop offset="1" stop-color="#ff4a36" stop-opacity="0"/></radialGradient>';
 
 // ================= controls =================
 const C=L.controls.map(c=>Object.assign({},c)),P={};C.forEach(c=>P[c.id]=c.default);
-const SAMPLE={A:[1,1.5,1.8,2,1.5,2.4,2,1.333,1,1.2,1.5,3],B:[2,2.4,3,3.6,4,3.6,3,2.4,2.667,3,4,4.8],C:[.8,.3,.55,.2,.9,.35,.6,.25,.7,.4,.5,.95]};
-for(let i=0;i<12;i++){P["A:"+(i+1)]=SAMPLE.A[i]/5;P["B:"+(i+1)]=SAMPLE.B[i]/5;P["C:"+(i+1)]=SAMPLE.C[i]}   // a minor pentatonic in Hz/V ratios at 5 V range
-C.forEach(c=>c.def=P[c.id]);
+const PATTERNS=__PATTERNS__.patterns;
+Object.assign(P,PATTERNS[0].params);C.forEach(c=>c.def=P[c.id]);   // double-click returns a control to pattern 01
 let pressed=null;
 const steps=c=>c.positions||0,idx=c=>Math.round(P[c.id]*(steps(c)-1));
 function knobBody(cx,cy,r,ang){return `<circle cx="${cx+1}" cy="${cy+2}" r="${r+4}" fill="#000" opacity=".45"/><circle cx="${cx}" cy="${cy}" r="${r+3}" fill="#08080a" stroke="#000" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="${r+1.2}" fill="none" stroke="#3c3c3f" stroke-width="2.4" stroke-dasharray=".8 1.6" opacity=".75"/><circle cx="${cx}" cy="${cy}" r="${r-.3}" fill="url(#kb)" stroke="#000" stroke-width=".8"/><circle cx="${cx}" cy="${cy}" r="${r*.8}" fill="url(#kt)" stroke="#050505" stroke-width=".8"/><ellipse cx="${cx-r*.28}" cy="${cy-r*.32}" rx="${r*.45}" ry="${r*.28}" fill="url(#ks)" transform="rotate(-35 ${cx} ${cy})"/><line x1="${cx}" y1="${cy-r*.1}" x2="${cx}" y2="${cy-(r-1.5)}" stroke="#f1ede0" stroke-width="2.4" transform="rotate(${ang} ${cx} ${cy})"/>`}
-function rockerBody(x,y,w,h,right){const hw=w/2,[a,b]=right?["url(#rd)","url(#ru)"]:["url(#ru)","url(#rd)"];
-  return `<rect x="${x}" y="${y}" width="${hw}" height="${h}" rx="2.5" fill="${a}"/><rect x="${x+hw}" y="${y}" width="${hw}" height="${h}" rx="2.5" fill="${b}"/><line x1="${x+(right?2:hw+2)}" y1="${y+1.2}" x2="${x+(right?hw-2:w-2)}" y2="${y+1.2}" stroke="#fffdf4" stroke-width="1"/><line x1="${x+hw}" y1="${y+1}" x2="${x+hw}" y2="${y+h-1}" stroke="#6b675a" stroke-width="1"/>`}
+function rockerBody(x,y,w,h,right,dark){const hw=w/2,[up,dn,hl,sep]=dark?["#3a3a3e","#101012","#77777c","#000"]:["url(#ru)","url(#rd)","#fffdf4","#6b675a"],[a,b]=right?[up,dn]:[dn,up];   // the active half is pressed in, as on the MS-50 POWER rocker
+  return `<rect x="${x}" y="${y}" width="${hw}" height="${h}" rx="2.5" fill="${a}"/><rect x="${x+hw}" y="${y}" width="${hw}" height="${h}" rx="2.5" fill="${b}"/><line x1="${x+(right?2:hw+2)}" y1="${y+1.2}" x2="${x+(right?hw-2:w-2)}" y2="${y+1.2}" stroke="${hl}" stroke-width="1"/><line x1="${x+hw}" y1="${y+1}" x2="${x+hw}" y2="${y+h-1}" stroke="${sep}" stroke-width="1"/>`}
 function keyBody(cx,cy,black,down){const o=down?1:0,[k,d,e,s]=black?["bk","bkd","#000","#3a3a3e"]:["bs","bd","#7e7764","#6f6a5a"];
   return `<g transform="translate(${o} ${o})"${down?' opacity=".92"':""}><rect x="${cx-13}" y="${cy-13}" width="26" height="26" rx="3" fill="url(#${k})" stroke="${s}" stroke-width=".9"/><rect x="${cx-13}" y="${cy+9}" width="26" height="4" rx="2" fill="${e}" opacity=".55"/><rect x="${cx-9.5}" y="${cy-10}" width="19" height="17" rx="2.5" fill="url(#${d})"/></g>`}
 function toggleBody(cx,cy,right){const lx=cx+(right?12:-12);return `<line x1="${cx}" y1="${cy}" x2="${lx}" y2="${cy-2}" stroke="#d8d8d2" stroke-width="3.2" stroke-linecap="round"/><circle cx="${lx}" cy="${cy-2}" r="3.6" fill="url(#js)"/>`}
 function drawCtl(i){const c=C[i],v=P[c.id];let s;
   if(c.kind=="button")s=keyBody(c.cx,c.cy,c.style=="black",pressed===i);
-  else if(c.style=="rocker")s=rockerBody(c.rect[0],c.rect[1],c.rect[2],c.rect[3],v>.5);
+  else if(c.style=="rocker")s=rockerBody(c.rect[0],c.rect[1],c.rect[2],c.rect[3],v>.5,c.tone=="dark");
   else if(c.style=="toggle")s=toggleBody(c.cx,c.cy,v>.5);
   else if(c.kind=="switch")s=knobBody(c.cx,c.cy,c.r,c.angles[idx(c)]);
   else s=knobBody(c.cx,c.cy,c.r,-135+270*v);
@@ -90,9 +91,10 @@ const ledEls={};L.leds.forEach(l=>{const g=document.createElementNS(NS,"g");$("l
 function setLed(id,on){const e=ledEls[id];if(!e||e.on===on)return;e.on=on;const{cx,cy,r}=e.l;
   e.g.innerHTML=(on?`<circle cx="${cx}" cy="${cy}" r="${r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${cx-r*.3}" cy="${cy-r*.3}" r="${r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}
 Object.keys(ledEls).forEach(id=>setLed(id,false));
-function setP(id,v,quiet){const i=C.findIndex(c=>c.id==id),c=C[i];v=Math.min(1,Math.max(0,v));if(steps(c)>=2)v=Math.round(v*(steps(c)-1))/(steps(c)-1);P[id]=v;drawCtl(i);
+function setP(id,v,quiet){const i=C.findIndex(c=>c.id==id),c=C[i];if(i<0)return;v=Math.min(1,Math.max(0,v));if(steps(c)>=2)v=Math.round(v*(steps(c)-1))/(steps(c)-1);P[id]=v;drawCtl(i);
+  if(id=="TOP:BYPASS"&&v>.5&&ctx)voices.forEach(x=>{x.g.gain.cancelScheduledValues(ctx.currentTime);x.g.gain.setTargetAtTime(0,ctx.currentTime,.01)});   // bypass mutes the VCOs at once
   if(!quiet)info.textContent=describe(c)}
-function describe(c){const v=P[c.id];if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
+function describe(c){const v=P[c.id];if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
 const ctlAt=(x,y)=>C.findIndex(c=>x>=c.hit[0]&&x<=c.hit[0]+c.hit[2]&&y>=c.hit[1]&&y<=c.hit[1]+c.hit[3]);
 
 // ================= cables (same model as the MS-50 patch bay) =================
@@ -162,15 +164,17 @@ menu.addEventListener("click",e=>{if(mjustDragged){mjustDragged=false;return}con
 let kdrag=null;
 sv.addEventListener("wheel",e=>{pt(e);const i=ctlAt(mx,my);if(i<0||C[i].kind=="button")return;e.preventDefault();const c=C[i];setP(c.id,P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)))},{passive:false});
 sv.addEventListener("dblclick",e=>{pt(e);const i=ctlAt(mx,my);if(i>=0&&C[i].kind!="button")setP(C[i].id,C[i].def)});
-sv.addEventListener("pointermove",e=>{pt(e);if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
-  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
+sv.addEventListener("pointermove",e=>{pt(e);if(ddOpen){const r=ddRowAt(mx,my);if(r>=0&&r!=ddHi){ddHi=r;drawDD()}sv.style.cursor=r>=0?"pointer":"default";return}if(kdrag){const c=C[kdrag.i],dy=kdrag.y-e.clientY;if(Math.abs(dy)>3)kdrag.moved=true;if(steps(c)<2||kdrag.moved)setP(c.id,kdrag.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200));return}
+  ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=inR(SCREEN.bezel,mx,my)||inR(SCREEN.button,mx,my)?"pointer":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
   if(down&&!grab&&Math.hypot(mx-down.x,my-down.y)>6){down.moved=true;const pl=plugsAt(down.j);if(pl.length&&!down.shift){const p=pl[pl.length-1];startGrab(p.i,p.e,false)}else newCable(down.j,false)}});
 sv.addEventListener("pointerleave",()=>{ptrIn=false;lab=null;if(!grab)setHov(-1)});
-sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(grab&&grab.carry){drop();ignoreUp=true;return}
+sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(ddOpen){const r=ddRowAt(mx,my);if(r>=0)loadPattern(r);closeDD();return}
+  if(inR(SCREEN.bezel,mx,my)||inR(SCREEN.button,mx,my)){if(!grab)openDD();return}
+  if(grab&&grab.carry){drop();ignoreUp=true;return}
   const ci=ctlAt(mx,my);
   if(ci>=0){const c=C[ci];
     if(c.kind=="button"){pressed=ci;drawCtl(ci);sv.setPointerCapture(e.pointerId);press(c.id);return}
-    if(c.style=="rocker"){setP(c.id,mx>c.cx?1:0);return}                    // press the left half for 1 V, the right half for 5 V
+    if(c.style=="rocker"){setP(c.id,mx>c.cx?1:0);return}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
     kdrag={i:ci,y:e.clientY,v:P[c.id],moved:false};sv.setPointerCapture(e.pointerId);return}
   const h=near();if(h>=0){down={j:h,x:mx,y:my,moved:false,shift:e.shiftKey};sv.setPointerCapture(e.pointerId)}});
 sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pressed=null;drawCtl(i);return}
@@ -178,7 +182,12 @@ sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pre
   if(ignoreUp){ignoreUp=false;down=null;return}
   if(grab&&!grab.carry){drop();down=null;return}
   if(down&&!down.moved&&plugsAt(down.j).length)showMenu(down.j);down=null});
-addEventListener("keydown",e=>{if(e.key=="Escape"){hideMenu();cancel()}
+addEventListener("keydown",e=>{if(ddOpen){
+    if(e.key=="ArrowDown"){ddHi=(ddHi+1)%PATTERNS.length;drawDD();e.preventDefault()}
+    else if(e.key=="ArrowUp"){ddHi=(ddHi+PATTERNS.length-1)%PATTERNS.length;drawDD();e.preventDefault()}
+    else if(e.key=="Enter"){loadPattern(ddHi);closeDD();e.preventDefault()}
+    else if(e.key=="Escape")closeDD();return}
+  if(e.key=="Escape"){hideMenu();cancel()}
   if(e.code=="Space"&&!/^(BUTTON|SELECT|INPUT)$/.test(document.activeElement.tagName)){e.preventDefault();press("MODE:START/STOP")}});
 function loop(){if(grab)pins(cables[grab.i]);step();paint();frame();requestAnimationFrame(loop)}
 
@@ -225,13 +234,14 @@ let ctx=null,master=null,voices=[];
 function audio(){if(ctx){if(ctx.state=="suspended")ctx.resume();return ctx}
   ctx=new(window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.gain.value=+$("vol").value*.5;master.connect(ctx.destination);
   voices=[0,1].map(()=>{const o=ctx.createOscillator(),o2=ctx.createOscillator(),m2=ctx.createGain(),f=ctx.createBiquadFilter(),g=ctx.createGain();
-    o.type="sawtooth";o2.type="square";o2.detune.value=6;m2.gain.value=.35;f.type="lowpass";f.Q.value=6;f.frequency.value=1800;g.gain.value=0;
+    o.type="sawtooth";o2.type="square";o2.detune.value=6;m2.gain.value=.35;f.type="lowpass";f.Q.value=9;f.frequency.value=1800;g.gain.value=0;
     o.connect(f);o2.connect(m2).connect(f);f.connect(g).connect(master);o.start();o2.start();return{o,o2,f,g}});return ctx}
 const hz=(v,k)=>v>0?55*v*2**+$("oct"+"AB"[k]).value:0;
 function sound(jk,volts,t,len){const v=voices[jk],porta=P["CH:PORTA "+"AB"[jk]],tau=porta*porta*2,f=Math.max(1,hz(volts,jk));
   for(const o of[v.o,v.o2]){o.frequency.cancelScheduledValues(t);if(tau<1e-3)o.frequency.setValueAtTime(f,t);else o.frequency.setTargetAtTime(f,t,tau/3)}
-  const cut=P["CH:C MODE"]>.5?1600:250+S.cvC/5*5000;voices.forEach(x=>x.f.frequency.setTargetAtTime(cut,t,.01));
-  const peak=volts>0?.7:0;v.g.gain.cancelScheduledValues(t);v.g.gain.setValueAtTime(0,t);v.g.gain.linearRampToValueAtTime(peak,t+.004);
+  const cut=P["CH:C MODE"]>.5?900:250+S.cvC/5*5000;   // each note opens the filter and lets it fall back, for an acid-style squelch
+  voices.forEach((x,k)=>{if(k!=jk)return;x.f.frequency.cancelScheduledValues(t);x.f.frequency.setValueAtTime(cut*3.2,t);x.f.frequency.setTargetAtTime(cut*.7,t+.005,.07)});
+  const peak=volts>0&&P["TOP:BYPASS"]<=.5?.7:0;v.g.gain.cancelScheduledValues(t);v.g.gain.setValueAtTime(0,t);v.g.gain.linearRampToValueAtTime(peak,t+.004);
   v.g.gain.setTargetAtTime(peak*.55,t+.01,.08);v.g.gain.setValueAtTime(peak*.5,Math.max(t+.005,t+len-.004));v.g.gain.linearRampToValueAtTime(0,t+len)}
 
 // ================= lamps and readout =================
@@ -246,11 +256,39 @@ function frame(){setLed("MODE:RUN",S.running);if(!ctx)return;
     $("r-step").innerHTML=`${"AB"[v.chan]}${v.pos+1} <small>· ${["A","A+B","ALT"][m]} step ${seq} · on the ${"AB"[v.jk]} jacks</small>`;
     const f=(k)=>`${S.cv[k].toFixed(2)} V <small>· gate ${v.jk==k?"5 V":"0 V"}${v.jk!=k?" · holding":""}</small>`;$("r-a").innerHTML=f(0);$("r-b").innerHTML=f(1);
     $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${v.pos+1}`]).toFixed(0)}% of the step</small>`:`${S.cvC.toFixed(2)} V <small>· opens both filters</small>`;
-    const n=midiOf(v.volts);$("r-midi").innerHTML=`${n<0?"–":n} <small>· ${noteName(n)} · ch ${v.jk+1} · ${(55*v.volts).toFixed(1)} Hz on a Hz/V VCO</small>`;
+    const n=P["TOP:BYPASS"]>.5?-1:midiOf(v.volts);$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${v.jk+1} · ${(55*v.volts).toFixed(1)} Hz on a Hz/V VCO</small>`;
     for(const c of cables){const a=c.a>=0?J[c.a].id:"",b=c.b>=0?J[c.b].id:"";if(a==`${v.pos+1}:TRIG`||b==`${v.pos+1}:TRIG`)jiggle(c,1.2)}}}   // a cable twitches when its TRIG fires
 
-// ================= demo patch =================
-function demo(){cancel();hideMenu();setP("MODE:MODE",0,true);cables=[{a:jid("9:TRIG"),b:jid("INPUTS:RESET"),c:"yellow"}];build();info.textContent="Demo: MODE A with TRIG 9 into RESET, an 8-step loop of row A"}
-$("rst").onclick=demo;$("clr").onclick=()=>{cancel();cables=[];build();info.textContent="Cables cleared"};
-demo();loop();
+// ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as the MS-50 PRESET screen) =================
+const SCREEN=L.screen;
+const FONT={" ":[0,0,0,0,0,0,0],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14],"2":[14,17,1,2,4,8,31],"3":[31,2,4,2,1,17,14],"4":[2,6,10,18,31,2,2],
+"5":[31,16,30,1,1,17,14],"6":[6,8,16,30,17,17,14],"7":[31,1,2,4,8,8,8],"8":[14,17,17,14,17,17,14],"9":[14,17,17,15,1,2,12],
+"A":[14,17,17,17,31,17,17],"B":[30,17,17,30,17,17,30],"C":[14,17,16,16,16,17,14],"D":[28,18,17,17,17,18,28],"E":[31,16,16,30,16,16,31],
+"F":[31,16,16,30,16,16,16],"G":[14,17,16,23,17,17,15],"H":[17,17,17,31,17,17,17],"I":[14,4,4,4,4,4,14],"J":[7,2,2,2,2,18,12],
+"K":[17,18,20,24,20,18,17],"L":[16,16,16,16,16,16,31],"M":[17,27,21,21,17,17,17],"N":[17,17,25,21,19,17,17],"O":[14,17,17,17,17,17,14],
+"P":[30,17,17,30,16,16,16],"Q":[14,17,17,17,21,18,13],"R":[30,17,17,30,20,18,17],"S":[15,16,16,14,1,1,30],"T":[31,4,4,4,4,4,4],
+"U":[17,17,17,17,17,17,14],"V":[17,17,17,17,17,10,4],"W":[17,17,17,21,21,21,10],"X":[17,17,10,4,10,17,17],"Y":[17,17,17,10,4,4,4],
+"Z":[31,1,2,4,8,16,31],"&":[12,18,20,8,21,18,13],"-":[0,0,0,31,0,0,0],"+":[0,4,4,31,4,4,0],"/":[0,1,2,4,8,16,0],".":[0,0,0,0,0,12,12],">":[8,4,2,1,2,4,8]};
+let pattern=0,ddOpen=false,ddHi=0;
+const DD_ROW=21,DD_PAD=5,ddBox=()=>[SCREEN.bezel[0],SCREEN.bezel[1]+SCREEN.bezel[3]+3,SCREEN.button[0]+SCREEN.button[2]-SCREEN.bezel[0],DD_PAD*2+PATTERNS.length*DD_ROW-3];
+const inR=(r,x,y)=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3];
+const plabel=i=>(String(i+1).padStart(2,"0")+" "+PATTERNS[i].name).toUpperCase().slice(0,16);
+function dots(x,y,w,h,text,ink,ghost){const n=SCREEN.chars,p=Math.min(w/(n*6),h/8),d=p*.86,ox=x+(w-n*6*p)/2+p*.5,oy=y+(h-7*p)/2;let g="",l="";
+  for(let c=0;c<n;c++){const f=FONT[text[c]||" "]||FONT[" "];for(let r=0;r<7;r++)for(let b=0;b<5;b++){const s=`<rect x="${(ox+(c*6+b)*p).toFixed(2)}" y="${(oy+r*p).toFixed(2)}" width="${d.toFixed(2)}" height="${d.toFixed(2)}"/>`;if((f[r]>>(4-b))&1)l+=s;else g+=s}}
+  return `<g fill="${ink}" opacity="${ghost}">${g}</g><g fill="${ink}" opacity=".9">${l}</g>`}
+function drawLCD(){const r=SCREEN.lcd,t=plabel(pattern),el=$("lcd");el.setAttribute("aria-label","Pattern "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09)}
+function ddRowAt(x,y){const b=ddBox();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW);return i>=0&&i<PATTERNS.length?i:-1}
+function drawDD(){const el=$("dd");if(!ddOpen){el.innerHTML="";return}const b=ddBox();
+  let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
+  PATTERNS.forEach((_,i)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+i*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3,hi=i==ddHi;
+    s+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,(i==pattern?">":" ")+plabel(i),hi?"#a6b192":"#1e2419",hi?.08:.09)});
+  el.innerHTML=s}
+function openDD(){ddOpen=true;ddHi=pattern;drawDD()}
+function closeDD(){ddOpen=false;drawDD()}
+// A pattern sets every control except BYPASS, and replaces the cables. The sequencer keeps running if it was.
+function loadPattern(i){const Q=PATTERNS[i];cancel();hideMenu();
+  C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,Q.params[c.id]??c.default,true)});
+  cables=Q.cables.map(([a,b,c])=>({a:jid(a),b:jid(b),c}));build();pattern=i;drawLCD();info.textContent="PATTERN "+plabel(i)}
+$("clr").onclick=()=>{cancel();cables=[];build();info.textContent="Cables cleared"};
+loadPattern(0);loop();
 </script>

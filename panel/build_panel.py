@@ -10,7 +10,7 @@ FP="/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
 FT,FL,FS,LST,LSL=12,11,9,.8,.4
 fm={s:ImageFont.truetype(FP,s*8) for s in (FT,FL,FS)}
 tw=lambda s,z:fm[z].getlength(s)/8+(LST if z==FT else LSL)*(len(s)-1)
-W,H,SC,M=1600,640,2,14; AVAIL=W-2*M; INK="#dcd6c2"; GOLD="#c29f4c"
+W,SC,M=1600,2,14; AVAIL=W-2*M; INK="#dcd6c2"; GOLD="#c29f4c"
 CH_Y=12; TI_Y=50; ROWY=[130,204,278]; LAMPY=90; TRIGY=372; KR=14; RING=21; JR=9; SWR=11
 # ---------------- module description (ids are SECTION:LABEL) ----------------
 COLS=[("CH",164)]+[(str(i),None) for i in range(1,13)]+[("CLOCK",96),("MODE",96),("INPUTS",96),("OUTPUTS",96),("MIXER",96)]
@@ -54,11 +54,12 @@ def button(sec,lab,cx,cy,style="black",lamp=None):
     ly=cy+17
     if lamp: led(lamp,cx,cy+26,r=3.5); ly=cy+30
     T(cx,ly+14,lab,FL)
-def rocker_svg(x,y,w,h,right):   # pressed half sits low and shaded, raised half catches the light
-    hw=w/2; up,dn="url(#ru)","url(#rd)"; a,b=(dn,up) if right else (up,dn)
+def rocker_svg(x,y,w,h,right,dark=False):   # pressed half sits low and shaded, raised half catches the light
+    hw=w/2; up,dn=("#3a3a3e","#101012") if dark else ("url(#ru)","url(#rd)"); a,b=(up,dn) if right else (dn,up)   # the active half is pressed in
+    hl,sep=("#77777c","#000") if dark else ("#fffdf4","#6b675a")
     return (f'<rect x="{x:.1f}" y="{y}" width="{hw}" height="{h}" rx="2.5" fill="{a}"/><rect x="{x+hw:.1f}" y="{y}" width="{hw}" height="{h}" rx="2.5" fill="{b}"/>'
-            f'<line x1="{x+(hw+2 if right else 2):.1f}" y1="{y+1.2}" x2="{x+(w-2 if right else hw-2):.1f}" y2="{y+1.2}" stroke="#fffdf4" stroke-width="1"/>'
-            f'<line x1="{x+hw:.1f}" y1="{y+1}" x2="{x+hw:.1f}" y2="{y+h-1}" stroke="#6b675a" stroke-width="1"/>')
+            f'<line x1="{x+(2 if right else hw+2):.1f}" y1="{y+1.2}" x2="{x+(hw-2 if right else w-2):.1f}" y2="{y+1.2}" stroke="{hl}" stroke-width="1"/>'
+            f'<line x1="{x+hw:.1f}" y1="{y+1}" x2="{x+hw:.1f}" y2="{y+h-1}" stroke="{sep}" stroke-width="1"/>')
 def rocker(sec,lab,cx,cy,marks,default,text=None):   # two-position rocker like the MS-50 POWER switch, in white: press the left or right half
     w,h=34,18; x,y=cx-w/2,cy-h/2
     controls.append(dict(id=f"{sec}:{lab}",kind="switch",style="rocker",cx=round(cx,1),cy=cy,r=w/2,default=default,positions=2,angles=[-50,50],marks=marks,
@@ -115,6 +116,14 @@ for title,w in COLS:
         jack("MIXER","IN 1","in",cx,272); jack("MIXER","IN 2","in",cx,322); jack("MIXER","OUT","out",cx,372)
     x+=w
 FR_T=TI_Y-6; FR_B=max(t[3] for t in texts)+12; rules=[c["x"] for c in cols[1:]]
+H=round(FR_B+26)                 # no empty lane under the frame: the bottom screws sit just below it
+# ---------------- top bar: name, BYPASS rocker (top left), PATTERN screen (centre) ----------------
+NAME="BUSHIDO"
+NAME_W=ImageFont.truetype(FP,14*8).getlength(NAME)/8+3*(len(NAME)-1)
+BP_RK=[round(M+4+NAME_W+28+tw("BYPASS",FL)+14+tw("OFF",FL)+6),CH_Y+5,40,20]         # dark rocker like the MS-50 POWER switch: left half OFF, right half ON
+controls.append(dict(id="TOP:BYPASS",kind="switch",style="rocker",tone="dark",cx=BP_RK[0]+BP_RK[2]/2,cy=BP_RK[1]+BP_RK[3]/2,r=BP_RK[2]/2,default=0.0,positions=2,
+                     angles=[-50,50],marks=["OFF","ON"],rect=BP_RK,hit=[BP_RK[0]-2,BP_RK[1]-4,BP_RK[2]+4,BP_RK[3]+8]))
+SCR_BEZEL=[680,CH_Y+1,240,28]; SCR_LCD=[684,CH_Y+5,232,20]; SCR_KEY=[926,CH_Y+3,26,24]   # same geometry as the MS-50 PRESET screen
 # ---------------- checks ----------------
 bad=[]
 for i,a in enumerate(texts):
@@ -138,14 +147,24 @@ for i,a in enumerate(hh):
 print(f"canvas {W}x{H} | step col {stepw:.1f}px | frame y {FR_T}-{FR_B:.0f} | controls {len(controls)} leds {len(leds)} jacks {len(jacks)} | overlaps: {bad}")
 assert not bad
 # ---------------- render ----------------
+tl=lambda x,s:f'<text x="{x:.1f}" y="{CH_Y+19}" font-size="{FL}" font-weight="700" letter-spacing="{LSL}" fill="{INK}">{s}</text>'
 DEFS=('<defs><linearGradient id="pf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#242426"/><stop offset="1" stop-color="#161618"/></linearGradient>'
  '<radialGradient id="js" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#e6e6e1"/><stop offset="1" stop-color="#7d7d79"/></radialGradient><radialGradient id="jn" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#9a9a96"/><stop offset="1" stop-color="#3c3c3c"/></radialGradient>'
  '<linearGradient id="kb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4b4b4e"/><stop offset=".5" stop-color="#1a1a1b"/><stop offset="1" stop-color="#060607"/></linearGradient><linearGradient id="kt" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a2a2c"/><stop offset="1" stop-color="#131314"/></linearGradient>'
  '<radialGradient id="ks"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
- '<linearGradient id="ru" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f1"/><stop offset="1" stop-color="#dcd7c6"/></linearGradient><linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8e897a"/><stop offset="1" stop-color="#bdb8a6"/></linearGradient><linearGradient id="bk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4a4e"/><stop offset="1" stop-color="#0e0e10"/></linearGradient><radialGradient id="bkd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#36363a"/><stop offset="1" stop-color="#161618"/></radialGradient><linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4eedc"/><stop offset="1" stop-color="#a9a18a"/></linearGradient><radialGradient id="bd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#f8f3e4"/><stop offset="1" stop-color="#d0c8b2"/></radialGradient></defs>')
+ '<linearGradient id="ru" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f1"/><stop offset="1" stop-color="#dcd7c6"/></linearGradient><linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8e897a"/><stop offset="1" stop-color="#bdb8a6"/></linearGradient><linearGradient id="bk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4a4e"/><stop offset="1" stop-color="#0e0e10"/></linearGradient><radialGradient id="bkd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#36363a"/><stop offset="1" stop-color="#161618"/></radialGradient><linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4eedc"/><stop offset="1" stop-color="#a9a18a"/></linearGradient><radialGradient id="bd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#f8f3e4"/><stop offset="1" stop-color="#d0c8b2"/></radialGradient>'
+ '<linearGradient id="lcd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f9a7c"/><stop offset=".5" stop-color="#a6b192"/><stop offset="1" stop-color="#94a083"/></linearGradient></defs>')
 svg=(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" font-family="Liberation Sans">'+DEFS+
  f'<rect width="{W}" height="{H}" rx="8" fill="url(#pf)"/><rect x="3" y="3" width="{W-6}" height="{H-6}" rx="6" fill="none" stroke="#050506" stroke-width="2"/>'
- f'<text x="{M+4}" y="{CH_Y+21}" font-size="14" font-weight="700" letter-spacing="3" fill="#9a9684">SEQUENCER</text>'
+ f'<text x="{M+4}" y="{CH_Y+21}" font-size="14" font-weight="700" letter-spacing="3" fill="#9a9684">{NAME}</text>'
+ +tl(BP_RK[0]-20-tw("OFF",FL)-tw("BYPASS",FL),"BYPASS")+tl(BP_RK[0]-6-tw("OFF",FL),"OFF")+tl(BP_RK[0]+BP_RK[2]+6,"ON")
+ +f'<rect x="{BP_RK[0]-2}" y="{BP_RK[1]-2}" width="{BP_RK[2]+4}" height="{BP_RK[3]+4}" rx="4" fill="#050505" stroke="#2a2a2c" stroke-width="1.2"/><g class="live">{rocker_svg(*BP_RK,False,dark=True)}</g>'
+ +tl(SCR_BEZEL[0]-8-tw("PATTERN",FL),"PATTERN")
+ +f'<rect x="{SCR_BEZEL[0]}" y="{SCR_BEZEL[1]}" width="{SCR_BEZEL[2]}" height="{SCR_BEZEL[3]}" rx="3" fill="#0a0a0b" stroke="#2a2a2c" stroke-width="1.2"/>'
+ f'<rect x="{SCR_LCD[0]}" y="{SCR_LCD[1]}" width="{SCR_LCD[2]}" height="{SCR_LCD[3]}" rx="1.5" fill="url(#lcd)"/>'
+ f'<rect x="{SCR_KEY[0]}" y="{SCR_KEY[1]}" width="{SCR_KEY[2]}" height="{SCR_KEY[3]}" rx="3" fill="url(#bs)" stroke="#6f6a5a" stroke-width=".9"/>'
+ f'<rect x="{SCR_KEY[0]}" y="{SCR_KEY[1]+SCR_KEY[3]-4}" width="{SCR_KEY[2]}" height="4" rx="2" fill="#7e7764" opacity=".55"/>'
+ f'<polygon points="{SCR_KEY[0]+8},{SCR_KEY[1]+9} {SCR_KEY[0]+18},{SCR_KEY[1]+9} {SCR_KEY[0]+13},{SCR_KEY[1]+15}" fill="#2a2620"/>'
  f'<rect x="{M}" y="{FR_T}" width="{AVAIL}" height="{FR_B-FR_T:.1f}" fill="none" stroke="{GOLD}" stroke-width="1.6"/>'
  +"".join(f'<line x1="{r}" y1="{FR_T}" x2="{r}" y2="{FR_B:.1f}" stroke="{GOLD}" stroke-width="1.6"/>' for r in rules)+"".join(P)
  +"".join(f'<g transform="translate({sx} {sy})"><circle r="5" fill="url(#js)" stroke="#000" stroke-width=".9"/><line x1="-3.5" x2="3.5" stroke="#1a1a1a" stroke-width="1.5"/><line y1="-3.5" y2="3.5" stroke="#1a1a1a" stroke-width="1.5"/></g>' for sx,sy in((9,9),(W-9,9),(9,H-9),(W-9,H-9)))+'</svg>')
@@ -191,5 +210,5 @@ o=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets")+"/"; os
 full=text_to_paths(svg.replace("</svg>",wear_svg()+"</svg>"))
 open(o+"sq10_panel.svg","w").write(full)                                              # every part at its default
 open(o+"sq10_panel_bg.svg","w").write(re.sub(r'<g class="live">.*?</g>',"",full))     # no live parts: the editor and web page draw those on top
-json.dump(dict(rack="SQ-10",canvas=[W,H],provisional=True,frame=[M,FR_T,AVAIL,round(FR_B-FR_T,1)],lane=[M,round(FR_B,1),AVAIL,round(H-M-FR_B,1)],
+json.dump(dict(rack="SQ-10",canvas=[W,H],provisional=True,frame=[M,FR_T,AVAIL,round(FR_B-FR_T,1)],lane=[M,round(FR_B,1),AVAIL,round(H-FR_B,1)],screen=dict(bezel=SCR_BEZEL,lcd=SCR_LCD,button=SCR_KEY,chars=16),name=NAME,
   columns=cols,controls=controls,leds=leds,jacks=jacks,labels=[dict(text=t[4],rect=[round(t[0],1),round(t[1],1),round(t[2]-t[0],1),round(t[3]-t[1],1)]) for t in texts]),open(o+"sq10_layout.json","w"),indent=1)

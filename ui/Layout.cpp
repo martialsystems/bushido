@@ -9,11 +9,13 @@ PanelLayout PanelLayout::fromJson(const juce::String& json)
     for (auto& c : *d["controls"].getArray()) {
         Control k; k.id = c["id"].toString(); k.kind = c["kind"].toString(); k.style = c["style"].toString(); k.cx = (float) c["cx"]; k.cy = (float) c["cy"]; k.r = (float) c["r"];
         k.def = (float) c["default"]; k.positions = c.hasProperty("positions") ? (int) c["positions"] : 0; k.hit = rectOf(c["hit"]);
+        k.tone = c["tone"].toString(); k.rect = c.hasProperty("rect") ? rectOf(c["rect"]) : juce::Rectangle<float>(k.cx - 17, k.cy - 9, 34, 18);
         if (auto* a = c["angles"].getArray()) for (auto& x : *a) k.angles.push_back((float) x);
         L.controls.push_back(k);
     }
     for (auto& l : *d["leds"].getArray())  L.leds.push_back({ l["id"].toString(), (float) l["cx"], (float) l["cy"], (float) l["r"] });
     for (auto& j : *d["jacks"].getArray()) L.jacks.push_back({ j["id"].toString(), j["dir"].toString(), (float) j["x"], (float) j["y"], (float) j["radius"], rectOf(j["hit"]) });
+    if (auto s = d["screen"]; s.isObject()) { L.screen.bezel = rectOf(s["bezel"]); L.screen.lcd = rectOf(s["lcd"]); L.screen.button = rectOf(s["button"]); L.screen.chars = (int) s["chars"]; }
     for (auto& t : *d["labels"].getArray()) L.labels.push_back(rectOf(t["rect"]));
     return L;
 }

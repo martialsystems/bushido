@@ -29,13 +29,19 @@ Sq10Editor::Sq10Editor(Sq10Processor& p) : AudioProcessorEditor(p), proc(p)
     cables.onPatchChanged = [this](const std::vector<CableSpec>& c) { proc.setCables(c); };
     addAndMakeVisible(cables);
     swatches = std::make_unique<Swatches>(cables); addAndMakeVisible(*swatches);
+    screen = std::make_unique<PatternScreen>(layout.screen, layout.width);       // on top of the cables, so its list covers them
+    screen->names = [this] { juce::StringArray n; for (auto& p : proc.getPatterns()) n.add(p.name); return n; };
+    screen->current = [this] { return proc.getCurrentProgram(); };
+    screen->choose = [this](int i) { proc.setCurrentProgram(i); panel->repaint(); };
+    addAndMakeVisible(*screen);
     addMouseListener(&cables, true);            // cables see the pointer everywhere (hover push-away), not only over jacks
     proc.onStateLoaded = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<Sq10Editor>(this)] { if (sp) sp->cables.setPatch(sp->proc.getCables()); }); };
 
     setResizable(true, true);
-    setResizeLimits(1100, 440, 1800, 720);
-    getConstrainer()->setFixedAspectRatio(layout.width / layout.height);
-    setSize(1280, 512);
+    const double aspect = layout.width / layout.height;                          // 1600 x 434 design units
+    setResizeLimits(1100, (int) (1100 / aspect), 1800, (int) (1800 / aspect));
+    getConstrainer()->setFixedAspectRatio(aspect);
+    setSize(1280, (int) std::round(1280 / aspect));
 }
 
 Sq10Editor::~Sq10Editor() { proc.onStateLoaded = nullptr; removeMouseListener(&cables); }
@@ -45,6 +51,7 @@ void Sq10Editor::resized()
     panel->setBounds(getLocalBounds()); cables.setBounds(getLocalBounds());
     const float s = getWidth() / 1600.0f;
     swatches->setBounds(juce::Rectangle<float>(1450 * s, 12 * s, 136 * s, 30 * s).toNearestInt());
+    screen->placeIn(getLocalBounds());
 }
 
 float Sq10Editor::get(const juce::String& id) { if (auto* p = proc.parameter(id)) return p->getValue(); return 0.0f; }

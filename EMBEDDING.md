@@ -16,7 +16,9 @@ Nothing in this repository depends on that happening.
 | `engine/Sq10Module.*` | none | The SQ-10 engine. |
 | `ui/Layout.*`, `ui/RackPanel.*` | JUCE | Draws any rack from its layout file and turns its knobs. |
 | `ui/CableLayer.*` | JUCE | One overlay over all racks: draws cables and handles patching. |
-| `assets/sq10_bg@2x.png`, `assets/sq10_layout.json` | — | SQ-10 panel art and geometry (provisional layout). |
+| `ui/PatternScreen.*` | JUCE | Dot-matrix pattern screen and list, drawn from the layout's `screen` rects. |
+| `assets/sq10_panel_bg.svg`, `assets/sq10_layout.json` | — | SQ-10 panel art (vector) and geometry (provisional layout). |
+| `assets/sq10_patterns.json` | — | 16 factory patterns: parameter values by id plus cables by jack id. BYPASS lives in the processor, not the engine or the patterns. |
 
 ## Rules any host graph must keep
 - **One graph.** A second `PatchGraph`, or a plugin hosted inside another, would split the patch and give cables two timing laws.

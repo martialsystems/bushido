@@ -2,7 +2,7 @@
  "rack": "SQ-10",
  "canvas": [
   1600,
-  640
+  434
  ],
  "provisional": true,
  "frame": [
@@ -15,8 +15,30 @@
   14,
   408.2,
   1572,
-  217.8
+  25.8
  ],
+ "screen": {
+  "bezel": [
+   680,
+   13,
+   240,
+   28
+  ],
+  "lcd": [
+   684,
+   17,
+   232,
+   20
+  ],
+  "button": [
+   926,
+   15,
+   26,
+   24
+  ],
+  "chars": 16
+ },
+ "name": "BUSHIDO",
  "columns": [
   {
    "title": "CH",
@@ -1023,6 +1045,37 @@
     183,
     42,
     42
+   ]
+  },
+  {
+   "id": "TOP:BYPASS",
+   "kind": "switch",
+   "style": "rocker",
+   "tone": "dark",
+   "cx": 238.0,
+   "cy": 27.0,
+   "r": 20.0,
+   "default": 0.0,
+   "positions": 2,
+   "angles": [
+    -50,
+    50
+   ],
+   "marks": [
+    "OFF",
+    "ON"
+   ],
+   "rect": [
+    218,
+    17,
+    40,
+    20
+   ],
+   "hit": [
+    216,
+    13,
+    44,
+    28
    ]
   }
  ],
