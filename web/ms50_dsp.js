@@ -257,7 +257,13 @@ var MS50 = (function () {
 
   // ---------- VCA 1 (S-11) ----------
   const kFeedbackPreset = 5, kHoldPreset = 6, kDefaultFactoryPreset = 2, kFeedbackVca1Initial = F(0.70);
-  function factoryVca1Initial(index) { return index === kFeedbackPreset ? kFeedbackVca1Initial : 0; }
+  // Self-mod presets (5dcf0cc): Filter loop 7, MG into filter 8, Stepped cutoff 9, Ring drone 10, Delayed bounce 11, Self ring 12.
+  const kFilterLoopPreset = 7, kMgFilterPreset = 8, kSteppedCutoffPreset = 9, kRingDronePreset = 10, kDelayedBouncePreset = 11,
+    kSelfRingPreset = 12;
+  function factoryVca1Initial(index) {
+    const open = index === kFeedbackPreset || (index >= kFilterLoopPreset && index <= kSelfRingPreset);
+    return open ? kFeedbackVca1Initial : 0;
+  }
   function Vca1() {
     const m = base("VCA 1");
     const PORTS = [P("SigIn", "Audio", "In"), P("Env", "CV", "In"), P("Out", "Audio", "Out")];
@@ -265,7 +271,7 @@ var MS50 = (function () {
     m.numPorts = () => 3;
     m.port = (i) => PORTS[i < 2 ? i : 2];
     m.numKnobs = () => 2;
-    // knob 2 is Initial: not a panel knob, set only by the Feedback preset (applyFactoryPreset)
+    // knob 2 is Initial: not a panel knob, set by Feedback and the self-mod presets (applyFactoryPreset)
     m.setKnob = (k, v) => { v = clamp01(F(v)); if (k === 0) lowCut01 = v; else if (k === 1) intensity = v; else if (k === 2) initial01 = v; };
     m.presetKnobCount = () => 2;
     m.presetKnob = (k) => (k === 0 ? lowCut01 : k === 1 ? intensity : 0);
@@ -747,19 +753,32 @@ var MS50 = (function () {
     [[MOD.Vco, 5, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0], [MOD.Vca1, 2, MOD.Output, 2], [MOD.Vcf, 2, MOD.Vcf, 1]],  // Feedback
     [[MOD.Vco, 5, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0], [MOD.Vca1, 2, MOD.Output, 2], [MOD.Ext, 3, MOD.Eg1, 0],
       [MOD.Eg1, 1, MOD.Vca1, 1], [MOD.Eg1, 1, MOD.Vcf, 1]],                                                   // Hold
+    [[MOD.Vco, 5, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0], [MOD.Vca1, 2, MOD.Output, 2], [MOD.Vcf, 2, MOD.Vcf, 1]],  // Filter loop
+    [[MOD.Vco, 5, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0], [MOD.Vca1, 2, MOD.Output, 2], [MOD.Mg, 2, MOD.Vcf, 1]],   // MG into filter
+    [[MOD.Vco, 5, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0], [MOD.Vca1, 2, MOD.Output, 2], [MOD.Noise, 0, MOD.SampleHold, 0],
+      [MOD.SampleHold, 1, MOD.Vcf, 1]],                                                                        // Stepped cutoff
+    [[MOD.Vco, 5, MOD.Ring, 0], [MOD.Mg, 2, MOD.Ring, 1], [MOD.Ring, 2, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0],
+      [MOD.Vca1, 2, MOD.Output, 2]],                                                                           // Ring drone
+    [[MOD.Noise, 0, MOD.Integrator, 0], [MOD.Integrator, 1, MOD.Vcf, 1], [MOD.Vco, 5, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0],
+      [MOD.Vca1, 2, MOD.Output, 2]],                                                                           // Delayed bounce
+    [[MOD.Vco, 5, MOD.Ring, 0], [MOD.Ring, 2, MOD.Ring, 1], [MOD.Ring, 2, MOD.Vcf, 0], [MOD.Vcf, 2, MOD.Vca1, 0],
+      [MOD.Vca1, 2, MOD.Output, 2]],                                                                           // Self ring
   ];
   const PRESET_META = [["Dry", "DRY", false], ["Noise to mixer", "NOISE MIXER", true], ["Voice", "VOICE", true], ["Ring", "RING", true],
-    ["S&H", "S&H", true], ["Feedback", "FEEDBACK", true], ["Hold", "HOLD", true]];
+    ["S&H", "S&H", true], ["Feedback", "FEEDBACK", true], ["Hold", "HOLD", true],
+    ["Filter loop", "FILTER LOOP", true], ["MG into filter", "MG FILTER", true], ["Stepped cutoff", "STEP CUTOFF", true],
+    ["Ring drone", "RING DRONE", true], ["Delayed bounce", "DELAY BOUNCE", true], ["Self ring", "SELF RING", true]];
   // applyProgramParameters + factoryProgramKnobs: every host parameter a program load restores.
   function programKnobs(index) {
-    const hold = index === kHoldPreset;
+    const hold = index === kHoldPreset, loop = index === kFilterLoopPreset;
+    const mgRate = index === kMgFilterPreset ? 0.30 : index === kRingDronePreset ? 0.25 : 0.50;
     return {
-      "VCF:CUTOFF": hold ? 0.45 : 0.50, "VCF:PEAK": hold ? 0.20 : 0.30, "VCF:MOD": 0.68, "VCA 1:LOW CUT": 0.68,
+      "VCF:CUTOFF": hold ? 0.45 : loop ? 0.40 : 0.50, "VCF:PEAK": hold ? 0.20 : loop ? 0.70 : 0.30, "VCF:MOD": 0.68, "VCA 1:LOW CUT": 0.68,
       "EG 1:ATTACK": hold ? 0.10 : 0.50, "EG 1:DECAY": 0.30, "EG 1:SUSTAIN": hold ? 0.70 : 0.68, "EG 1:RELEASE": hold ? 0.40 : 0.42,
-      "MG:RATE": 0.50, "MG:PW": 0.30,
+      "MG:RATE": mgRate, "MG:PW": 0.30,
       "VCO:RANGE": hold ? 2 / 3 : 0.50, "VCO:FINE": 0.30, "VCO:PW": 0.68, "VCO:FM 1": 0.42, "VCO:FM 2": 0.78,
-      "EG 2:HOLD": 0.50, "EG 2:DELAY": 0.30, "EG 2:ATTACK": 0.68, "EG 2:RELEASE": 0.42, "INT:TIME": 0.50,
-      "MIX:LEVEL 1": 0.80, "MIX:LEVEL 2": 0.80, "MIX:LEVEL 3": 0.80, "S&H:RATE": 0.50,
+      "EG 2:HOLD": 0.50, "EG 2:DELAY": 0.30, "EG 2:ATTACK": 0.68, "EG 2:RELEASE": 0.42, "INT:TIME": index === kDelayedBouncePreset ? 0.60 : 0.50,
+      "MIX:LEVEL 1": 0.80, "MIX:LEVEL 2": 0.80, "MIX:LEVEL 3": 0.80, "S&H:RATE": index === kSteppedCutoffPreset ? 0.40 : 0.50,
       "OUTPUT:LEVEL": 0.70, "OUTPUT:MIX": 1.0,
     };
   }
@@ -770,7 +789,7 @@ var MS50 = (function () {
     knobs: programKnobs(i),
     cables: cables.map(c => [jackFor(c[0], c[1]), jackFor(c[2], c[3])]),
     rawCables: cables.map(c => c.slice()),       // [srcModule, srcPort, dstModule, dstPort]
-    vca1Initial: factoryVca1Initial(i),          // hidden VCA 1 Initial knob (Feedback only)
+    vca1Initial: factoryVca1Initial(i),          // hidden VCA 1 Initial knob (Feedback and the self-mod presets)
   }));
 
   // ---------- rack: modules + PluginProcessor glue ----------
