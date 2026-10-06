@@ -86,7 +86,7 @@ $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_
  '<linearGradient id="ru" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f1"/><stop offset="1" stop-color="#dcd7c6"/></linearGradient><linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8e897a"/><stop offset="1" stop-color="#bdb8a6"/></linearGradient>'+
  '<linearGradient id="bs" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4eedc"/><stop offset="1" stop-color="#b3ab94"/></linearGradient><radialGradient id="bd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#f8f3e4"/><stop offset="1" stop-color="#d0c8b2"/></radialGradient>'+
  '<linearGradient id="bk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4a4a4e"/><stop offset="1" stop-color="#0e0e10"/></linearGradient><radialGradient id="bkd" cx=".45" cy=".4" r=".8"><stop offset="0" stop-color="#36363a"/><stop offset="1" stop-color="#161618"/></radialGradient>'+
- '<linearGradient id="shd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".92"/><stop offset=".3" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>'+
+ '<linearGradient id="shd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".8"/><stop offset=".45" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>'+
  '<linearGradient id="lcdg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8f9a7c"/><stop offset=".5" stop-color="#a6b192"/><stop offset="1" stop-color="#94a083"/></linearGradient>'+
  '<linearGradient id="vug" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff8e0" stop-opacity=".3"/><stop offset=".45" stop-color="#fff1c8" stop-opacity=".06"/><stop offset="1" stop-color="#e8c870" stop-opacity=".08"/></linearGradient>'+
  `<clipPath id="vuclip"><rect x="${RL.meter.face[0]}" y="${RL.meter.face[1]}" width="${RL.meter.face[2]}" height="${RL.meter.face[3]}" rx="2"/></clipPath>`+
@@ -239,7 +239,8 @@ addEventListener("keydown",e=>{const o=openScreen();if(o){o.key(e);return}
 // Which panel is on top. The panel underneath gets a shadow along its top edge, cast by the one above.
 function applyOrder(){$("imS").style.top=(rTop?RH/VH*100:0)+"%";$("imR").style.top=(rTop?0:SH/VH*100)+"%";
   ["gS","gSo"].forEach(id=>$(id).setAttribute("transform",`translate(0 ${offS()})`));["gR","gRo"].forEach(id=>$(id).setAttribute("transform",`translate(0 ${offR()})`));
-  const y=rTop?RH:SH;$("shade").innerHTML=`<rect x="0" y="${y}" width="${VW}" height="46" fill="url(#shd)"/><rect x="0" y="${y}" width="${VW}" height="1.2" fill="#000" opacity=".85"/>`;
+  // Racked panels sit flush, so the upper one only shades the lower panel down to where its screws start (screw tops at y 4).
+  const y=rTop?RH:SH;$("shade").innerHTML=`<rect x="0" y="${y}" width="${VW}" height="4" fill="url(#shd)"/><rect x="0" y="${y}" width="${VW}" height="1.2" fill="#000" opacity=".85"/>`;
   J.forEach(j=>j.y=j.ly+(j.inst=="S"?offS():offR()));LABELS=LAB0.map(([r,k])=>[r[0],r[1]+(k?offR():offS()),r[2],r[3]]);
   cancel();hideMenu();setHov(-1);cables.forEach(c=>{c.p=null});build()}
 $("top").onchange=()=>{rTop=$("top").value=="R";try{localStorage.setItem("rack.top",$("top").value)}catch(e){}applyOrder();info.textContent=(rTop?"RONIN":"BUSHIDO")+" is on top · cables keep their jacks"};
