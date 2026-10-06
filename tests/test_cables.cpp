@@ -25,6 +25,17 @@ int main() {
     CHECK(m.drop(3) == CableModel::Drop::Returned && m.plugsAt(0).size() == 1, "dropping on its own other end puts it back");
     m.newFrom(1, 2); CHECK(m.drop(1) == CableModel::Drop::Removed, "a new cable dropped where it started is discarded");
     m.newFrom(1, 2); m.cancel(); CHECK(m.cables().size() == 1, "Esc while carrying a new cable discards it");
+    // age: when a cable was patched (the graph delays only the newest cable of a feedback loop); stack order is separate
+    { CableModel a; a.setScene({ { 100, 300 }, { 300, 300 }, { 500, 300 } }, {}, 600);
+      int x = a.add(0, 1, 0), y = a.add(0, 2, 1);
+      CHECK(a.cables()[(size_t) y].age > a.cables()[(size_t) x].age, "a later cable is newer");
+      a.reorderStack(0, { y, x }); auto s0 = a.plugsAt(0);
+      CHECK(a.cables()[(size_t) s0[1].first].color == 0 && a.cables()[(size_t) s0[1].first].age < a.cables()[(size_t) s0[0].first].age, "reordering the stack keeps each cable's age");
+      int old = s0[1].first; a.pickUp(old, s0[1].second); CHECK(a.drop(2) == CableModel::Drop::Moved, "(setup) plug moved");
+      int newest = 0; for (auto& c : a.cables()) newest = std::max(newest, c.age);
+      CHECK(a.cables()[(size_t) old].age == newest, "moving a plug to another jack makes that cable the newest");
+      CableModel b; b.setScene({ { 100, 300 }, { 300, 300 } }, {}, 600); b.add(0, 1, 0, 7);
+      CHECK(b.cables()[0].age == 7, "a restored cable keeps its saved age"); }
     // physics
     CableModel h; h.setScene({ { 100, 300 }, { 700, 300 }, { 400, 300 } }, { { 385, 330, 30, 9 } }, 600);
     h.add(0, 1, 0); for (int i = 0; i < 300; ++i) h.step();

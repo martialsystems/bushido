@@ -5,11 +5,11 @@ import numpy as np,cairosvg
 from PIL import Image,ImageFont,ImageDraw
 from scipy.ndimage import gaussian_filter
 FP="/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
-FT,FL,LST,LSL=12,11,.8,.4
-fm={s:ImageFont.truetype(FP,s*8) for s in (FT,FL)}
+FT,FL,FS,LST,LSL=12,11,9,.8,.4
+fm={s:ImageFont.truetype(FP,s*8) for s in (FT,FL,FS)}
 tw=lambda s,z:fm[z].getlength(s)/8+(LST if z==FT else LSL)*(len(s)-1)
 W,H,SC,M=1600,640,2,14; AVAIL=W-2*M; INK="#dcd6c2"; GOLD="#c29f4c"
-CH_Y=12; TI_Y=50; ROWY=[130,204,278]; LEDY=330; TRIGY=372; KR=14; RING=21; JR=9; SWR=11
+CH_Y=12; TI_Y=50; ROWY=[130,204,278]; LAMPY=90; TRIGY=372; KR=14; RING=21; JR=9; SWR=11
 # ---------------- module description (ids are SECTION:LABEL) ----------------
 COLS=[("CH",164)]+[(str(i),None) for i in range(1,13)]+[("CLOCK",96),("MODE",96),("INPUTS",96),("OUTPUTS",96),("MIXER",96)]
 fixed=sum(w for _,w in COLS if w); stepw=(AVAIL-fixed)/12
@@ -46,9 +46,21 @@ def button(sec,lab,cx,cy):
     circ.append((cx,cy,15,"button "+lab)); T(cx,cy+12+14,lab,FL)
     P.append(f'<rect x="{cx-15:.1f}" y="{cy-15}" width="30" height="30" rx="3" fill="#050505" stroke="#2a2a2c"/>'
              f'<g class="live"><rect x="{cx-12:.1f}" y="{cy-12}" width="24" height="24" rx="3" fill="url(#bs)" stroke="#6f6a5a" stroke-width=".8"/><rect x="{cx-9:.1f}" y="{cy-10}" width="18" height="17" rx="2" fill="url(#bd)"/></g>')
-def led(id_,cx,cy):
-    leds.append(dict(id=id_,cx=round(cx,1),cy=cy,r=4.5)); circ.append((cx,cy,7,"led "+id_))
-    P.append(f'<circle cx="{cx:.1f}" cy="{cy}" r="6.5" fill="#050505" stroke="#2a2a2c"/><g class="live"><circle cx="{cx:.1f}" cy="{cy}" r="4.5" fill="#4a0c08"/></g>')
+def led(id_,cx,cy,r=4.5):
+    leds.append(dict(id=id_,cx=round(cx,1),cy=cy,r=r)); circ.append((cx,cy,r+2.5,"led "+id_))
+    P.append(f'<circle cx="{cx:.1f}" cy="{cy}" r="{r+2}" fill="#050505" stroke="#2a2a2c"/><g class="live"><circle cx="{cx:.1f}" cy="{cy}" r="{r}" fill="#4a0c08"/></g>')
+def lamp(id_,cx,cy):   # step lamp: one per step, shared by rows A, B and C; a chrome bezel so it reads as the playhead, not a dot
+    r=5.5; leds.append(dict(id=id_,cx=round(cx,1),cy=cy,r=r)); circ.append((cx,cy,r+3.5,"lamp "+id_))
+    P.append(f'<circle cx="{cx:.1f}" cy="{cy}" r="{r+3.5}" fill="url(#js)" stroke="#2a2a2c" stroke-width=".9"/><circle cx="{cx:.1f}" cy="{cy}" r="{r+1}" fill="#050505"/>'
+             f'<g class="live"><circle cx="{cx:.1f}" cy="{cy}" r="{r}" fill="#4a0c08"/></g>')
+def toggle(sec,lab,cx,cy,marks,default,text=None):   # two-position bat toggle (drawn as a switch, not a pot); lever points at the active mark
+    controls.append(dict(id=f"{sec}:{lab}",kind="switch",style="toggle",cx=round(cx,1),cy=cy,r=SWR,default=default,positions=2,angles=[-50,50],marks=marks,hit=[round(cx-22,1),cy-22,44,44]))
+    circ.append((cx,cy,SWR+3,"toggle "+lab))
+    P.append(f'<rect x="{cx-15:.1f}" y="{cy-8}" width="30" height="16" rx="3" fill="#050505" stroke="#2a2a2c"/><rect x="{cx-10:.1f}" y="{cy-2}" width="20" height="4" rx="2" fill="#000"/>'
+             f'<circle cx="{cx:.1f}" cy="{cy}" r="5" fill="url(#jn)" stroke="#111" stroke-width=".8"/>')
+    for m,dx in zip(marks,(-1,1)): T(cx+dx*18,cy-17,m,FL)
+    T(cx,cy+SWR+17,text or lab,FL)
+    lx=cx+(12 if default>.5 else -12); P.append(f'<g class="live"><line x1="{cx:.1f}" y1="{cy}" x2="{lx:.1f}" y2="{cy-2}" stroke="#d8d8d2" stroke-width="3.2" stroke-linecap="round"/><circle cx="{lx:.1f}" cy="{cy-2}" r="3.6" fill="url(#js)"/></g>')
 def jack(sec,lab,d,cx,cy):
     jacks.append(dict(id=f"{sec}:{lab}",section=sec,label=lab,dir=d,x=round(cx,1),y=cy,radius=JR,hit=[round(cx-11,1),cy-11,22,22])); circ.append((cx,cy,JR+1.5,"jack "+lab))
     P.append(f'<circle cx="{cx:.1f}" cy="{cy}" r="{JR+1.5}" fill="#000" opacity=".55"/><circle cx="{cx:.1f}" cy="{cy}" r="{JR}" fill="url(#js)" stroke="#2a2a2c" stroke-width=".9"/>'
@@ -62,16 +74,17 @@ for title,w in COLS:
             cy=ROWY[r]; T(x+20,cy+5,ch,FT)
             if ch!="C":
                 led("CH:"+ch,x+20,cy+22); knob("CH","PORTA "+ch,x+64,cy,0.0,text="PORTA"); switch("CH","RANGE "+ch,x+120,cy,["1V","5V"],[-50,50],1.0,text="RANGE")
-            else: switch("CH","C MODE",x+120,cy,["CV","TIME"],[-50,50],0.0)
+            else: toggle("CH","C MODE",x+120,cy,["CV","TIME"],0.0)
     elif title.isdigit():
         for r,ch in enumerate("ABC"): knob(ch,title,cx,ROWY[r],[.5,.42,.58,.35,.66,.5,.3,.72,.45,.55,.38,.62][(int(title)+r*5)%12],label=False)
-        led("STEP:"+title,cx,LEDY); jack(title,"TRIG","out",cx,TRIGY)
+        lamp("STEP:"+title,cx,LAMPY); jack(title,"TRIG","out",cx,TRIGY)
     elif title=="CLOCK":
         knob("CLOCK","TEMPO",cx,ROWY[0],.5); switch("CLOCK","SOURCE",cx,ROWY[1],["INT","EXT"],[-50,50],0.0)
         jack("CLOCK","CLOCK","in",cx,282); jack("CLOCK","TEMPO CV","in",cx,342)
     elif title=="MODE":
         switch("MODE","MODE",cx,ROWY[0],["A","A+B","ALT"],[-60,0,60],.5,rad=30)
-        for i,b in enumerate(["START/STOP","STEP","RESET"]): button("MODE",b,cx,214+i*60)
+        for i,l in enumerate(["A · LOOP 12","A+B · LOOP 24","ALT · SWAP A/B"]): T(cx,172+i*11,l,FS)   # every mode loops until STOP
+        for i,b in enumerate(["START/STOP","STEP","RESET"]): button("MODE",b,cx,224+i*58)
     elif title=="INPUTS":
         for i,l in enumerate(["START/STOP","STEP","RESET"]): jack("INPUTS",l,"in",cx,TI_Y+28+JR+1.5+i*60)
     elif title=="OUTPUTS":

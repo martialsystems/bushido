@@ -1,5 +1,5 @@
 #pragma once
-// Shared rack contract. Framework-free C++17. Both the SQ-10 and the MS-50 implement rack::Module,
+// Shared rack contract. Framework-free C++17. Every rack (the SQ-10 here, any other rack later) implements rack::Module,
 // so one PatchGraph can run several racks and cables can join jacks on different racks.
 // Signals are floats in volts (audio about +-5 V, gates 0/5 V).
 #include <string>

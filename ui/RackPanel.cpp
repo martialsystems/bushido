@@ -45,6 +45,14 @@ void RackPanel::drawKnob(juce::Graphics& g, float cx, float cy, float r, float a
     g.setColour(C(0xfff1ede0)); g.drawLine(cx + std::sin(a) * r * 0.1f, cy - std::cos(a) * r * 0.1f, cx + std::sin(a) * (r - 1.5f), cy - std::cos(a) * (r - 1.5f), 2.4f);
 }
 
+void RackPanel::drawToggle(juce::Graphics& g, float cx, float cy, bool right)
+{
+    const float lx = cx + (right ? 12.0f : -12.0f), ly = cy - 2.0f;
+    g.setColour(juce::Colour(0xffd8d8d2)); g.drawLine(cx, cy, lx, ly, 3.2f);
+    g.setGradientFill(juce::ColourGradient(juce::Colour(0xffe6e6e1), lx - 1.5f, ly - 1.5f, juce::Colour(0xff7d7d79), lx + 3.6f, ly + 3.6f, true));
+    g.fillEllipse(lx - 3.6f, ly - 3.6f, 7.2f, 7.2f);
+}
+
 void RackPanel::paint(juce::Graphics& g)
 {
     g.addTransform(juce::AffineTransform::scale(scale()));
@@ -58,7 +66,8 @@ void RackPanel::paint(juce::Graphics& g)
             g.setGradientFill(cap); g.fillRoundedRectangle(c.cx - 12 + o, c.cy - 12 + o, 24, 24, 3);
             g.setColour(juce::Colour(0xff6f6a5a)); g.drawRoundedRectangle(c.cx - 12 + o, c.cy - 12 + o, 24, 24, 3, 0.8f);
             g.setColour(juce::Colour(down ? 0xffe4ddc8 : 0xfff6f1e2)); g.fillRoundedRectangle(c.cx - 9 + o, c.cy - 10 + o, 18, 17, 2);
-        } else drawKnob(g, c.cx, c.cy, c.r, angleFor(c, v));
+        } else if (c.style == "toggle") drawToggle(g, c.cx, c.cy, v > 0.5f);
+        else drawKnob(g, c.cx, c.cy, c.r, angleFor(c, v));
     }
     for (const auto& l : lay.leds) {
         const float v = bind.indicator(l.id);

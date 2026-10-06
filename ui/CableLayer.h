@@ -6,13 +6,13 @@
 #include "../rack/CableModel.h"
 #include <functional>
 
-struct CableSpec { juce::String a, b; int color = 0; };      // a/b = global jack ids "RACK/SECTION:LABEL"
+struct CableSpec { juce::String a, b; int color = 0; int age = 0; };   // a/b = global jack ids "RACK/SECTION:LABEL"; age: larger = patched later
 
 class CableLayer : public juce::Component, private juce::Timer {
 public:
     CableLayer();
     ~CableLayer() override;
-    // Register racks top to bottom. yOffset is in design units (MS-50 = 0, SQ-10 underneath = 640, for example).
+    // Register racks top to bottom. yOffset is in design units (first rack = 0, a second rack underneath = 640, for example).
     void addRack(RackPanel* panel, float yOffset);
     void setDesignSize(float w, float h);
     void setPatch(const std::vector<CableSpec>& cables);       // e.g. from saved state

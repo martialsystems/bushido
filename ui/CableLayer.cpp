@@ -92,13 +92,13 @@ int CableLayer::jackAtDesign(juce::Point<float> p) const
 void CableLayer::setPatch(const std::vector<CableSpec>& cs)
 {
     cm.clear();
-    for (auto& c : cs) { const int a = ids.indexOf(c.a), b = ids.indexOf(c.b); if (a >= 0 && b >= 0 && a != b) cm.add(a, b, c.color); }
+    for (auto& c : cs) { const int a = ids.indexOf(c.a), b = ids.indexOf(c.b); if (a >= 0 && b >= 0 && a != b) cm.add(a, b, c.color, c.age); }
 }
 
 std::vector<CableSpec> CableLayer::patch() const
 {
     std::vector<CableSpec> out;
-    for (auto& c : cm.cables()) if (c.a >= 0 && c.b >= 0) out.push_back({ ids[c.a], ids[c.b], c.color });
+    for (auto& c : cm.cables()) if (c.a >= 0 && c.b >= 0) out.push_back({ ids[c.a], ids[c.b], c.color, c.age });
     return out;
 }
 

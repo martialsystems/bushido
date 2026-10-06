@@ -3,6 +3,7 @@
 #include "../rack/Module.h"
 #include <array>
 #include <atomic>
+#include <cmath>
 
 class Sq10Module : public rack::Module {
 public:
@@ -39,9 +40,9 @@ private:
     std::vector<std::atomic<float>> ind;
 
     double sr = 48000.0;
-    bool running = false, ended = false;
+    bool running = false;
     int pos = -1, chan = 0;
-    double phase = 0.0;                              // internal clock
+    double phase = 0.0, rate = 4.0;                  // internal clock, steps per second
     double samplesInStep = 0.0, lastPeriod = 0.25;   // seconds
     double sinceTick = 0.0, settle = 29.0;
     float cvA = 0, cvB = 0, cvC = 0, tgtA = 0, tgtB = 0;
@@ -49,6 +50,7 @@ private:
     std::array<bool, 5> high {};                     // edge detectors: clock, start, step, reset, (unused)
 
     float p(int i) const { return values[(size_t) i].load(std::memory_order_relaxed); }
+    int mode() const { return (int) std::lround(p(MODE) * 2.0f); }     // 0 = A, 1 = A+B, 2 = ALT
     bool edge(int which, float v);
     void start();
     void tick();

@@ -12,33 +12,47 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 | Id | Meaning |
 |---|---|
 | `A:1`..`A:12`, `B:1`..`B:12`, `C:1`..`C:12` | Step knobs, 0..1 |
-| `CH:RANGE A`, `CH:RANGE B` | 1 V or 5 V span for that channel's CV **(assumed: unipolar 0..1 V / 0..5 V; sources disagree)** |
-| `CH:PORTA A`, `CH:PORTA B` | Portamento, 0 = off, up to ~2 s time constant |
-| `CH:C MODE` | CV: C is just a third CV. TIME: C also sets gate length for A/B (5 %..95 % of the step) **(assumed switch)** |
-| `CLOCK:TEMPO` | Internal clock, 0.5..32 steps per second (exponential) |
-| `CLOCK:SOURCE` | INT: internal clock. EXT: steps on rising edges at the CLOCK jack |
-| `MODE:MODE` | Panel marks `A` / `A+B` / `ALT`. `A`: play A once, stop. `A+B`: A then B, stop. `ALT`: A, B, A, B... forever |
+| `CH:RANGE A`, `CH:RANGE B` | 1 V or 5 V span for that channel's CV, A and B only **(assumed: unipolar 0..1 V / 0..5 V until a real SQ-10 is metered)** |
+| `CH:PORTA A`, `CH:PORTA B` | Portamento on A and B only, 0 = off, up to ~2 s time constant |
+| `CH:C MODE` | Two-position toggle. CV: row C is a third CV (0..5 V) and does not set gate length (gates are 50 % of the step). TIME: the C knob of the playing step is the gate length for A and B, 5 %..95 % of the step, and `OUTPUTS:CV C` stays at 0 V |
+| `CLOCK:TEMPO` | Internal clock, 0.5..32 steps per second (exponential). `CLOCK:TEMPO CV` adds 1 octave of rate per volt. Both act in INT only |
+| `CLOCK:SOURCE` | INT: internal clock. EXT: steps on rising edges at the CLOCK jack; TEMPO and TEMPO CV are ignored |
+| `MODE:MODE` | Every mode loops until Stop. `A`: row A, 12 steps, then A1 again. `A+B`: row A then row B, 24 steps, then A1 again. `ALT`: one row per pass, swapping A and B each pass. The panel legend under the switch reads `A · LOOP 12`, `A+B · LOOP 24`, `ALT · SWAP A/B` |
 | `MODE:START/STOP`, `MODE:STEP`, `MODE:RESET` | Buttons (same as the matching INPUTS jacks) |
 | `MIXER:LEVEL 1`, `MIXER:LEVEL 2` | Two-input mixer gains, 0..1 |
 
 ## Sequencing
-- START toggles running. Starting after the end of a sequence (or the very first time) begins at A step 1.
-- Each clock tick moves one step. At the end of a row the MODE decides: stop, switch A->B, or alternate.
+- START toggles running. Every start, including one after a stop, begins at A step 1.
+- Each clock tick moves one step. After step 12 the MODE decides the next row (A: A again; A+B and ALT: the other row). Nothing stops
+  the sequence except START/STOP. (With this law A+B and ALT play the same order, A then B; the switch keeps both positions.)
 - STEP (button or jack) moves one step even while stopped, and plays that step's gate.
-- RESET (button or jack) goes to A step 1 without stopping. **Sequence length:** patch `TRIG N+1` into `INPUTS:RESET` for an N-step loop.
+- RESET (button or jack) goes to A step 1 without stopping, and restarts the internal clock so A1 gets a full step.
+  **Sequence length:** patch `TRIG N+1` into `INPUTS:RESET` for an N-step loop.
 - C always plays the same step number as whichever of A/B is playing.
 - The channel that is playing follows its knob live; the other channel's CV holds its last value.
+- One lamp per step (`STEP:1`..`STEP:12`, under the step numbers) lights for the current step, whichever row is playing.
+  The A and B lamps in the CH column show which row that is.
 
 ## Timing details worth knowing
 - **Settle (0.6 ms):** a new step's CV and gate wait 0.6 ms. A reset patched from a TRIG jack arrives within that time, so the skipped step
   never reaches the CV or gate outputs (test: "the skipped step 5 never reaches CV A").
-- **Patch delay:** a cable that runs "backwards" in module order (including a module patched to itself) arrives up to 16 samples late
-  (`PatchGraph::kSubBlock`). Forward cables are sample-accurate.
+- **Patch delay:** forward cables are sample-accurate. A cable that closes a feedback loop, including a module patched to itself
+  (every SQ-10 to SQ-10 cable), arrives exactly **1 sample** late (`PatchGraph::kFeedbackDelay`). Only the newest cable in each loop is
+  delayed: cables carry an age (when they were patched; moving a plug makes it the newest), the graph takes them oldest first, and a
+  cable is delayed only if the older undelayed cables already lead back to its source. Module order does not matter. While any loop is
+  patched the graph runs one sample at a time. The settle time is 29 samples at 48 kHz, so a TRIG -> RESET cable lands well inside it.
 - Gate length uses the internal clock period, or the time between the last two ticks for EXT / manual stepping.
 
 ## Plugin I/O (`plugin/PluginProcessor.cpp`)
+- The mixer is an audio utility only. Nothing is normalled through it from CV A or CV B.
 - Host audio input L/R is normalled to `MIXER:IN 1` / `IN 2` (1.0 full scale = 5 V); patching a cable into those jacks replaces it.
+  These normals belong to this plugin's processor (`PatchGraph::setNormal`), not to `Sq10Module`, so if the module is ever added to
+  another graph they are off unless that host sets them.
 - Main output = `MIXER:OUT` (5 V = 1.0), on both channels.
-- MIDI out: channel A gates -> MIDI channel 1, B -> channel 2, velocity 100. Note = 36 + CV x 12 at the moment the gate opens
-  **(assumed: CV treated as volts per octave; MS-series synths use Hz/V)**.
+- MIDI out is a **convenience, not the patch**: channel A gates -> MIDI channel 1, B -> channel 2, velocity 100, note taken when the gate
+  opens. CV A and CV B stay in volts on the jacks. The note uses the **Hz/V curve of a Korg MS-series VCO** (`rack/HzPerVolt.h`):
+  frequency is proportional to the voltage, doubling the voltage is one octave, and 1 V = 55 Hz = A1 (MIDI 33). So
+  note = 33 + 12 x log2(V), rounded to the nearest semitone and clamped to 0..127; 0 V or below sends no note (a Hz/V VCO is silent
+  there). Examples: 0.5 V = A0 (21), 1 V = A1 (33), 1.5 V = E2 (40), 2 V = A2 (45), 5 V = C#4 (61). The old `36 + CV x 12`
+  (volts per octave) is gone. Because the knobs are not quantised, a step between semitones is rounded in MIDI but not on the jack.
 - Buttons are not host-automatable; every knob and switch is.

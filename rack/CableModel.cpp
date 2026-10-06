@@ -9,9 +9,12 @@ static const float kR = 40.0f, kRP = 28.0f, kPad = 10.0f, kPlugR = 12.0f;
 
 void CableModel::setScene(std::vector<V2> j, std::vector<RectF> l, float f) { jacks = std::move(j); labels = std::move(l); floorY = f; relayout(); }
 
-int CableModel::add(int a, int b, int color) { Cable c; c.a = a; c.b = b; c.color = color; list.push_back(c); relayout(); initRope(list.back()); for (int i = 0; i < 160; ++i) step(); return (int) list.size() - 1; }
+int CableModel::add(int a, int b, int color, int age)
+{
+    Cable c; c.a = a; c.b = b; c.color = color; c.age = age >= 0 ? age : nextAge; nextAge = std::max(nextAge, c.age + 1); list.push_back(c); relayout(); initRope(list.back()); for (int i = 0; i < 160; ++i) step(); return (int) list.size() - 1;
+}
 void CableModel::remove(int i) { list.erase(list.begin() + i); if (carried == i) carried = -1; else if (carried > i) --carried; relayout(); }
-void CableModel::clear() { list.clear(); carried = -1; }
+void CableModel::clear() { list.clear(); carried = -1; nextAge = 0; }
 
 std::vector<std::pair<int, int>> CableModel::plugsAt(int jack) const
 {
@@ -39,7 +42,7 @@ void CableModel::pickUp(int cable, int end)
 
 void CableModel::newFrom(int jack, int color)
 {
-    Cable c; c.a = jack; c.b = -1; c.color = color; list.push_back(c);
+    Cable c; c.a = jack; c.b = -1; c.color = color; c.age = nextAge++; list.push_back(c);
     carried = (int) list.size() - 1; carriedEnd = 1; carriedFrom = -1; carriedNew = true; relayout(); initRope(list.back());
 }
 
@@ -47,7 +50,7 @@ CableModel::Drop CableModel::drop(int t)
 {
     Cable& c = list[(size_t) carried]; const int other = carriedEnd == 0 ? c.b : c.a; int& end = carriedEnd == 0 ? c.a : c.b;
     Drop r;
-    if (t >= 0 && t != other) { end = t; r = Drop::Moved; }
+    if (t >= 0 && t != other) { end = t; if (t != carriedFrom) c.age = nextAge++; r = Drop::Moved; }   // re-patched: now the newest
     else if (t >= 0 && ! carriedNew) { end = carriedFrom; r = Drop::Returned; }
     else { const int i = carried; carried = -1; remove(i); return Drop::Removed; }
     carried = -1; relayout(); return r;

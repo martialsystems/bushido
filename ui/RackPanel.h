@@ -1,6 +1,6 @@
 #pragma once
 // Draws one rack: its background image plus live knobs, switches, buttons and LEDs, and handles turning them.
-// Generic: any rack with a layout file works (SQ-10 now, MS-50 later).
+// Generic: any rack with a layout file works.
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Layout.h"
 
@@ -25,6 +25,7 @@ public:
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
 
     static void drawKnob(juce::Graphics&, float cx, float cy, float r, float angleDeg);
+    static void drawToggle(juce::Graphics&, float cx, float cy, bool right);    // lever only; the plate is in the background art
 
 private:
     PanelLayout lay; juce::Image bg; Binding& bind;

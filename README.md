@@ -1,8 +1,8 @@
 # SQ-10 style step sequencer (JUCE plugin, C++)
 
 A 3 x 12 analog-style step sequencer in the look of the MS-50 project: generated panel, live knobs, and hanging patch cables.
-No logo. Builds as **VST3, AU and Standalone** from one CMake project. Its rack code is designed to be compiled into the MS-50
-plugin as a second rack with cables between them (see `EMBEDDING.md`).
+No logo. Builds as **VST3, AU and Standalone** from one CMake project. It is its own plugin: it is not compiled into the MS-50 and does
+not host or get hosted by another plugin. Its framework-free code stays reusable (see `EMBEDDING.md`).
 
 > **Layout is provisional.** It follows published descriptions of the SQ-10 (3 x 12 knobs, A/B portamento and range, C row,
 > per-step TRIG jacks, three play modes, clock/start/step/reset, two-input mixer), not a photo. To match the real panel, edit the
@@ -10,7 +10,7 @@ plugin as a second rack with cables between them (see `EMBEDDING.md`).
 
 ## Folders
 ```
-rack/      framework-free: Module contract, PatchGraph (runs modules + cables), CableModel (cable look/feel)
+rack/      framework-free: Module contract, PatchGraph (runs modules + cables), CableModel (cable look/feel), HzPerVolt (pitch curve)
 engine/    framework-free: Sq10Module (the sequencer)
 ui/        JUCE: Layout (reads the panel file), RackPanel (draws a rack, turns knobs), CableLayer (cables over all racks)
 plugin/    JUCE: processor + editor
@@ -40,12 +40,21 @@ Regenerating the panel needs Python 3 with `cairosvg numpy scipy pillow` and Lib
 - **Cables:** pick a colour top-right. Drag from a jack to another jack. Drag a plug to move it; drop on empty space to unplug.
   Click a jack with cables to choose which to pick up, drag rows to reorder the stack, or add another. Shift-drag adds one. Esc cancels.
   Cables hang below the panel and slide away from the jack, label, or cord under the pointer.
+- **MODE:** `A` loops row A (12 steps), `A+B` loops row A then row B (24 steps), `ALT` plays one row per pass, swapping A and B.
+  All three run until START/STOP. START always begins at A step 1; RESET goes to A step 1 and keeps running.
+- **C MODE** (toggle): CV = row C is a third CV. TIME = the C knob is gate length for A and B (5-95 % of the step), and CV C stays at 0 V.
+- **Lamps:** one lamp per step under the step numbers shows the playing step for all three rows.
 - **Sequence length:** patch `TRIG N+1` into `INPUTS > RESET` for an N-step loop.
 - **In a DAW:** the plugin outputs the mixer audio and MIDI notes (A gates on MIDI channel 1, B on channel 2). Host audio input feeds
-  `MIXER IN 1/2` unless something is patched there. Route its MIDI output to a synth track to hear the sequence.
+  `MIXER IN 1/2` unless something is patched there. Route its MIDI output to a synth track to hear the sequence. MIDI is a convenience:
+  notes follow the Hz/V curve of an MS-series VCO (1 V = A1), see `ENGINE_NOTES.md`.
 
 ## What was verified (Linux, JUCE 8.0.4)
-- Unit tests: 24 engine checks, 12 cable checks.
+- Unit tests: 59 engine checks, 18 cable checks (`ctest`), including `testModeALoops`, `testModeABLoops24`, `testAltSwapsEachPass`,
+  `testTrigIntoResetSkipsStep`, `testMidiUsesHzPerVolt`, `testFeedbackDelayIsOneSample`.
+- Last change (loop modes, Hz/V MIDI, 1-sample feedback, step lamps, C MODE toggle): VST3 and Standalone rebuilt on Linux with JUCE 8.0.4,
+  tests pass, and the Standalone opens under a virtual display with the new panel and a working C MODE toggle. pluginval and audio-device
+  playback were not re-run for this change.
 - VST3 and Standalone build; **pluginval strictness 5 passes** (editor, state save/restore, automation fuzzing, multi-threading).
 - Real UI driven with mouse input under a virtual display: knobs and switches turn, cables patch and stack, the stack chooser
   reorders, label hover moves cables aside, and `TRIG 5 -> RESET` loops steps 1-4 in the running plugin.

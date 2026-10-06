@@ -50,27 +50,31 @@ void Sq10Module::fire()                                           // start of a 
     samplesInStep = 0.0; gateOn = true;           // gate (and CV) start after the settle time, see process()
 }
 
-void Sq10Module::start()
+void Sq10Module::start()                                          // every start, including after a stop, begins at A step 1
 {
-    running = true;
-    if (pos < 0 || ended) { pos = 0; chan = 0; ended = false; }
+    running = true; pos = 0; chan = 0;
     phase = 0.0; fire();
 }
 
-void Sq10Module::reset()
+void Sq10Module::reset()                                          // A step 1, keeps running (or stays stopped)
 {
-    pos = 0; chan = 0; ended = false;
-    if (running) fire(); else gateOn = false;
+    pos = 0; chan = 0;
+    if (running) { phase = 0.0; fire(); } else gateOn = false;     // A1 gets a full clock period
 }
 
+// Every mode loops until Stop. Only what happens after step 12 differs:
+//   A    (0): back to A step 1            -> 12-step loop of row A
+//   A+B  (1): A -> B, B -> A              -> 24-step loop, row A then row B
+//   ALT  (2): swap rows after each pass   -> A, B, A, B ... one row per pass
 void Sq10Module::tick()
 {
-    lastPeriod = std::clamp(sinceTick, 0.005, 4.0); sinceTick = 0.0;
-    if (pos < 0 || ended) { pos = 0; chan = 0; ended = false; fire(); return; }
+    if (pos >= 0) lastPeriod = std::clamp(sinceTick, 0.005, 4.0);   // gate length for EXT and STEP: time since the last tick
+    sinceTick = 0.0;
+    if (pos < 0) { pos = 0; chan = 0; fire(); return; }
     if (++pos < 12) { fire(); return; }
-    const int mode = (int) std::round(p(MODE) * 2.0f);            // 0 = A then stop, 1 = A then B then stop, 2 = A/B alternate forever
-    if (mode == 2 || (mode == 1 && chan == 0)) { chan = (mode == 2) ? 1 - chan : 1; pos = 0; fire(); return; }
-    running = false; ended = true; pos = -1; gateOn = false;      // end of sequence: stop
+    pos = 0;
+    if (mode() != 0) chan = 1 - chan; else chan = 0;
+    fire();
 }
 
 void Sq10Module::process(const float* const* in, float* const* out, int n)
@@ -80,6 +84,7 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
 
     const float rangeA = p(RANGE_A) > 0.5f ? 5.0f : 1.0f, rangeB = p(RANGE_B) > 0.5f ? 5.0f : 1.0f;
     const bool cIsTime = p(C_MODE) > 0.5f, external = p(SOURCE) > 0.5f;
+    const double tempoRate = 0.5 * std::pow(2.0, p(TEMPO) * 6.0);          // 0.5..32 steps/s, INT only
     auto slew = [this](float porta) { const double tau = (double) porta * porta * 2.0; return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr))); };
     const float kA = slew(p(PORTA_A)), kB = slew(p(PORTA_B));
 
@@ -93,8 +98,8 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
         if (doReset) reset();
         else {
             bool t = doStep;
-            if (running && ! external) {
-                const double rate = std::clamp(0.5 * std::pow(2.0, p(TEMPO) * 6.0) * std::pow(2.0, (double) in[TEMPO_CV][i]), 0.05, 200.0);
+            if (running && ! external) {                         // TEMPO and TEMPO CV bend the internal clock only; EXT ignores both
+                rate = std::clamp(tempoRate * std::pow(2.0, (double) in[TEMPO_CV][i]), 0.05, 200.0);
                 phase += rate / sr;
                 if (phase >= 1.0) { phase -= 1.0; t = true; }
             }
@@ -110,9 +115,10 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
             if (chan == 0) tgtA = p(STEPS + pos) * rangeA; else tgtB = p(STEPS + 12 + pos) * rangeB;
             cvC = p(STEPS + 24 + pos) * 5.0f;
         }
+        if (cIsTime) cvC = 0.0f;                                 // TIME: row C sets gate length only and is never emitted as CV
         cvA += (tgtA - cvA) * kA; cvB += (tgtB - cvB) * kB;
 
-        const double period = (running && ! external) ? 1.0 / std::clamp(0.5 * std::pow(2.0, p(TEMPO) * 6.0), 0.05, 200.0) : lastPeriod;
+        const double period = (running && ! external) ? 1.0 / rate : lastPeriod;
         const double frac = (cIsTime && pos >= 0) ? 0.05 + 0.9 * p(STEPS + 24 + pos) : 0.5;
         const bool g = gateOn && pos >= 0 && settled && samplesInStep < settle + frac * period * sr;
 
@@ -123,5 +129,5 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
         for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = (pos == s) ? 5.0f : 0.0f;
     }
     ind[0].store(pos >= 0 && chan == 0 ? 1.0f : 0.0f); ind[1].store(pos >= 0 && chan == 1 ? 1.0f : 0.0f);
-    for (int s = 0; s < 12; ++s) ind[(size_t) s + 2].store(pos == s ? 1.0f : 0.0f);
+    for (int s = 0; s < 12; ++s) ind[(size_t) s + 2].store(pos == s ? 1.0f : 0.0f);   // one lamp per step, shared by rows A, B and C
 }

@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "../rack/HzPerVolt.h"
 
 juce::String Sq10Processor::paramIdFor(const std::string& id)
 {
@@ -64,7 +65,9 @@ void Sq10Processor::applyCables()
             if (rackName == graph.module(m)->name()) { mod = m; jack = rack::findJack(*graph.module(m), jackId.toStdString()); return jack >= 0; }
         return false;
     };
-    for (auto& c : cables) { int ma, ja, mb, jb; if (resolve(c.a, ma, ja) && resolve(c.b, mb, jb)) out.push_back({ ma, ja, mb, jb }); }
+    auto byAge = cables;                                                  // the graph wants cables oldest first (stack order is visual only)
+    std::stable_sort(byAge.begin(), byAge.end(), [](const CableSpec& x, const CableSpec& y) { return x.age < y.age; });
+    for (auto& c : byAge) { int ma, ja, mb, jb; if (resolve(c.a, ma, ja) && resolve(c.b, mb, jb)) out.push_back({ ma, ja, mb, jb }); }
     graph.setCables(out);
 }
 
@@ -83,7 +86,9 @@ void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
         graph.process(n);
         const float* mix = graph.output(sqIndex, Sq10Module::MIX_OUT);
         for (int c = 0; c < outCh; ++c) for (int i = 0; i < n; ++i) buffer.setSample(c, o + i, mix[i] * 0.2f);
-        // MIDI out: channel A gates -> MIDI channel 1, B -> channel 2. Note = 36 + CV * 12 (treats the CV as volts per octave).
+        // MIDI out is a convenience, not the patch: channel A gates -> MIDI channel 1, B -> channel 2.
+        // The note is the CV read as Hz/V, the law of a Korg MS-series VCO (1 V = 55 Hz = A1, double the volts = one octave up).
+        // 0 V and below is silent on a Hz/V VCO, so no note is sent for it.
         for (int ch = 0; ch < 2; ++ch) {
             const float* g = graph.output(sqIndex, ch == 0 ? Sq10Module::GATE_A : Sq10Module::GATE_B);
             const float* cv = graph.output(sqIndex, ch == 0 ? Sq10Module::CV_A : Sq10Module::CV_B);
@@ -91,8 +96,8 @@ void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
                 const bool gh = g[i] > 1.0f;
                 if (gh && ! gatePrev[ch]) {
                     if (midiNote[ch] >= 0) midi.addEvent(juce::MidiMessage::noteOff(ch + 1, midiNote[ch]), o + i);
-                    midiNote[ch] = juce::jlimit(0, 127, 36 + (int) std::lround(cv[i] * 12.0f));
-                    midi.addEvent(juce::MidiMessage::noteOn(ch + 1, midiNote[ch], (juce::uint8) 100), o + i);
+                    midiNote[ch] = rack::hzv::midiNote(cv[i]);
+                    if (midiNote[ch] >= 0) midi.addEvent(juce::MidiMessage::noteOn(ch + 1, midiNote[ch], (juce::uint8) 100), o + i);
                 } else if (! gh && gatePrev[ch] && midiNote[ch] >= 0) { midi.addEvent(juce::MidiMessage::noteOff(ch + 1, midiNote[ch]), o + i); midiNote[ch] = -1; }
                 gatePrev[ch] = gh;
             }
@@ -104,7 +109,7 @@ void Sq10Processor::getStateInformation(juce::MemoryBlock& dest)
 {
     auto state = apvts.copyState();
     juce::ValueTree cv("CABLES");
-    for (auto& c : cables) cv.appendChild(juce::ValueTree("CABLE").setProperty("a", c.a, nullptr).setProperty("b", c.b, nullptr).setProperty("color", c.color, nullptr), nullptr);
+    for (auto& c : cables) cv.appendChild(juce::ValueTree("CABLE").setProperty("a", c.a, nullptr).setProperty("b", c.b, nullptr).setProperty("color", c.color, nullptr).setProperty("age", c.age, nullptr), nullptr);
     state.removeChild(state.getChildWithName("CABLES"), nullptr); state.appendChild(cv, nullptr);
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
@@ -114,7 +119,8 @@ void Sq10Processor::setStateInformation(const void* data, int size)
     auto xml = getXmlFromBinary(data, size); if (! xml) return;
     auto state = juce::ValueTree::fromXml(*xml); if (! state.hasType(apvts.state.getType())) return;
     std::vector<CableSpec> loaded;
-    for (auto c : state.getChildWithName("CABLES")) loaded.push_back({ c["a"].toString(), c["b"].toString(), (int) c["color"] });
+    for (auto c : state.getChildWithName("CABLES"))                      // older states have no age: keep their list order
+        loaded.push_back({ c["a"].toString(), c["b"].toString(), (int) c["color"], c.hasProperty("age") ? (int) c["age"] : (int) loaded.size() });
     state.removeChild(state.getChildWithName("CABLES"), nullptr);
     apvts.replaceState(state);
     setCables(loaded);

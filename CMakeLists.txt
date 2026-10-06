@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(JUCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../JUCE" CACHE PATH "Path to a JUCE 8 checkout")
 add_subdirectory(${JUCE_DIR} JUCE)
 
-# Framework-free core shared with the MS-50: module contract, patch graph, cable model, SQ-10 engine
+# Framework-free core (no JUCE, no other synth types): module contract, patch graph, cable model, SQ-10 engine
 add_library(rack_core STATIC rack/PatchGraph.cpp rack/CableModel.cpp engine/Sq10Module.cpp)
 target_include_directories(rack_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(rack_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
