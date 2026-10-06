@@ -1,4 +1,4 @@
-"""Builds web/sq10.html: a playable, self-contained web version of the SQ-10 panel (same SVG art and layout as the plugin).
+"""Builds web/sq10.html: a playable, self-contained web version of the BUSHIDO panel (same SVG art and layout as the plugin).
 Usage: python web/build_web.py [--fragment OUT]   (--fragment writes the page body only, for hosts that add their own <html> skeleton)"""
 import base64,json,os,sys
 d=os.path.dirname(os.path.abspath(__file__)); a=os.path.join(d,"..","assets")

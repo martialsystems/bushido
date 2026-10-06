@@ -182,7 +182,7 @@ void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
         const float* mix = graph.output(sqIndex, Sq10Module::MIX_OUT);
         for (int c = 0; c < outCh; ++c) for (int i = 0; i < n; ++i) buffer.setSample(c, o + i, mix[i] * 0.2f);
         // MIDI out is a convenience, not the patch: channel A gates -> MIDI channel 1, B -> channel 2.
-        // The note is the CV read as Hz/V, the law of a Korg MS-series VCO (1 V = 55 Hz = A1, double the volts = one octave up).
+        // The note is the CV read as Hz/V, the Hz/V law (1 V = 55 Hz = A1, double the volts = one octave up).
         // 0 V and below is silent on a Hz/V VCO, so no note is sent for it.
         for (int ch = 0; ch < 2; ++ch) {
             const float* g = graph.output(sqIndex, ch == 0 ? Sq10Module::GATE_A : Sq10Module::GATE_B);

@@ -1,9 +1,8 @@
-# SQ-10 engine: how it behaves
+# BUSHIDO: how it behaves
 
 Source: `engine/Sq10Module.cpp`. Tests: `tests/test_engine.cpp`. Everything here is pinned by a test unless marked otherwise.
 
-> **The panel layout is provisional.** It was built from published descriptions of the SQ-10, not from a photo. Behaviour below follows those
-> descriptions; where they disagree or are silent, the choice made is marked **(assumed)**. Change `panel/build_panel.py` and this module together.
+> The panel and the engine change together: edit `panel/build_panel.py` and `engine/Sq10Module.cpp` as a pair.
 
 ## Signals
 Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 1 V and low again below 0.5 V.
@@ -12,7 +11,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 | Id | Meaning |
 |---|---|
 | `A:1`..`A:12`, `B:1`..`B:12`, `C:1`..`C:12` | Step knobs, 0..1 |
-| `CH:RANGE A`, `CH:RANGE B` | 1 V or 5 V span for that channel's CV, A and B only **(assumed: unipolar 0..1 V / 0..5 V until a real SQ-10 is metered)** |
+| `CH:RANGE A`, `CH:RANGE B` | 1 V or 5 V span for that channel's CV, A and B only, unipolar (0..1 V or 0..5 V) |
 | `CH:PORTA A`, `CH:PORTA B` | Portamento on A and B only, 0 = off, up to ~2 s time constant |
 | `CH:C MODE` | Two-position toggle. CV: row C is a third CV (0..5 V) and does not set gate length (gates are 50 % of the step). TIME: the C knob of the playing step is the gate length for A and B, 5 %..95 % of the step, and `OUTPUTS:CV C` stays at 0 V |
 | `CLOCK:TEMPO` | Internal clock, 0.5..32 steps per second (exponential). `CLOCK:TEMPO CV` adds 1 octave of rate per volt. Both act in INT only |
@@ -41,7 +40,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 - **Settle (0.6 ms):** a new step's CV and gate wait 0.6 ms. A reset patched from a TRIG jack arrives within that time, so the skipped step
   never reaches the CV or gate outputs (test: "the skipped step 5 never reaches CV A").
 - **Patch delay:** forward cables are sample-accurate. A cable that closes a feedback loop, including a module patched to itself
-  (every SQ-10 to SQ-10 cable), arrives exactly **1 sample** late (`PatchGraph::kFeedbackDelay`). Only the newest cable in each loop is
+  (every BUSHIDO-to-BUSHIDO cable), arrives exactly **1 sample** late (`PatchGraph::kFeedbackDelay`). Only the newest cable in each loop is
   delayed: cables carry an age (when they were patched; moving a plug makes it the newest), the graph takes them oldest first, and a
   cable is delayed only if the older undelayed cables already lead back to its source. Module order does not matter. While any loop is
   patched the graph runs one sample at a time. The settle time is 29 samples at 48 kHz, so a TRIG -> RESET cable lands well inside it.
@@ -54,7 +53,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
   another graph they are off unless that host sets them.
 - Main output = `MIXER:OUT` (5 V = 1.0), on both channels.
 - MIDI out is a **convenience, not the patch**: GATE A -> MIDI channel 1, GATE B -> channel 2 (so A+B plays all 24 steps on channel 1), velocity 100, note taken when the gate
-  opens. CV A and CV B stay in volts on the jacks. The note uses the **Hz/V curve of a Korg MS-series VCO** (`rack/HzPerVolt.h`):
+  opens. CV A and CV B stay in volts on the jacks. The note uses the **Hz/V curve** of a Hz/V VCO such as RONIN's (`rack/HzPerVolt.h`):
   frequency is proportional to the voltage, doubling the voltage is one octave, and 1 V = 55 Hz = A1 (MIDI 33). So
   note = 33 + 12 x log2(V), rounded to the nearest semitone and clamped to 0..127; 0 V or below sends no note (a Hz/V VCO is silent
   there). Examples: 0.5 V = A0 (21), 1 V = A1 (33), 1.5 V = E2 (40), 2 V = A2 (45), 5 V = C#4 (61). The old `36 + CV x 12`

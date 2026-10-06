@@ -1,6 +1,6 @@
 <title>BUSHIDO Sequencer</title>
 <style>
-/* Layout: the vector panel at full width with its cable lane, a control bar above, a jack readout below. Same chrome as the MS-50 patch bay. */
+/* Layout: the vector panel at full width with its cable lane, a control bar above, a jack readout below. Same chrome as the RONIN patch bay. */
 :root{--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618;color-scheme:dark}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618}}
 :root[data-theme="dark"]{--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618}
@@ -32,6 +32,7 @@ input[type=range]{accent-color:#c29f4c;width:90px}
 .cell .v small{color:var(--dim);font-size:.8rem}
 p{color:var(--dim);margin:12px 0 0;max-width:110ch}
 p b{color:var(--fg);font-weight:600}
+p.legal{font-size:.8rem;margin-top:16px}
 </style>
 <div class="wrap">
 <div class="bar">
@@ -41,7 +42,7 @@ p b{color:var(--fg);font-weight:600}
   <span class="grp"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></span>
   <span id="info"></span>
 </div>
-<div class="sc"><div id="stage"><img src="__PANEL__" alt="SQ-10 panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div></div></div>
+<div class="sc"><div id="stage"><img src="__PANEL__" alt="BUSHIDO panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div></div></div>
 <div class="readout">
   <div class="cell"><span class="k">Playing</span><span class="v" id="r-step">stopped · press START</span></div>
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
@@ -53,6 +54,7 @@ p b{color:var(--fg);font-weight:600}
 <b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> the green readout next to TEMPO is the same control in BPM; drag its digits (Shift = 0.1 BPM) or scroll. DIV sets the steps per beat (1/8, 1/16, 1/32): at 120 BPM and 1/16 the clock runs 8 steps per second. TEMPO CV still bends around it, and with SOURCE on EXT the readout shows EXT. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
 <b>Sound:</b> two Hz/V VCOs listen to CV A / GATE A and CV B / GATE B (1 V = 55 Hz × the octave setting above). In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
+<p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is inspired by the Korg SQ-10. Korg and SQ-10 are trademarks of their respective owners; Martial Systems is not affiliated with or endorsed by Korg.</p>
 </div>
 <script>
 const L=__LAYOUT__,J=L.jacks,LABELS=L.labels.map(l=>l.rect),VW=L.canvas[0],VH=L.canvas[1],NS="http://www.w3.org/2000/svg";
@@ -107,7 +109,7 @@ function describe(c){const v=P[c.id];
   if(c.kind=="readout"||c.id=="CLOCK:TEMPO"||c.id=="CLOCK:DIV")return P["CLOCK:SOURCE"]>.5?"TEMPO · SOURCE is EXT: the CLOCK jack steps the sequencer, TEMPO and the BPM readout are ignored":`TEMPO · ${fmtBpm(bpmNow())} BPM at 1/${spb(P["CLOCK:DIV"])*4} · ${sps(P["CLOCK:TEMPO"]).toFixed(2)} steps/s`;if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
 const ctlAt=(x,y)=>C.findIndex(c=>x>=c.hit[0]&&x<=c.hit[0]+c.hit[2]&&y>=c.hit[1]&&y<=c.hit[1]+c.hit[3]);
 
-// ================= cables (same model as the MS-50 patch bay) =================
+// ================= cables (same model as the RONIN patch bay) =================
 let lab=null,ptrIn=false,cur="red",cables=[],hov=-1,mx=0,my=0,grab=null,down=null,ignoreUp=false;const N=36,R=40,RP=28,PADL=10;
 $("sws").innerHTML=Object.keys(COL).map(c=>`<button class="sw${c==cur?" on":""}" data-c="${c}" aria-label="${c} cable" style="background:${COL[c][0]}"></button>`).join("");
 $("sws").onclick=e=>{const c=e.target.dataset.c;if(!c)return;cur=c;[...$("sws").children].forEach(b=>b.classList.toggle("on",b.dataset.c==c))};
@@ -269,7 +271,7 @@ function frame(){setLed("MODE:RUN",S.running);if(!ctx)return;
     const n=P["TOP:BYPASS"]>.5?-1:midiOf(v.volts);$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${v.jk+1} · ${(55*v.volts).toFixed(1)} Hz on a Hz/V VCO</small>`;
     for(const c of cables){const a=c.a>=0?J[c.a].id:"",b=c.b>=0?J[c.b].id:"";if(a==`${v.pos+1}:TRIG`||b==`${v.pos+1}:TRIG`)jiggle(c,1.2)}}}   // a cable twitches when its TRIG fires
 
-// ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as the MS-50 PRESET screen) =================
+// ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as RONIN's PRESET screen) =================
 const SCREEN=L.screen;
 const FONT={" ":[0,0,0,0,0,0,0],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14],"2":[14,17,1,2,4,8,31],"3":[31,2,4,2,1,17,14],"4":[2,6,10,18,31,2,2],
 "5":[31,16,30,1,1,17,14],"6":[6,8,16,30,17,17,14],"7":[31,1,2,4,8,8,8],"8":[14,17,17,14,17,17,14],"9":[14,17,17,15,1,2,12],

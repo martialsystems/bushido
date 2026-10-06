@@ -14,7 +14,7 @@ public:
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
-    const juce::String getName() const override { return "SQ-10 Sequencer"; }
+    const juce::String getName() const override { return "BUSHIDO"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 0.0; }

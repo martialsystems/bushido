@@ -1,9 +1,9 @@
-# The SQ-10 is its own plugin
+# BUSHIDO is its own plugin
 
-**Decision:** the SQ-10 ships as its own plugin (VST3, AU, Standalone). It is **not** compiled into the MS-50, and neither plugin hosts
-the other. This plugin runs exactly one `rack::PatchGraph`, with the SQ-10 as its only module.
+BUSHIDO ships as its own plugin (VST3, AU, Standalone). It is **not** compiled into RONIN, and neither plugin hosts
+the other. This plugin runs exactly one `rack::PatchGraph`, with BUSHIDO as its only module.
 
-The folders below are kept free of JUCE (except `ui/`) and free of any MS-50 type, so a later compile-in could reuse them unchanged.
+The folders below are kept free of JUCE (except `ui/`) and free of any RONIN type, so a later compile-in could reuse them unchanged.
 Nothing in this repository depends on that happening.
 
 ## What is reusable
@@ -13,16 +13,16 @@ Nothing in this repository depends on that happening.
 | `rack/PatchGraph.*` | none | Runs modules and the cables between them, in one graph. |
 | `rack/CableModel.*` | none | Visible cable state: stacking, reorder, carrying, rope physics, hover push-away, cable age. |
 | `rack/HzPerVolt.h` | none | Hz/V pitch curve (1 V = 55 Hz, double the volts = one octave). |
-| `engine/Sq10Module.*` | none | The SQ-10 engine. |
+| `engine/Sq10Module.*` | none | The BUSHIDO engine. |
 | `ui/Layout.*`, `ui/RackPanel.*` | JUCE | Draws any rack from its layout file and turns its knobs. |
 | `ui/CableLayer.*` | JUCE | One overlay over all racks: draws cables and handles patching. |
 | `ui/PatternScreen.*` | JUCE | Dot-matrix pattern screen and list, drawn from the layout's `screen` rects. |
-| `assets/sq10_panel_bg.svg`, `assets/sq10_layout.json` | — | SQ-10 panel art (vector) and geometry (provisional layout). |
+| `assets/sq10_panel_bg.svg`, `assets/sq10_layout.json` | — | BUSHIDO panel art (vector) and geometry. |
 | `assets/sq10_patterns.json` | — | 28 factory patterns: parameter values by id plus cables by jack id. BYPASS lives in the processor, not the engine or the patterns. |
 
 ## Rules any host graph must keep
 - **One graph.** A second `PatchGraph`, or a plugin hosted inside another, would split the patch and give cables two timing laws.
-- **Jack ids** are `SECTION:LABEL` inside a module (`OUTPUTS:CV A`), and `RACK/SECTION:LABEL` across racks (`SQ-10/OUTPUTS:CV A`).
+- **Jack ids** are `SECTION:LABEL` inside a module (`OUTPUTS:CV A`), and `RACK/SECTION:LABEL` across racks (`SQ-10/OUTPUTS:CV A`; the rack id `SQ-10` is kept so saved patches keep loading).
 - **Signals are volts:** ±5 V audio and CV, 0/5 V gates and TRIGs; an input is high above 1 V and low below 0.5 V.
   Pitch CV stays in volts on the jacks; a Hz/V VCO interprets it.
 - Output -> input carries signal. Output -> output or input -> input does nothing. One output into several inputs: fan-out.

@@ -1,6 +1,6 @@
-// SQ-10 (BUSHIDO) engine for the web page: a line-for-line port of engine/Sq10Module.cpp, run one sample at a time
-// so it can share one patch graph with the MS-50 (RONIN) modules. Plain script: defines the global SQ10.
-// Same module contract as MS50 modules: numPorts(), port(i), processSample(), portValue[], inputConnected[].
+// BUSHIDO engine for the web page: a line-for-line port of engine/Sq10Module.cpp, run one sample at a time
+// so it can share one patch graph with the RONIN modules. Plain script: defines the global SQ10.
+// Same module contract as the RONIN modules: numPorts(), port(i), processSample(), portValue[], inputConnected[].
 var SQ10 = (function () {
   const JACKS = ["CLOCK:CLOCK", "CLOCK:TEMPO CV", "INPUTS:START/STOP", "INPUTS:STEP", "INPUTS:RESET", "MIXER:IN 1", "MIXER:IN 2",
     "OUTPUTS:CV A", "OUTPUTS:GATE A", "OUTPUTS:CV B", "OUTPUTS:GATE B", "OUTPUTS:CV C", "MIXER:OUT"];
@@ -8,8 +8,8 @@ var SQ10 = (function () {
   const CLOCK_IN = 0, TEMPO_CV = 1, START_IN = 2, STEP_IN = 3, RESET_IN = 4, MIX_IN1 = 5, MIX_IN2 = 6,
         CV_A = 7, GATE_A = 8, CV_B = 9, GATE_B = 10, CV_C = 11, MIX_OUT = 12, TRIG1 = 13;
   // Port types for the shared graph. Inputs take raw volts (high above 1 V, low below 0.5 V), so they are CV.
-  // GATE and TRIG are V-trig logic (0/5 V): typed Gate, so the MS-50's own gate law (S-15) turns them into S-trig volts
-  // when they feed an MS-50 CV or audio input. Into SQ-10 inputs they stay raw (a TRIG into RESET still works).
+  // GATE and TRIG are V-trig logic (0/5 V): typed Gate, so RONIN's own gate law (S-15) turns them into S-trig volts
+  // when they feed a RONIN CV or audio input. Into BUSHIDO inputs they stay raw (a TRIG into RESET still works).
   function desc(i) {
     const name = JACKS[i], dir = i < CV_A ? "In" : "Out";
     let type = "CV";

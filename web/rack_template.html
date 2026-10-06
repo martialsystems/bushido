@@ -1,6 +1,6 @@
 <title>BUSHIDO and RONIN</title>
 <style>
-/* Layout: the vector panel at full width with its cable lane, a control bar above, a jack readout below. Same chrome as the MS-50 patch bay. */
+/* Layout: the vector panel at full width with its cable lane, a control bar above, a jack readout below. Same chrome as the RONIN patch bay. */
 :root{--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618;color-scheme:dark}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618}}
 :root[data-theme="dark"]{--bg:#101012;--fg:#d8d2bd;--dim:#8f8a7a;--bd:#2f2f33;--bt:#222226;--card:#161618}
@@ -33,6 +33,7 @@ input[type=range]{accent-color:#c29f4c;width:90px}
 .cell .v small{color:var(--dim);font-size:.8rem}
 p{color:var(--dim);margin:12px 0 0;max-width:110ch}
 p b{color:var(--fg);font-weight:600}
+p.legal{font-size:.8rem;margin-top:16px}
 </style>
 <div class="wrap">
 <div class="bar">
@@ -54,11 +55,12 @@ p b{color:var(--fg);font-weight:600}
   <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
   <div class="cell"><span class="k">RONIN</span><span class="v" id="r-ronin">–</span></div>
 </div>
-<p><b>Two instruments, one patch:</b> BUSHIDO (the SQ-10 sequencer) and RONIN (the MS-50 synth from the MS50Modular repo) share one patch graph and one set of cables. Patch either way: BUSHIDO's CV and gates into RONIN, and RONIN's outputs back into BUSHIDO's CLOCK, TEMPO CV, START/STOP, STEP, RESET and MIXER inputs (an MG PULSE into CLOCK with SOURCE on EXT clocks the sequencer). <b>On top</b> picks which panel sits above; the one below gets a shadow along its top edge, and cables stay on their jacks. The graph follows the MS-50's rules: Audio or CV into a Gate input is refused, a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high), and in a feedback loop the newest cable is delayed one sample. CV A into VCO HZ/V plays RONIN's VCO on the Hz/V law. <b>Play RONIN's VCO</b> sets that up for you: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default BUSHIDO's own two VCOs play into RONIN's EXT IN, the way a track feeds an effect in a DAW, so RONIN's presets (03 VOICE is the default) process them. Choose "straight out" to hear them dry, or "off".
-<b>RONIN presets:</b> the same screen as BUSHIDO's: banks A and B of up to 999, click the PRESET screen or its key, type to search, arrows or scroll, Enter or click; SAVE stores RONIN's knobs, Effect switch and own cables as the next number in the lit bank. Bank A holds the 13 factory presets (A008 to A013 are the self-modulating patches, which play with no HOLD press). A factory preset sets RONIN's knobs and RONIN-only cables and leaves cables to BUSHIDO alone. Press and hold HOLD to open the EXT IN gate. The rocker is the plugin's Effect switch: off passes OUTPUT L/R dry, on blends in WET by MIX. Click a RONIN jack to point the meter at it (±5 V full scale); it starts on OUTPUT WET. VCA 1/2 INITIAL and MOD, the DIV RATIO SWITCH and the DIV /16 jack are not wired in this build (MS50Modular main at 5dcf0cc).<br><b>Rack patches (bank B on both screens):</b> B001 LOOP BASS (08 FILTER LOOP, the filter re-driving its own cutoff, with BUSHIDO's row C pushing the loop) and B002 RING SEED (13 SELF RING, woken by BUSHIDO's row C summed into RING B). Loading one from either screen sets both instruments and every cable, then press START. Details in sequenced_selfmod/README.md.
+<p><b>Two instruments, one patch:</b> BUSHIDO (the step sequencer) and RONIN (the semi-modular synth), both from the Martial Systems Jidai Collection, share one patch graph and one set of cables. Patch either way: BUSHIDO's CV and gates into RONIN, and RONIN's outputs back into BUSHIDO's CLOCK, TEMPO CV, START/STOP, STEP, RESET and MIXER inputs (an MG PULSE into CLOCK with SOURCE on EXT clocks the sequencer). <b>On top</b> picks which panel sits above; the one below gets a shadow along its top edge, and cables stay on their jacks. The graph follows RONIN's rules: Audio or CV into a Gate input is refused, a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high), and in a feedback loop the newest cable is delayed one sample. CV A into VCO HZ/V plays RONIN's VCO on the Hz/V law. <b>Play RONIN's VCO</b> sets that up for you: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default BUSHIDO's own two VCOs play into RONIN's EXT IN, the way a track feeds an effect in a DAW, so RONIN's presets (03 VOICE is the default) process them. Choose "straight out" to hear them dry, or "off".
+<b>RONIN presets:</b> the same screen as BUSHIDO's: banks A and B of up to 999, click the PRESET screen or its key, type to search, arrows or scroll, Enter or click; SAVE stores RONIN's knobs, Effect switch and own cables as the next number in the lit bank. Bank A holds the 13 factory presets (A008 to A013 are the self-modulating patches, which play with no HOLD press). A factory preset sets RONIN's knobs and RONIN-only cables and leaves cables to BUSHIDO alone. Press and hold HOLD to open the EXT IN gate. The rocker is the plugin's Effect switch: off passes OUTPUT L/R dry, on blends in WET by MIX. Click a RONIN jack to point the meter at it (±5 V full scale); it starts on OUTPUT WET. VCA 1/2 INITIAL and MOD, the DIV RATIO SWITCH and the DIV /16 jack are not wired in this page's RONIN build yet.<br><b>Rack patches (bank B on both screens):</b> B001 LOOP BASS (08 FILTER LOOP, the filter re-driving its own cutoff, with BUSHIDO's row C pushing the loop) and B002 RING SEED (13 SELF RING, woken by BUSHIDO's row C summed into RING B). Loading one from either screen sets both instruments and every cable, then press START. Details in sequenced_selfmod/README.md.
 <b>BUSHIDO patterns:</b> two banks, A and B, of up to 999 patterns each (bank B starts with the two rack patches); the lit lamp is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, type to search, use the arrows or scroll, then click a row or press Enter. A pattern sets BUSHIDO's knobs, switches and its own cables. Bank A has 28 factory patterns (A011 to A016 acid, A017 to A028 90s scenes). <b>SAVE</b> stores the panel as the next number in the lit bank (type a name, then Enter). Saved patterns stay in this browser. <b>BYPASS</b> on keeps BUSHIDO stepping with its gates muted.
 <b>Play:</b> START/STOP (or Space), STEP and RESET. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> drag the green digits next to TEMPO; DIV sets steps per beat (120 BPM at 1/16 is 8 steps per second).
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels.</p>
+<p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is inspired by the Korg SQ-10 and RONIN by the Korg MS-50. Korg, SQ-10 and MS-50 are trademarks of their respective owners; Martial Systems is not affiliated with or endorsed by Korg.</p>
 </div>
 <script id="dsp">
 __DSP__
@@ -130,7 +132,7 @@ function describe(c){const v=P[c.id];
   if(c.kind=="readout"||c.id=="CLOCK:TEMPO"||c.id=="CLOCK:DIV")return P["CLOCK:SOURCE"]>.5?"TEMPO · SOURCE is EXT: the CLOCK jack steps the sequencer, TEMPO and the BPM readout are ignored":`TEMPO · ${fmtBpm(bpmNow())} BPM at 1/${spb(P["CLOCK:DIV"])*4} · ${sps(P["CLOCK:TEMPO"]).toFixed(2)} steps/s`;if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
 const ctlAt=(x,y)=>C.findIndex(c=>x>=c.hit[0]&&x<=c.hit[0]+c.hit[2]&&y>=c.hit[1]&&y<=c.hit[1]+c.hit[3]);
 
-// ================= cables (same model as the MS-50 patch bay) =================
+// ================= cables (same model as the RONIN patch bay) =================
 let lab=null,ptrIn=false,cur="red",cables=[],hov=-1,mx=0,my=0,qx=0,qy=0,grab=null,down=null,ignoreUp=false;const N=36,R=40,RP=28,PADL=10;
 $("sws").innerHTML=Object.keys(COL).map(c=>`<button class="sw${c==cur?" on":""}" data-c="${c}" aria-label="${c} cable" style="background:${COL[c][0]}"></button>`).join("");
 $("sws").onclick=e=>{const c=e.target.dataset.c;if(!c)return;cur=c;[...$("sws").children].forEach(b=>b.classList.toggle("on",b.dataset.c==c))};
@@ -174,7 +176,7 @@ function plugsAt(j){const o=[];cables.forEach((c,i)=>{if(c.a==j)o.push({i,e:"a"}
 function startGrab(i,e,carry){grab={i,e,from:cables[i][e],carry};cables[i][e]=-1;build();setHov(hov)}
 function newCable(j,carry){cables.push({a:j,b:-1,c:cur});grab={i:cables.length-1,e:"b",from:-1,carry,isNew:true};build();setHov(hov)}
 function drop(){const t=near(),c=cables[grab.i],other=c[grab.e=="a"?"b":"a"],why=t>=0&&other>=0&&t!=other?legal(t,other):null;
-  if(why){if(grab.isNew)cables.splice(grab.i,1);else c[grab.e]=grab.from;grab=null;build();setHov(-1);info.textContent=why;return}   // refused, as the MS-50 refuses it
+  if(why){if(grab.isNew)cables.splice(grab.i,1);else c[grab.e]=grab.from;grab=null;build();setHov(-1);info.textContent=why;return}   // refused, as RONIN refuses it
   if(t>=0&&t!=other){c[grab.e]=t;cables.splice(grab.i,1);cables.push(c)}            // a re-patched cable is the newest one
   else if(t>=0&&!grab.isNew)c[grab.e]=grab.from;else cables.splice(grab.i,1);
   grab=null;build();jiggle(c,6);setHov(near())}
@@ -280,7 +282,7 @@ function frame(){const q=st&&st.sq;setLed("MODE:RUN",!!(q&&q.running));vuStep();
   const n=lastNote?midiOf(lastNote.v):-1;$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":!lastNote?"–":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${lastNote.jk+1} · ${(55*lastNote.v).toFixed(1)} Hz on a Hz/V VCO</small>`;
   $("r-ronin").innerHTML=`${RS.label()} <small>· effect ${power?"on":"off"} · meter on ${meterId} ${(st.meter*5).toFixed(2)} V${st.delayed?" · 1 cable delayed a sample":""}</small>`}
 
-// ================= RONIN panel: knobs, HOLD, Effect rocker, meter, preset screen (same behaviour as the MS-50 plugin) =================
+// ================= RONIN panel: knobs, HOLD, Effect rocker, meter, preset screen (same behaviour as the RONIN plugin) =================
 const RSCR=RL.screen,POWER=RL.power,METER=RL.meter,HOLDB=RL.buttons[0],RPRE=RK.presets;
 const KN=RL.knobs.map(k=>{const id=k.section+":"+k.label,b=RK.knobs[id],live=!!b&&(b.module>=0||!!b.host),d=live?b.def:k.default;return Object.assign({},k,{id,live,def:d,v:d})});
 const isSw=k=>k.label=="RATIO SWITCH",kAng=k=>isSw(k)?-48+96*k.v:-135+270*k.v;
@@ -342,7 +344,7 @@ function legal(a,b){const pa=DESC.ports[J[a].gid],pb=DESC.ports[J[b].gid];if(!pa
   if(pa.dir==pb.dir)return pa.dir=="Out"?"Two outputs can't be patched together":"Two inputs can't be patched together";
   const[s,d]=pa.dir=="Out"?[pa,pb]:[pb,pa];return RACK.typesAllowed(s.type,d.type)?null:`That jack does not take this cable (${s.type} into a Gate input)`}
 
-// ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as the MS-50 PRESET screen) =================
+// ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as RONIN's PRESET screen) =================
 const SCREEN=L.screen;
 const FONT={" ":[0,0,0,0,0,0,0],"0":[14,17,19,21,25,17,14],"1":[4,12,4,4,4,4,14],"2":[14,17,1,2,4,8,31],"3":[31,2,4,2,1,17,14],"4":[2,6,10,18,31,2,2],
 "5":[31,16,30,1,1,17,14],"6":[6,8,16,30,17,17,14],"7":[31,1,2,4,8,8,8],"8":[14,17,17,14,17,17,14],"9":[14,17,17,15,1,2,12],

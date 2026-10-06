@@ -82,5 +82,5 @@ P=[
      [.5,.2,.15,.6,.2,.15,.7,.2,.55,.2,.4,.2],BPM(120),porta=(0.08,0)),
 ]
 out=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets","sq10_patterns.json")
-json.dump(dict(note="Factory patterns for the PATTERN screen. Values are 0..1 parameter positions; cables are [jack, jack, colour] with SQ-10 jack ids.",patterns=P),open(out,"w"),indent=1)
+json.dump(dict(note="Factory patterns for the PATTERN screen. Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.",patterns=P),open(out,"w"),indent=1)
 print(len(P),"patterns ->",out)

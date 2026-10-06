@@ -1,5 +1,5 @@
 #pragma once
-// Hz/V pitch law, as on Korg MS-series VCOs: frequency is proportional to the control voltage,
+// Hz/V pitch law: frequency is proportional to the control voltage,
 // so doubling the voltage raises the pitch one octave. 1 V = A1 = 55 Hz (MIDI note 33).
 // Framework-free. Used only for the plugin's MIDI convenience output; the CV jacks stay in volts.
 #include <cmath>

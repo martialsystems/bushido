@@ -1,5 +1,5 @@
 {
- "note": "Factory patterns for the PATTERN screen. Values are 0..1 parameter positions; cables are [jack, jack, colour] with SQ-10 jack ids.",
+ "note": "Factory patterns for the PATTERN screen. Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.",
  "patterns": [
   {
    "name": "LOOP 8",

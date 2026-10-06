@@ -1,5 +1,5 @@
-"""Builds web/rack.html: BUSHIDO (SQ-10) above RONIN (MS-50) on one page, one patch graph, one cable layer.
-RONIN's panel art and layout come from the MS50Modular repo (default ../../martialsystems/ms50modular, or --ms50 DIR).
+"""Builds web/rack.html: BUSHIDO and RONIN on one page, one patch graph, one cable layer.
+RONIN's panel art and layout come from the RONIN repo (MS50Modular) (default ../../martialsystems/ms50modular, or --ms50 DIR).
 Usage: python web/build_rack.py [--ms50 DIR] [--fragment OUT]"""
 import base64,json,os,re,sys
 d=os.path.dirname(os.path.abspath(__file__)); a=os.path.join(d,"..","assets")

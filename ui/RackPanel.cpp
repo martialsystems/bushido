@@ -58,7 +58,7 @@ void RackPanel::drawRocker(juce::Graphics& g, juce::Rectangle<float> r, bool rig
 {
     const auto left = r.withWidth(r.getWidth() / 2), rightHalf = left.translated(left.getWidth(), 0);
     auto half = [&](juce::Rectangle<float> h, bool pressed) {
-        if (dark) g.setColour(juce::Colour(pressed ? 0xff101012 : 0xff3a3a3e));          // the MS-50 POWER rocker
+        if (dark) g.setColour(juce::Colour(pressed ? 0xff101012 : 0xff3a3a3e));          // the dark rocker (as on RONIN)
         else g.setGradientFill(pressed ? juce::ColourGradient(juce::Colour(0xff8e897a), 0, h.getY(), juce::Colour(0xffbdb8a6), 0, h.getBottom(), false)
                                        : juce::ColourGradient(juce::Colour(0xfffbf9f1), 0, h.getY(), juce::Colour(0xffdcd7c6), 0, h.getBottom(), false));
         g.fillRoundedRectangle(h, 2.5f);

@@ -1,11 +1,11 @@
-// One patch graph for the page: BUSHIDO (SQ-10, module 0) and RONIN (MS-50, modules 1..N) run sample by sample in the
-// same graph, under the MS-50's PatchGraph rules (port of Source/Modular/PatchGraph.cpp publish/fillOrder/process):
+// One patch graph for the page: BUSHIDO (module 0) and RONIN (modules 1..N) run sample by sample in the
+// same graph, under RONIN's PatchGraph rules (port of Source/Modular/PatchGraph.cpp publish/fillOrder/process):
 //  - a cable runs Out -> In; Audio or CV into a Gate input is refused ("that jack does not take this cable");
 //  - unpatched non-gate inputs sit at their rest volts, unpatched gate inputs keep their last value, patched inputs are summed;
 //  - walking cables oldest to newest, a cable that closes a loop is feedback; only the newest feedback cable is delayed
 //    one sample, older feedback cables stay zero-delay (their destinations run a second time);
-//  - S-15: a Gate source (logic, not strigVolts) into a non-Gate MS-50 input gives 0 V while high and +5 V while low.
-// BUSHIDO inputs take plain volts (high above 1 V), so an MS-50 logic gate reaches them as 0/5 V instead.
+//  - S-15: a Gate source (logic, not strigVolts) into a non-Gate RONIN input gives 0 V while high and +5 V while low.
+// BUSHIDO inputs take plain volts (high above 1 V), so a RONIN logic gate reaches them as 0/5 V instead.
 // Jack ids are SECTION:LABEL with the instrument in front: "SQ-10/OUTPUTS:CV A", "MS-50/VCO:HZ/V".
 // Plain script: needs the globals SQ10 and MS50, defines RACK. Runs in an AudioWorklet, a ScriptProcessor or Node.
 var RACK = (function () {
@@ -110,7 +110,7 @@ var RACK = (function () {
         let v = delayed[i] ? held[i] : mods[c.sm].portValue[c.sp];
         const sd = desc[c.sm][c.sp], dd = desc[mi][c.dp];
         if (mi > 0) { if (sd.type === "Gate" && dd.type !== "Gate" && !sd.strigVolts) v = v >= 0.5 ? 0 : 5 }   // S-15
-        else if (c.sm > 0 && sd.type === "Gate") v = sd.strigVolts ? (v < 1.5 ? 5 : 0) : (v >= 0.5 ? 5 : 0);   // MS-50 gate into BUSHIDO: 0/5 V
+        else if (c.sm > 0 && sd.type === "Gate") v = sd.strigVolts ? (v < 1.5 ? 5 : 0) : (v >= 0.5 ? 5 : 0);   // RONIN gate into BUSHIDO: 0/5 V
         pv[c.dp] += v;
       }
     }

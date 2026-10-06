@@ -1,5 +1,5 @@
-"""SQ-10 style panel generator. PROVISIONAL layout (built from documented features, not from a photo).
-Writes vector art in the MS-50 style, so the panel scales cleanly at any editor size:
+"""BUSHIDO panel generator.
+Writes vector art in the Jidai Collection style, so the panel scales cleanly at any editor size:
   assets/sq10_panel.svg     every part at its default (preview)
   assets/sq10_panel_bg.svg  no live parts (knobs, switches, keys, lamps), for UIs that draw those on top
   assets/sq10_layout.json   geometry for the plugin editor and the web version
@@ -43,7 +43,7 @@ def switch(sec,lab,cx,cy,marks,angles,default,rad=28,text=None):
         T(cx+rad*math.sin(math.radians(a)),cy-rad*math.cos(math.radians(a))+4,m,FL)
     T(cx,cy+SWR+17,text or lab,FL)
     k=round(default*(len(marks)-1)); P.append(knob_body(cx,cy,SWR,angles[k]))
-def key_svg(cx,cy,style):   # square key like the MS-50 HOLD key: cream, or black for STEP and RESET
+def key_svg(cx,cy,style):   # square key like RONIN's HOLD key: cream, or black for STEP and RESET
     k,d,e,st=(("bs","bd","#7e7764","#6f6a5a") if style=="cream" else ("bk","bkd","#000","#3a3a3e"))
     return (f'<rect x="{cx-13:.1f}" y="{cy-13}" width="26" height="26" rx="3" fill="url(#{k})" stroke="{st}" stroke-width=".9"/>'
             f'<rect x="{cx-13:.1f}" y="{cy+9}" width="26" height="4" rx="2" fill="{e}" opacity=".55"/><rect x="{cx-9.5:.1f}" y="{cy-10}" width="19" height="17" rx="2.5" fill="url(#{d})"/>')
@@ -60,7 +60,7 @@ def rocker_svg(x,y,w,h,right,dark=False):   # pressed half sits low and shaded, 
     return (f'<rect x="{x:.1f}" y="{y}" width="{hw}" height="{h}" rx="2.5" fill="{a}"/><rect x="{x+hw:.1f}" y="{y}" width="{hw}" height="{h}" rx="2.5" fill="{b}"/>'
             f'<line x1="{x+(hw+2 if right else 2):.1f}" y1="{y+1.2}" x2="{x+(w-2 if right else hw-2):.1f}" y2="{y+1.2}" stroke="{hl}" stroke-width="1"/>'
             f'<line x1="{x+hw:.1f}" y1="{y+1}" x2="{x+hw:.1f}" y2="{y+h-1}" stroke="{sep}" stroke-width="1"/>')
-def rocker(sec,lab,cx,cy,marks,default,text=None):   # two-position rocker like the MS-50 POWER switch, in white: press the left or right half
+def rocker(sec,lab,cx,cy,marks,default,text=None):   # two-position rocker like RONIN's EFFECT rocker, in white: press the left or right half
     w,h=34,18; x,y=cx-w/2,cy-h/2
     controls.append(dict(id=f"{sec}:{lab}",kind="switch",style="rocker",cx=round(cx,1),cy=cy,r=w/2,default=default,positions=2,angles=[-50,50],marks=marks,
                          rect=[round(x,1),y,w,h],hit=[round(cx-21,1),cy-15,42,30]))
@@ -128,10 +128,10 @@ H=round(FR_B+26)                 # no empty lane under the frame: the bottom scr
 # ---------------- top bar: name, BYPASS rocker (top left), PATTERN screen (centre) ----------------
 NAME="BUSHIDO"
 NAME_W=ImageFont.truetype(FP,14*8).getlength(NAME)/8+3*(len(NAME)-1)
-BP_RK=[round(M+4+NAME_W+28+tw("BYPASS",FL)+14+tw("OFF",FL)+6),CH_Y+5,40,20]         # dark rocker like the MS-50 POWER switch: left half OFF, right half ON
+BP_RK=[round(M+4+NAME_W+28+tw("BYPASS",FL)+14+tw("OFF",FL)+6),CH_Y+5,40,20]         # dark rocker like RONIN's EFFECT rocker: left half OFF, right half ON
 controls.append(dict(id="TOP:BYPASS",kind="switch",style="rocker",tone="dark",cx=BP_RK[0]+BP_RK[2]/2,cy=BP_RK[1]+BP_RK[3]/2,r=BP_RK[2]/2,default=0.0,positions=2,
                      angles=[-50,50],marks=["OFF","ON"],rect=BP_RK,hit=[BP_RK[0]-2,BP_RK[1]-4,BP_RK[2]+4,BP_RK[3]+8]))
-SCR_BEZEL=[680,CH_Y+1,240,28]; SCR_LCD=[684,CH_Y+5,232,20]; SCR_KEY=[926,CH_Y+3,26,24]   # same geometry as the MS-50 PRESET screen
+SCR_BEZEL=[680,CH_Y+1,240,28]; SCR_LCD=[684,CH_Y+5,232,20]; SCR_KEY=[926,CH_Y+3,26,24]   # same geometry as RONIN's PRESET screen
 # bank lamps A and B right of the dropdown key (the lit one is the bank the list shows and SAVE writes to), then the SAVE key
 BANKS=[dict(id=b,cx=968+32*i,cy=CH_Y+15,r=4.5,hit=[958+32*i,CH_Y+3,30,24]) for i,b in enumerate("AB")]
 SAVE_KEY=[1032,CH_Y+3,26,24]
@@ -184,7 +184,7 @@ svg=(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}"
  f'<rect x="{M}" y="{FR_T}" width="{AVAIL}" height="{FR_B-FR_T:.1f}" fill="none" stroke="{GOLD}" stroke-width="1.6"/>'
  +"".join(f'<line x1="{r}" y1="{FR_T}" x2="{r}" y2="{FR_B:.1f}" stroke="{GOLD}" stroke-width="1.6"/>' for r in rules)+"".join(P)
  +"".join(f'<g transform="translate({sx} {sy})"><circle r="5" fill="url(#js)" stroke="#000" stroke-width=".9"/><line x1="-3.5" x2="3.5" stroke="#1a1a1a" stroke-width="1.5"/><line y1="-3.5" y2="3.5" stroke="#1a1a1a" stroke-width="1.5"/></g>' for sx,sy in((9,9),(W-9,9),(9,H-9),(W-9,H-9)))+'</svg>')
-# ---------------- SVG output (same treatment as the MS-50 panel) ----------------
+# ---------------- SVG output (same treatment as the RONIN panel) ----------------
 from fontTools.ttLib import TTFont
 from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen

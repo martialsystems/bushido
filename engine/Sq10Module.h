@@ -1,5 +1,5 @@
 #pragma once
-// SQ-10 style 3 x 12 step sequencer as a rack::Module. Behaviour is documented in ENGINE_NOTES.md.
+// BUSHIDO, the 3 x 12 step sequencer, as a rack::Module. Behaviour is documented in docs/REFERENCE.md.
 #include "../rack/Module.h"
 #include <array>
 #include <atomic>

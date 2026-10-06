@@ -1,5 +1,5 @@
 #pragma once
-// Shared rack contract. Framework-free C++17. Every rack (the SQ-10 here, any other rack later) implements rack::Module,
+// Shared rack contract. Framework-free C++17. Every rack (BUSHIDO here, any other rack later) implements rack::Module,
 // so one PatchGraph can run several racks and cables can join jacks on different racks.
 // Signals are floats in volts (audio about +-5 V, gates 0/5 V).
 #include <string>
@@ -18,7 +18,7 @@ struct IndicatorInfo { std::string id; };                  // LEDs and meters, v
 class Module {
 public:
     virtual ~Module() = default;
-    virtual const char* name() const = 0;                  // rack name, e.g. "SQ-10"; global jack id = name + "/" + jack id
+    virtual const char* name() const = 0;                  // rack name, e.g. "SQ-10" (BUSHIDO's rack id, kept for saved patches); global jack id = name + "/" + jack id
     virtual const std::vector<JackInfo>& jacks() const = 0;
     virtual const std::vector<ParamInfo>& params() const = 0;
     virtual const std::vector<IndicatorInfo>& indicators() const { static const std::vector<IndicatorInfo> none; return none; }

@@ -1,5 +1,5 @@
 #pragma once
-// The PATTERN screen in the top bar, in the style of the MS-50 PRESET screen: a green 5x7 dot-matrix LCD, a cream dropdown key,
+// The PATTERN screen in the top bar, in the style of RONIN's PRESET screen: a green 5x7 dot-matrix LCD, a cream dropdown key,
 // two bank lamps (A and B) and a cream SAVE key.
 // - Click the screen or the key: the list of the lit bank opens under the screen and the LCD becomes a search box. Type to filter,
 //   arrows or the wheel to move, click a row or Enter to load, Esc or a click elsewhere to close.
