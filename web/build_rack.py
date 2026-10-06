@@ -37,7 +37,9 @@ OY=SH   # RONIN sits right under BUSHIDO: every RONIN y moves down by BUSHIDO's 
 def sh(r): return [r[0],r[1]+OY]+r[2:]
 for k in rl["knobs"]: k["cy"]+=OY; k["hit"]=sh(k["hit"])
 for j in rl["jacks"]: j["y"]+=OY; j["hit"]=sh(j["hit"])
-for b in rl["buttons"]: b["cy"]+=OY; b["hit"]=sh(b["hit"])
+for b in rl["buttons"]:
+    b["cy"]+=OY; b["hit"]=sh(b["hit"])
+    if "lamp" in b: b["lamp"]["cy"]+=OY
 for l in rl["labels"]: l["rect"]=sh(l["rect"])
 for k in ("rocker","off","on"): rl["power"][k]=sh(rl["power"][k])
 m=rl["meter"]; m["box"]=sh(m["box"]); m["face"]=sh(m["face"]); m["pivot"]=sh(m["pivot"])
