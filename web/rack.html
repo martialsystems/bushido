@@ -25,6 +25,15 @@ input[type=range]{accent-color:var(--gold);width:90px}
 .rack{display:flex;gap:12px;align-items:flex-start}
 #br{flex:0 0 212px;position:sticky;top:8px;background:#151517;border:1px solid #000;border-radius:6px;padding:14px 12px 16px;box-sizing:border-box;user-select:none;-webkit-user-select:none}
 #br.drop{border-color:#c8322a;box-shadow:0 0 0 1px #c8322a inset}
+#br .bh{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
+#brt{flex:none;display:grid;place-items:center;width:28px;height:26px;padding:0;background:#222224;color:#e8e2cfbf;border:1px solid #38383c;border-radius:4px;cursor:pointer}
+#brt:hover{background:#34332f;border-color:#5a564c;color:#e8e2cf}#brt:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#br .vl{display:none}
+#br.closed{flex-basis:30px;padding:10px 0;cursor:pointer}
+#br.closed .bn,#br.closed #brbody{display:none}
+#br.closed .bh{justify-content:center}#br.closed #brt svg{transform:rotate(180deg)}
+#br.closed .vl{display:block;writing-mode:vertical-rl;transform:rotate(180deg);margin:16px auto 0;font:700 11.5px/1 system-ui,sans-serif;letter-spacing:.08em;color:var(--dim)}
+#br.closed.drop .vl{color:#e0675e}
 #br .bt{font-weight:700;font-size:17px;color:#e8e2cf;letter-spacing:.02em}
 #br .bs{font-size:11.5px;color:var(--dim);margin-bottom:10px}
 #q{width:100%;box-sizing:border-box;background:#0d0d0f;color:#e8e2cf;border:1px solid #3a3a3e;border-radius:5px;padding:5px 8px;font:inherit;font-size:14px}
@@ -55,7 +64,7 @@ input[type=range]{accent-color:var(--gold);width:90px}
 p{color:var(--dim);margin:12px 0 0;max-width:110ch}
 p b{color:var(--fg);font-weight:600}
 p.legal{font-size:.8rem;margin-top:16px}
-@media (max-width:760px){.rack{flex-direction:column;align-items:stretch}#br{position:static;flex:none;width:100%}.sc{width:100%}}
+@media (max-width:760px){.rack{flex-direction:column;align-items:stretch}#br{position:static;flex:none;width:100%}.sc{width:100%}#br.closed{display:flex;flex-direction:row-reverse;justify-content:flex-end;align-items:center;gap:10px;padding:8px 12px}#br.closed .vl{writing-mode:horizontal-tb;transform:none;margin:0}#br.closed #brt svg{transform:rotate(90deg)}#br:not(.closed) #brt svg{transform:rotate(90deg) scaleX(-1)}}
 </style>
 <div class="wrap">
 <div class="bar">
@@ -68,10 +77,12 @@ p.legal{font-size:.8rem;margin-top:16px}
 </div>
 <div id="info" aria-live="polite"></div>
 <div class="rack">
-<aside id="br" aria-label="Device browser"><div class="bt">JIDAI RACK</div><div class="bs">Device browser</div>
-  <input id="q" type="search" placeholder="Search devices" aria-label="Search devices" autocomplete="off" spellcheck="false">
+<aside id="br" aria-label="Device browser"><div class="bh"><div class="bn"><div class="bt">JIDAI RACK</div><div class="bs">Device browser</div></div>
+  <button id="brt" type="button" aria-expanded="true" aria-controls="brbody" title="Close the device browser"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8.5 3.5 4 8l4.5 4.5M13 3.5 8.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <div id="brbody"><input id="q" type="search" placeholder="Search devices" aria-label="Search devices" autocomplete="off" spellcheck="false">
   <div id="rows"></div>
-  <div id="hint">Drag a row onto the rack to add it there, or click it to add one at the bottom.<br><br>Grab a device by its ear to move it. Drag it back here, or off the rack, to remove it.</div></aside>
+  <div id="hint">Drag a row onto the rack to add it there, or click it to add one at the bottom.<br><br>Grab a device by its ear to move it. Drag it back here, or off the rack, to remove it.<br><br>« closes this browser to a strip; click the strip to open it again.</div></div>
+  <div class="vl" aria-hidden="true">DEVICE BROWSER</div></aside>
 <div class="sc"><div id="stage"><svg id="sv" viewBox="0 0 1740 320"><defs id="df"></defs><g id="cabinet"></g><g id="devs"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="over"></g><g id="ins"></g></svg><div id="menu"></div></div></div>
 </div>
 <div class="readout">
@@ -82,7 +93,7 @@ p.legal{font-size:.8rem;margin-top:16px}
   <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
   <div class="cell"><span class="k" id="k-ronin">RONIN</span><span class="v" id="r-ronin">–</span></div>
 </div>
-<p><b>The rack:</b> BUSHIDO (the step sequencer) and RONIN (the semi-modular synth), both from the Martial Systems Jidai Collection, screw into one rack and share one patch graph and one set of cables. It starts with one of each. Drag a row from the device browser onto the rack to add one there, or click the row to add one at the bottom; search filters the list by name. BUSHIDO is a Sequencer; RONIN is a Voice, and an Effect for audio at its EXT IN. Each row shows how many are already on the rack. Grab a device by its ear (or a folded strip anywhere) to move it, and drop it back on the browser, or off the rack, to remove it; × on the right ear removes it too, along with its cables. The arrow on the left ear folds a device to a thin strip: its cables are hidden, stay patched and keep playing. The readout follows the BUSHIDO and RONIN you last touched.
+<p><b>The rack:</b> BUSHIDO (the step sequencer) and RONIN (the semi-modular synth), both from the Martial Systems Jidai Collection, screw into one rack and share one patch graph and one set of cables. It starts with one of each. Drag a row from the device browser onto the rack to add one there, or click the row to add one at the bottom; search filters the list by name. BUSHIDO is a Sequencer; RONIN is a Voice, and an Effect for audio at its EXT IN. Each row shows how many are already on the rack. The « button at the top of the browser closes it to a strip so the rack gets the width; click the strip to open it again. Grab a device by its ear (or a folded strip anywhere) to move it, and drop it back on the browser, or off the rack, to remove it; × on the right ear removes it too, along with its cables. The arrow on the left ear folds a device to a thin strip: its cables are hidden, stay patched and keep playing. The readout follows the BUSHIDO and RONIN you last touched.
 <b>Cables:</b> any jack to any jack, across devices. Outputs fan out, inputs sum, and in a feedback loop the newest cable in the rack is delayed one sample. The graph follows RONIN's rules: Audio or CV into a Gate input is refused, and a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high). Patch either way: BUSHIDO's CV and gates into RONIN, and RONIN's outputs back into BUSHIDO's CLOCK, TEMPO CV, START/STOP, STEP, RESET and MIXER inputs (an MG PULSE into CLOCK with SOURCE on EXT clocks the sequencer). CV A into VCO HZ/V plays RONIN's VCO on the Hz/V law. <b>Play RONIN's VCO</b> sets that up between the BUSHIDO you last touched and the RONIN nearest it: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default every BUSHIDO's own two VCOs play into the first RONIN's EXT IN, the way a track feeds an effect in a DAW, so its preset (03 VOICE is the default) processes them. Choose "straight out" to hear them dry, or "off". Every RONIN's OUTPUT is summed to the speakers.
 <b>RONIN presets:</b> the same screen as BUSHIDO's: banks A and B of up to 999, click the PRESET screen or its key, type to search, arrows or scroll, Enter or click; SAVE stores RONIN's knobs, Effect switch and own cables as the next number in the lit bank. Bank A holds the 13 factory presets (A008 to A013 are the self-modulating patches, which play with no HOLD press). A factory preset sets that RONIN's knobs and its own cables and leaves cables to other devices alone. Press and hold HOLD to open the EXT IN gate; the red lamp above it lights while it is down. The rocker is the plugin's Effect switch: off passes OUTPUT L/R dry, on blends in WET by MIX. Click a RONIN jack to point its meter at it (±5 V full scale); it starts on OUTPUT WET. VCA 1/2 INITIAL and MOD, the DIV RATIO SWITCH and the DIV /16 jack are not wired in this page's RONIN build yet.<br><b>Rack patches (bank B on both screens):</b> B001 LOOP BASS (08 FILTER LOOP, the filter re-driving its own cutoff, with BUSHIDO's row C pushing the loop) and B002 RING SEED (13 SELF RING, woken by BUSHIDO's row C summed into RING B). Loading one from a device's screen sets that device and the nearest device of the other kind, and replaces their cables, then press START. Details in sequenced_selfmod/README.md.
 <b>BUSHIDO patterns:</b> two banks, A and B, of up to 999 patterns each (bank B starts with the two rack patches); the lit lamp is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, type to search, use the arrows or scroll, then click a row or press Enter. A pattern sets that BUSHIDO's knobs, switches and its own cables. Bank A has 28 factory patterns (A011 to A016 acid, A017 to A028 90s scenes). <b>SAVE</b> stores the panel as the next number in the lit bank (type a name, then Enter). Saved patterns and presets stay in this browser and are shared by every BUSHIDO or RONIN on the rack. <b>BYPASS</b> on keeps BUSHIDO stepping with its gates muted.
@@ -1476,6 +1487,14 @@ $("rows").addEventListener("pointerup",e=>{if(!bdrag)return;const b=bdrag;endBro
   if(overRect(stage,e)){const d=addDev(b.k,slotAt(svgY(e.clientY)));info.textContent=d.title+" added"}else info.textContent="Dropped off the rack · nothing added"});
 $("rows").addEventListener("pointercancel",endBrowserDrag);
 $("rows").addEventListener("keydown",e=>{const row=e.target.closest(".row");if(row&&(e.key=="Enter"||e.key==" ")){e.preventDefault();audio();const d=addDev(row.dataset.k);scrollToDev(d);info.textContent=d.title+" added at the bottom of the rack"}});
+
+// The browser's close button folds it to a strip down the left edge (the rack takes the width); a click on the strip opens
+// it again. Remembered in this browser.
+function setBrowser(open){$("br").classList.toggle("closed",!open);$("brt").setAttribute("aria-expanded",open);$("brt").title=(open?"Close":"Open")+" the device browser";
+  try{localStorage.setItem("jidai.browser",open?"open":"closed")}catch(e){}}
+$("brt").onclick=e=>{e.stopPropagation();setBrowser($("br").classList.contains("closed"))};
+$("br").addEventListener("click",()=>{if($("br").classList.contains("closed"))setBrowser(true)});
+try{if(localStorage.getItem("jidai.browser")=="closed")setBrowser(false)}catch(e){}
 
 // ================= cables (same model as the RONIN patch bay; ends are jack ids, so they survive any re-layout) =================
 let lab=null,ptrIn=false,cur="red",cables=[],hov=null,mx=0,my=0,qx=0,qy=0,qdev=null,grab=null,down=null,ignoreUp=false;const N=36,R=40,RP=28,PADL=10;
