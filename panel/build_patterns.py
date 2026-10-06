@@ -17,6 +17,7 @@ def pat(name,mode,a,b,c,bps,cmode=0,porta=(0,0),cables=(),source=0):
     for i in range(12): p[f"A:{i+1}"]=knob(a[i]); p[f"B:{i+1}"]=knob(b[i]); p[f"C:{i+1}"]=round(c[i],3)
     return dict(name=name,params=p,cables=[list(x) for x in cables])
 S=lambda s:s.split()
+BPM=lambda bpm:bpm/15   # pat() takes steps per second; at 1/16 a beat is 4 steps
 P=[
  pat("LOOP 8","A",S("A2 C3 D3 E3 C3 G3 E3 D3 A2 B2 C3 E3"),S("E3 G3 A3 C4 B3 A3 G3 E3 D3 E3 G3 A3"),
      [.8,.3,.55,.2,.9,.35,.6,.25,.7,.4,.5,.95],5,cables=[("9:TRIG","INPUTS:RESET","yellow")]),
@@ -53,6 +54,32 @@ P=[
      [.15,.4,.9,.2,.6,.1,.95,.3,.2,.85,.5,.12],8,cmode=1,porta=(0.2,0.2)),
  pat("ACID DUET","ALT",S("A1 A2 A1 C2 A1 E2 A1 G2 A1 A2 G1 A1"),S("E3 - E3 G3 - A3 - C4 B3 - G3 E3"),
      [.15,.8,.2,.9,.15,.6,.2,.95,.15,.7,.3,.1],8,cmode=1,porta=(0.2,0.08)),
+
+ # ---- 90s scenes: original lines in the style of each scene (not copies of records). Tempos are BPM at 1/16.
+ pat("DETROIT 93","A",S("F2 G#2 C3 F2 D#3 C3 G#2 F2 A#2 C3 D#3 C3"),S("F3 F3 F3 F3 F3 F3 F3 F3 F3 F3 F3 F3"),
+     [.35,.55,.75,.45,.9,.6,.4,.3,.65,.8,1.0,.5],BPM(130),porta=(0.06,0)),
+ pat("CHICAGO JACK","A",S("C2 C3 - C2 D#2 C2 C3 - G1 A#1 C2 C3"),S("C3 C3 C3 C3 C3 C3 C3 C3 C3 C3 C3 C3"),
+     [.6,.2,.1,.5,.25,.85,.2,.1,.45,.3,.7,.2],BPM(124),cmode=1),
+ pat("GOA ROLLER","A",S("- E1 E1 E1 - E1 E1 E1 - E1 G1 E1"),S("E2 E2 E2 E2 E2 E2 E2 E2 E2 E2 E2 E2"),
+     [.1,.3,.3,.3,.1,.3,.3,.3,.1,.3,.35,.3],BPM(145),cmode=1),
+ pat("TRANCE 24","A+B",S("A2 E3 A3 C4 A3 E3 A2 E3 A3 C4 B3 E3"),S("F2 C3 F3 A3 F3 C3 G2 D3 G3 B3 G3 D3"),
+     [.7,.5,.6,.4,.7,.5,.6,.4,.7,.5,.6,.4],BPM(138),cmode=1),
+ pat("HOOVER RAVE","A",S("D2 D3 D2 C3 D2 A2 F2 D3 D2 D3 C3 A#2"),S("D3 D3 D3 D3 D3 D3 D3 D3 D3 D3 D3 D3"),
+     [.9,.3,.5,.95,.3,.8,.4,.9,.3,.6,.95,.7],BPM(135),cmode=1,porta=(0.45,0)),
+ pat("JUNGLE SUB","A",S("G1 G1 - - A#1 - G1 - D2 - C2 A#1"),S("G2 G2 G2 G2 G2 G2 G2 G2 G2 G2 G2 G2"),
+     [.95,.6,.1,.1,.9,.1,.95,.1,.8,.1,.7,.5],BPM(170),cmode=1,porta=(0.3,0)),
+ pat("ELECTRO 808","A",S("A1 - A1 C2 - A1 E2 - A1 G1 - A1"),S("E3 - E3 G3 - E3 A3 - E3 D3 - E3"),
+     [.4,.1,.3,.6,.1,.3,.8,.1,.3,.5,.1,.35],BPM(128),cmode=1,porta=(0.1,0)),
+ pat("BERLIN 5","A",S("D#2 D#2 D#2 F2 D#2 D#2 D#2 D#2 D#2 D#2 D#2 D#2"),S("D#3 D#3 D#3 D#3 D#3 D#3 D#3 D#3 D#3 D#3 D#3 D#3"),
+     [.2,.45,.3,.7,.35,.5,.5,.5,.5,.5,.5,.5],BPM(128),cables=[("6:TRIG","INPUTS:RESET","white")]),
+ pat("GABBER","A",S("C2 C2 C2 C2 C2 C2 C3 C2 C2 C2 D#2 C2"),S("C3 C3 C3 C3 C3 C3 C3 C3 C3 C3 C3 C3"),
+     [.95,.3,.95,.3,.95,.3,.6,.3,.95,.3,.7,.3],BPM(190),cmode=1),
+ pat("UK GARAGE","A",S("F1 - F2 - D#2 F1 - C2 - F1 G#1 -"),S("F2 F2 F2 F2 F2 F2 F2 F2 F2 F2 F2 F2"),
+     [.7,.1,.25,.1,.3,.6,.1,.4,.1,.5,.3,.1],BPM(132),cmode=1,porta=(0.15,0)),
+ pat("IDM BLIPS","ALT",S("C2 - G2 - D#2 - - C3 - A#1 - -"),S("G3 C4 - G3 - A#3 D#3 - C4 - - G3"),
+     [.15,.1,.2,.1,.6,.1,.1,.15,.1,.3,.1,.1],BPM(100),cmode=1,cables=[("8:TRIG","INPUTS:RESET","green")]),
+ pat("DUB TECHNO","A",S("D2 - - D2 - - D2 - F2 - D2 -"),S("A2 - - A2 - - A2 - C3 - A2 -"),
+     [.5,.2,.15,.6,.2,.15,.7,.2,.55,.2,.4,.2],BPM(120),porta=(0.08,0)),
 ]
 out=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets","sq10_patterns.json")
 json.dump(dict(note="Factory patterns for the PATTERN screen. Values are 0..1 parameter positions; cables are [jack, jack, colour] with SQ-10 jack ids.",patterns=P),open(out,"w"),indent=1)

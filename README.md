@@ -16,7 +16,7 @@ ui/        JUCE: Layout (reads the panel file), RackPanel (draws a rack, turns k
            PatternScreen (dot-matrix PATTERN screen and its list)
 plugin/    JUCE: processor + editor
 panel/     build_panel.py -> assets/ (panel art and layout file), build_patterns.py -> assets/sq10_patterns.json
-assets/    sq10_panel_bg.svg (vector, no live parts), sq10_panel.svg (preview), sq10_layout.json, sq10_patterns.json (16 factory patterns)
+assets/    sq10_panel_bg.svg (vector, no live parts), sq10_panel.svg (preview), sq10_layout.json, sq10_patterns.json (28 factory patterns)
 web/       build_web.py -> sq10.html: playable web version (same SVG and layout, cables, Hz/V monitor voices)
 tests/     test_engine.cpp, test_cables.cpp (no JUCE needed)
 ```
@@ -46,7 +46,7 @@ The panel reads BUSHIDO top left. It is 1600 x 434 design units, with no empty l
   patterns each. The lit lamp (A or B) right of the screen is the bank you browse and save to; click a lamp to switch.
   Click the screen or its cream key to open the list; the screen turns into a search box (`FIND ...`), so type to filter by name
   or number, use the arrow keys or the wheel, and click a row or press Enter. Esc closes. A pattern sets every knob and switch
-  except BYPASS and replaces the cables. Bank A starts with 16 factory patterns (A011-A016 are acid lines: fast 16ths, octave
+  except BYPASS and replaces the cables. Bank A starts with 28 factory patterns (A011-A016 are acid lines, A017-A028 are 90s-scene lines: Detroit, Chicago, Goa, trance, rave, jungle, electro, Berlin minimal, gabber, UK garage, IDM, dub techno: fast 16ths, octave
   jumps, PORTA slides, TIME-mode gates or a CV C filter sweep, and 7- and 5-step loops from a TRIG cable into RESET).
 - **SAVE** (cream key with +): stores the panel and its cables as the next number in the lit bank. The screen shows that number;
   type a name and press Enter (or SAVE again). Saved patterns go to `BUSHIDO/user_patterns.json` in the user application-data
