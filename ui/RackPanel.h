@@ -1,5 +1,6 @@
 #pragma once
-// Draws one rack: its background image plus live knobs, switches, buttons and LEDs, and handles turning them.
+// Draws one rack: its vector background (SVG, so it stays sharp at any editor size) plus live knobs, switches,
+// buttons and LEDs, and handles turning them.
 // Generic: any rack with a layout file works.
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Layout.h"
@@ -14,7 +15,7 @@ public:
         virtual void  press(const juce::String& id, bool down) = 0;     // momentary buttons
         virtual float indicator(const juce::String& id) = 0;            // LEDs, 0..1
     };
-    RackPanel(PanelLayout layout, juce::Image background, Binding& binding);
+    RackPanel(PanelLayout layout, std::unique_ptr<juce::Drawable> background, Binding& binding);
     const PanelLayout& layout() const { return lay; }
 
     void paint(juce::Graphics&) override;
@@ -26,9 +27,11 @@ public:
 
     static void drawKnob(juce::Graphics&, float cx, float cy, float r, float angleDeg);
     static void drawToggle(juce::Graphics&, float cx, float cy, bool right);    // lever only; the plate is in the background art
+    static void drawRocker(juce::Graphics&, juce::Rectangle<float> r, bool right);  // white rocker; the pressed half is the active one
+    static void drawKey(juce::Graphics&, float cx, float cy, bool black, bool down);
 
 private:
-    PanelLayout lay; juce::Image bg; Binding& bind;
+    PanelLayout lay; std::unique_ptr<juce::Drawable> bg; Binding& bind;
     int dragIdx = -1; float dragStartY = 0, dragStartV = 0; bool dragMoved = false; int pressedIdx = -1;
     float scale() const { return getWidth() / lay.width; }
     juce::Point<float> toDesign(juce::Point<float> p) const { return p / scale(); }

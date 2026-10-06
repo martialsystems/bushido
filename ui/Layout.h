@@ -5,7 +5,7 @@
 #include <vector>
 
 struct PanelLayout {
-    struct Control { juce::String id, kind, style;   // style "toggle" = bat toggle switch, else a rotary
+    struct Control { juce::String id, kind, style;   // style: "toggle" bat toggle, "rocker" white rocker, "cream"/"black" key; else a rotary
                       float cx = 0, cy = 0, r = 0, def = 0; int positions = 0; std::vector<float> angles; juce::Rectangle<float> hit; };
     struct Led     { juce::String id; float cx = 0, cy = 0, r = 0; };
     struct Jack    { juce::String id, dir; float x = 0, y = 0, r = 0; juce::Rectangle<float> hit; };

@@ -4,7 +4,7 @@
 
 using namespace rack;
 
-Sq10Module::Sq10Module() : ind(14)
+Sq10Module::Sq10Module() : ind(15)
 {
     jackList = { {"CLOCK:CLOCK", Dir::In}, {"CLOCK:TEMPO CV", Dir::In}, {"INPUTS:START/STOP", Dir::In}, {"INPUTS:STEP", Dir::In},
                  {"INPUTS:RESET", Dir::In}, {"MIXER:IN 1", Dir::In}, {"MIXER:IN 2", Dir::In},
@@ -22,6 +22,7 @@ Sq10Module::Sq10Module() : ind(14)
 
     indList = { {"CH:A"}, {"CH:B"} };
     for (int i = 1; i <= 12; ++i) indList.push_back({ "STEP:" + std::to_string(i) });
+    indList.push_back({ "MODE:RUN" });                            // red lamp under START/STOP, lit while running
 }
 
 void Sq10Module::prepare(double sampleRate, int) { sr = sampleRate; settle = std::max(1.0, sr * 0.0006); }
@@ -133,4 +134,5 @@ void Sq10Module::process(const float* const* in, float* const* out, int n)
     }
     ind[0].store(pos >= 0 && chan == 0 ? 1.0f : 0.0f); ind[1].store(pos >= 0 && chan == 1 ? 1.0f : 0.0f);   // which row is being read
     for (int s = 0; s < 12; ++s) ind[(size_t) s + 2].store(pos == s ? 1.0f : 0.0f);   // one lamp per step, shared by rows A, B and C
+    ind[14].store(running ? 1.0f : 0.0f);
 }

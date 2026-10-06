@@ -11,7 +11,7 @@ add_library(rack_core STATIC rack/PatchGraph.cpp rack/CableModel.cpp engine/Sq10
 target_include_directories(rack_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(rack_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-juce_add_binary_data(SQ10Assets SOURCES assets/sq10_bg@2x.png assets/sq10_layout.json)
+juce_add_binary_data(SQ10Assets SOURCES assets/sq10_panel_bg.svg assets/sq10_layout.json)
 
 juce_add_plugin(SQ10
     COMPANY_NAME "SQ10Clone"

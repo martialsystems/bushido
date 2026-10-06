@@ -20,8 +20,8 @@ private:
 Sq10Editor::Sq10Editor(Sq10Processor& p) : AudioProcessorEditor(p), proc(p)
 {
     auto layout = PanelLayout::fromJson(juce::String::fromUTF8(BinaryData::sq10_layout_json, BinaryData::sq10_layout_jsonSize));
-    auto bg = juce::ImageCache::getFromMemory(BinaryData::sq10_bg2x_png, BinaryData::sq10_bg2x_pngSize);
-    panel = std::make_unique<RackPanel>(layout, bg, static_cast<RackPanel::Binding&>(*this));
+    auto bg = juce::Drawable::createFromImageData(BinaryData::sq10_panel_bg_svg, BinaryData::sq10_panel_bg_svgSize);   // vector: sharp at any size
+    panel = std::make_unique<RackPanel>(layout, std::move(bg), static_cast<RackPanel::Binding&>(*this));
     addAndMakeVisible(*panel);
     cables.setDesignSize(layout.width, layout.height);
     cables.addRack(panel.get(), 0.0f);

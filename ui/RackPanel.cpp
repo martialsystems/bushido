@@ -1,6 +1,6 @@
 #include "RackPanel.h"
 
-RackPanel::RackPanel(PanelLayout l, juce::Image b, Binding& bd) : lay(std::move(l)), bg(std::move(b)), bind(bd)
+RackPanel::RackPanel(PanelLayout l, std::unique_ptr<juce::Drawable> b, Binding& bd) : lay(std::move(l)), bg(std::move(b)), bind(bd)
 {
     setOpaque(true); startTimerHz(30);                 // LEDs and host automation
 }
@@ -53,20 +53,41 @@ void RackPanel::drawToggle(juce::Graphics& g, float cx, float cy, bool right)
     g.fillEllipse(lx - 3.6f, ly - 3.6f, 7.2f, 7.2f);
 }
 
+void RackPanel::drawRocker(juce::Graphics& g, juce::Rectangle<float> r, bool right)
+{
+    const auto left = r.withWidth(r.getWidth() / 2), rightHalf = left.translated(left.getWidth(), 0);
+    auto half = [&](juce::Rectangle<float> h, bool pressed) {
+        g.setGradientFill(pressed ? juce::ColourGradient(juce::Colour(0xff8e897a), 0, h.getY(), juce::Colour(0xffbdb8a6), 0, h.getBottom(), false)
+                                  : juce::ColourGradient(juce::Colour(0xfffbf9f1), 0, h.getY(), juce::Colour(0xffdcd7c6), 0, h.getBottom(), false));
+        g.fillRoundedRectangle(h, 2.5f);
+        if (! pressed) { g.setColour(juce::Colour(0xfffffdf4)); g.drawLine(h.getX() + 2, h.getY() + 1.2f, h.getRight() - 2, h.getY() + 1.2f, 1.0f); }
+    };
+    half(left, ! right); half(rightHalf, right);
+    g.setColour(juce::Colour(0xff6b675a)); g.drawLine(r.getCentreX(), r.getY() + 1, r.getCentreX(), r.getBottom() - 1, 1.0f);
+}
+
+void RackPanel::drawKey(juce::Graphics& g, float cx, float cy, bool black, bool down)
+{
+    const float o = down ? 1.0f : 0.0f;
+    const juce::Colour a(black ? 0xff4a4a4e : 0xfff4eedc), b(black ? 0xff0e0e10 : 0xffb3ab94), c(black ? 0xff36363a : 0xfff8f3e4), d(black ? 0xff161618 : 0xffd0c8b2);
+    g.setGradientFill(juce::ColourGradient(down ? a.darker(0.15f) : a, cx - 13, cy - 13, b, cx + 13, cy + 13, false)); g.fillRoundedRectangle(cx - 13 + o, cy - 13 + o, 26, 26, 3);
+    g.setColour(juce::Colour(black ? 0xff3a3a3e : 0xff6f6a5a)); g.drawRoundedRectangle(cx - 13 + o, cy - 13 + o, 26, 26, 3, 0.9f);
+    g.setColour((black ? juce::Colours::black : juce::Colour(0xff7e7764)).withAlpha(0.55f)); g.fillRoundedRectangle(cx - 13 + o, cy + 9 + o, 26, 4, 2);
+    g.setGradientFill(juce::ColourGradient(c, cx - 3, cy - 5, d, cx + 9, cy + 7, true)); g.fillRoundedRectangle(cx - 9.5f + o, cy - 10 + o, 19, 17, 2.5f);
+}
+
 void RackPanel::paint(juce::Graphics& g)
 {
     g.addTransform(juce::AffineTransform::scale(scale()));
-    g.setImageResamplingQuality(juce::Graphics::highResamplingQuality);
-    g.drawImage(bg, juce::Rectangle<float>(0, 0, lay.width, lay.height));
+    // The SVG is drawn in design units (its viewBox is the layout canvas), so it scales with the editor and stays sharp.
+    // Not drawWithin(): that fits the drawing's content bounds, and the wear layer reaches past the panel edge.
+    g.reduceClipRegion(juce::Rectangle<float>(0, 0, lay.width, lay.height).toNearestInt());
+    if (bg) bg->draw(g, 1.0f);
     for (size_t i = 0; i < lay.controls.size(); ++i) {
         const auto& c = lay.controls[i]; const float v = bind.get(c.id);
-        if (c.kind == "button") {
-            const bool down = (int) i == pressedIdx; const float o = down ? 1.0f : 0.0f;
-            juce::ColourGradient cap(juce::Colour(down ? 0xffd8d1bd : 0xfff4eedc), c.cx - 12, c.cy - 12, juce::Colour(0xffa9a18a), c.cx + 12, c.cy + 12, false);
-            g.setGradientFill(cap); g.fillRoundedRectangle(c.cx - 12 + o, c.cy - 12 + o, 24, 24, 3);
-            g.setColour(juce::Colour(0xff6f6a5a)); g.drawRoundedRectangle(c.cx - 12 + o, c.cy - 12 + o, 24, 24, 3, 0.8f);
-            g.setColour(juce::Colour(down ? 0xffe4ddc8 : 0xfff6f1e2)); g.fillRoundedRectangle(c.cx - 9 + o, c.cy - 10 + o, 18, 17, 2);
-        } else if (c.style == "toggle") drawToggle(g, c.cx, c.cy, v > 0.5f);
+        if (c.kind == "button") drawKey(g, c.cx, c.cy, c.style == "black", (int) i == pressedIdx);
+        else if (c.style == "rocker") drawRocker(g, { c.cx - 17, c.cy - 9, 34, 18 }, v > 0.5f);
+        else if (c.style == "toggle") drawToggle(g, c.cx, c.cy, v > 0.5f);
         else drawKnob(g, c.cx, c.cy, c.r, angleFor(c, v));
     }
     for (const auto& l : lay.leds) {
@@ -81,6 +102,9 @@ void RackPanel::mouseDown(const juce::MouseEvent& e)
     const int i = controlAt(toDesign(e.position)); if (i < 0) return;
     const auto& c = lay.controls[(size_t) i];
     if (c.kind == "button") { pressedIdx = i; bind.press(c.id, true); repaint(); return; }
+    if (c.style == "rocker") {                         // press the left half for the first position, the right half for the second
+        bind.gesture(c.id, true); bind.set(c.id, toDesign(e.position).x > c.cx ? 1.0f : 0.0f); bind.gesture(c.id, false); repaint(); return;
+    }
     dragIdx = i; dragStartY = e.position.y; dragStartV = bind.get(c.id); dragMoved = false; bind.gesture(c.id, true);
 }
 
