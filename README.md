@@ -15,7 +15,8 @@ engine/    framework-free: Sq10Module (the sequencer)
 ui/        JUCE: Layout (reads the panel file), RackPanel (draws a rack, turns knobs), CableLayer (cables over all racks)
 plugin/    JUCE: processor + editor
 panel/     build_panel.py -> assets/ (panel art and layout file)
-assets/    sq10_bg@2x.png (no live parts), sq10_preview.png, sq10_layout.json
+assets/    sq10_panel_bg.svg (vector, no live parts), sq10_panel.svg (preview), sq10_layout.json
+web/       build_web.py -> sq10.html: playable web version (same SVG and layout, cables, Hz/V monitor voices)
 tests/     test_engine.cpp, test_cables.cpp (no JUCE needed)
 ```
 
@@ -31,12 +32,15 @@ Outputs land in `build/SQ10_artefacts/Release/` (`VST3/`, `AU/` on macOS, `Stand
 (Windows: `C:\Program Files\Common Files\VST3`, macOS: `~/Library/Audio/Plug-Ins/VST3`).
 On Linux you also need the usual JUCE packages (ALSA, X11, freetype, fontconfig dev headers).
 
-Regenerating the panel needs Python 3 with `cairosvg numpy scipy pillow` and Liberation Sans: `python panel/build_panel.py`
-(prints an overlap check that must end with `overlaps: []`).
+The panel is vector SVG in the MS-50 style (labels as outlines, vector wear), so the editor stays sharp at any size in a DAW.
+Regenerating it needs Python 3 with `fonttools pillow` and Liberation Sans Bold: `python panel/build_panel.py`
+(prints an overlap check that must end with `overlaps: []`). Then `python web/build_web.py` rebuilds the web version.
 
 ## Using it
 - **Knobs and switches:** drag up/down (Shift = fine), mouse wheel, double-click = default. Click a switch to step through it.
-- **Buttons:** START/STOP, STEP, RESET (the INPUTS jacks do the same from a cable).
+  RANGE A / B are white rockers: press the left half for 1 V, the right half for 5 V.
+- **Buttons:** START/STOP (cream key, its red lamp lights while running), STEP and RESET (black keys, no lamp).
+  The INPUTS jacks do the same from a cable.
 - **Cables:** pick a colour top-right. Drag from a jack to another jack. Drag a plug to move it; drop on empty space to unplug.
   Click a jack with cables to choose which to pick up, drag rows to reorder the stack, or add another. Shift-drag adds one. Esc cancels.
   Cables hang below the panel and slide away from the jack, label, or cord under the pointer.

@@ -34,7 +34,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 - C always plays the same step number as whichever of A/B is playing.
 - The channel that is playing follows its knob live; the other channel's CV holds its last value.
 - One lamp per step (`STEP:1`..`STEP:12`, under the step numbers) lights for the current step, whichever row is playing.
-  The A and B lamps in the CH column show which row that is.
+  The A and B lamps in the CH column show which row that is. `MODE:RUN`, the red lamp under START/STOP, is lit while running.
 
 ## Timing details worth knowing
 - **Settle (0.6 ms):** a new step's CV and gate wait 0.6 ms. A reset patched from a TRIG jack arrives within that time, so the skipped step
