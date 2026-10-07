@@ -200,16 +200,14 @@ def text_to_paths(svg):
             pen=SVGPathPen(_GS); _GS[g].draw(TransformPen(pen,(sc,0,0,-sc,cx,y))); d.append(pen.getCommands()); cx+=_HM[g][0]*sc+ls
         return f'<path d="{" ".join(d)}" fill="{_attr(a,"fill","#000")}"/>'
     return re.sub(r'<text ([^>]*)>(.*?)</text>',one,svg)
-def wear_svg():                     # vector wear: mottling, edge wear, scratches, dust, plus an optional grain filter
-    R=random.Random(5); o=['<defs><radialGradient id="mdk"><stop offset="0" stop-color="#000" stop-opacity="1"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>'
-       '<radialGradient id="mlt"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'
-       '<radialGradient id="vig" cx=".5" cy=".5" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".38"/></radialGradient>'
+def wear_svg():                     # vector wear: edge wear, scratches, dust, plus an optional grain filter
+    R=random.Random(5); o=['<defs><radialGradient id="vig" cx=".5" cy=".5" r=".75"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".38"/></radialGradient>'
        '<linearGradient id="edgeT" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bdbdb8" stop-opacity=".22"/><stop offset="1" stop-color="#bdbdb8" stop-opacity="0"/></linearGradient>'
        '<linearGradient id="edgeL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#bdbdb8" stop-opacity=".18"/><stop offset="1" stop-color="#bdbdb8" stop-opacity="0"/></linearGradient>'
        '<filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" seed="7"/>'
        '<feColorMatrix type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .14 0"/></filter></defs><g id="wear">']
-    for _ in range(34):
-        o.append(f'<ellipse cx="{R.uniform(0,W):.0f}" cy="{R.uniform(0,H):.0f}" rx="{R.uniform(60,320):.0f}" ry="{R.uniform(30,160):.0f}" fill="url(#{R.choice(["mdk","mdk","mlt"])})" opacity="{R.uniform(.03,.09):.3f}"/>')
+    for _ in range(34):             # the soft mottling ellipses are gone (JUCE paints a wide radial ellipse as a flat patch); keep their draws so the rest of the wear does not move
+        R.uniform(0,W); R.uniform(0,H); R.uniform(60,320); R.uniform(30,160); R.choice(["mdk","mdk","mlt"]); R.uniform(.03,.09)
     o.append(f'<rect x="0" y="0" width="{W}" height="14" fill="url(#edgeT)"/><rect x="0" y="0" width="12" height="{H}" fill="url(#edgeL)"/>'
              f'<rect x="{W-12}" y="0" width="12" height="{H}" fill="url(#edgeL)" transform="rotate(180 {W-6} {H/2})"/>')
     for _ in range(40):

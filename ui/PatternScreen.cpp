@@ -31,8 +31,15 @@ void PatternScreen::timerCallback()
 
 void PatternScreen::drawDots(juce::Graphics& g, juce::Rectangle<float> a, const juce::String& text, int n, juce::Colour ink, float ghost)
 {
-    const float p = juce::jmin(a.getWidth() / (float) (n * 6), a.getHeight() / 8.0f), d = p * 0.86f;
-    const float ox = a.getX() + (a.getWidth() - (float) n * 6 * p) / 2 + p * 0.5f, oy = a.getY() + (a.getHeight() - 7 * p) / 2;
+    // When a dot is under 4 device pixels, the gap between dots only reads as speckle (each dot lands on a different
+    // fraction of a pixel): draw the dots touching, as solid strokes, and start the text on a whole device pixel.
+    const float k = g.getInternalContext().getPhysicalPixelScaleFactor();             // device pixels per design unit
+    auto snapped = [k](float v) { return k > 0 ? std::round(v * k) / k : v; };
+    const float p = juce::jmin(a.getWidth() / (float) (n * 6), a.getHeight() / 8.0f);
+    const bool solid = p * k < 4.0f;
+    const float d = solid ? p : snapped(p * 0.86f);
+    const float ox = snapped(a.getX() + (a.getWidth() - (float) n * 6 * p) / 2 + p * 0.5f), oy = snapped(a.getY() + (a.getHeight() - 7 * p) / 2);
+    if (solid) ghost = 0;                                                            // unlit cells would merge into a grey block
     juce::RectangleList<float> lit, off;
     for (int c = 0; c < n; ++c) { const auto* f = glyph(c < text.length() ? text[c] : ' ');
         for (int r = 0; r < 7; ++r) for (int b = 0; b < 5; ++b) {
@@ -171,7 +178,8 @@ void PatternScreen::mouseMove(const juce::MouseEvent& e)
 
 void PatternScreen::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
-    if (rowAt(design(e)) < 0) return;
+    if (! isOpen()) { Component::mouseWheelMove(e, w); return; }          // closed: the wheel belongs to whatever holds the panel
+    if (rowAt(design(e)) < 0) return;                                      // open: the list keeps every wheel, even off its rows
     top = juce::jlimit(0, juce::jmax(0, matches().size() - scr.listRows), top + (w.deltaY > 0 ? -1 : 1)); repaint();
 }
 

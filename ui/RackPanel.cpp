@@ -149,8 +149,9 @@ void RackPanel::mouseDoubleClick(const juce::MouseEvent& e)
 
 void RackPanel::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
 {
-    const int i = controlAt(toDesign(e.position)); if (i < 0) return;
-    const auto& c = lay.controls[(size_t) i]; if (c.kind == "button") return;
+    const int i = controlAt(toDesign(e.position));
+    if (i < 0 || lay.controls[(size_t) i].kind == "button") { Component::mouseWheelMove(e, w); return; }   // not a control that turns: a host's scroll view gets the wheel
+    const auto& c = lay.controls[(size_t) i];
     if (c.kind == "readout") { if (! bind.readoutEnabled(c.id)) return; const double st = e.mods.isShiftDown() ? 0.1 : 1.0;
         bind.gesture(c.param, true); bind.setReadoutValue(c.id, std::round(bind.readoutValue(c.id) / st) * st + (w.deltaY > 0 ? st : -st)); bind.gesture(c.param, false); repaint(); return; }
     const float d = c.kind == "switch" ? (w.deltaY > 0 ? 1.0f : -1.0f) / (float) (c.positions - 1) : w.deltaY * (e.mods.isShiftDown() ? 0.05f : 0.25f);
