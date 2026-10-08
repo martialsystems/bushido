@@ -58,7 +58,7 @@ try { cp.execSync("g++ --version", { stdio: "ignore" }) } catch (e) { console.lo
 fs.mkdirSync(TMP, { recursive: true });
 const exe = path.join(TMP, "harness");
 fs.writeFileSync(path.join(TMP, "harness.cpp"), HARNESS);
-cp.execSync(`g++ -std=c++17 -O2 -I"${ROOT}" "${path.join(TMP, "harness.cpp")}" "${path.join(ROOT, "engine/BushidoModule.cpp")}" -o "${exe}"`, { stdio: "inherit" });
+cp.execSync(`g++ -std=c++17 -O2 -I"${ROOT}" -isystem "${path.join(ROOT, "third_party/jidai-common/include")}" "${path.join(TMP, "harness.cpp")}" "${path.join(ROOT, "engine/BushidoModule.cpp")}" -o "${exe}"`, { stdio: "inherit" });
 
 // deterministic noise
 let seed = 12345; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff };

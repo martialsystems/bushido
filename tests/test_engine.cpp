@@ -1,6 +1,7 @@
-// Engine + patch graph tests. Build: g++ -std=c++17 -O2 -I. tests/test_engine.cpp rack/PatchGraph.cpp engine/BushidoModule.cpp
+// Engine + patch graph tests. Build: g++ -std=c++17 -O2 -I. -isystem third_party/jidai-common/include tests/test_engine.cpp rack/PatchGraph.cpp engine/BushidoModule.cpp
 #include "../rack/PatchGraph.h"
 #include "../rack/PitchLaw.h"
+#include <type_traits>
 #include "../engine/BushidoModule.h"
 #include <cstdio>
 #include <cmath>
@@ -159,6 +160,7 @@ static void testTrigIntoResetSkipsStep()
 static void testPitchLaw()                                           // JCS R4: 0 V = C3 = 130.8128 Hz = MIDI 48
 {
     using pitch::Law;
+    static_assert(std::is_same_v<pitch::Law, jidai::jcs::pitch::Law> && pitch::kC3Hz == jidai::jcs::pitch::kC3Hz, "rack::pitch is the shared jidai-common pitch law");
     CHECK(pitch::midiNote(Law::VOct, 0.0) == 48 && std::abs(pitch::hz(Law::VOct, 0.0) - 130.8128) < 1e-9, "V/OCT: 0 V = C3 = 130.81 Hz = MIDI 48");
     CHECK(pitch::midiNote(Law::HzvLin, 1.0) == 48 && std::abs(pitch::hz(Law::HzvLin, 1.0) - 130.8128) < 1e-9, "HZ/V LIN: 1 V = C3 = 130.81 Hz = MIDI 48 (55 Hz retired)");
     CHECK(pitch::midiNote(Law::HzvLin, 1.5) == 55, "HZ/V LIN: 1.5 V is a fifth above 1 V");

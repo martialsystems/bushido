@@ -3,6 +3,7 @@
 // Clock, transport and pitch rules follow the Jidai Cable Standard v1.1 (JCS R4, R5); see BUSHIDO_Redesign.md.
 #include "../rack/Module.h"
 #include "../rack/PitchLaw.h"
+#include <jidai/jcs/Detect.h>
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -107,7 +108,7 @@ private:
     std::array<GateEvent, kMaxEvents> events {};
     int numEvents = 0;
     bool gatePrev[2] = { false, false };
-    std::array<bool, 5> high {};                     // edge detectors: clock, start, step, reset, (unused)
+    std::array<jidai::jcs::Schmitt, 4> detect {};    // JCS R3 edge detectors (shared jidai-common): clock, start, step, reset
 
     float p(int i) const { return values[(size_t) i].load(std::memory_order_relaxed); }
     int mode() const { return (int) std::lround(p(MODE) * 2.0f); }     // 0 = A, 1 = A+B, 2 = ALT

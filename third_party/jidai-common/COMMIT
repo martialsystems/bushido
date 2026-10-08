@@ -1,0 +1,6 @@
+Vendored copy of jidai-common (Jidai Cable Standard v1.1, header-only C++17): include/jidai/ and README.md, unmodified.
+source: /workspace/jidai-collection/jidai-common
+branch: redesign/jidai
+commit: 9d6e382843ec998016d37ab5a76af3150a92e9c7   (last commit touching jidai-common; the checkout was at 2e1cef52592deb5129eee19b9ea525f1d878c25b, identical for jidai-common)
+introduced: 829ebd21aa8ccf2598335c024164474420b92b7b   (the commit Jidai Commander announced; 9d6e382 adds jidai/dsp/ and renames the R16 enum to Level2V5 on top of it)
+license: jidai-common has no LICENSE file of its own; its headers carry "Copyright (c) 2026 Martial Systems LLC".

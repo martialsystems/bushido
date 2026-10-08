@@ -9,6 +9,8 @@ add_subdirectory(${JUCE_DIR} JUCE)
 # Framework-free core (no JUCE, no other synth types): module contract, patch graph, cable model, BUSHIDO engine
 add_library(rack_core STATIC rack/PatchGraph.cpp rack/CableModel.cpp engine/BushidoModule.cpp)
 target_include_directories(rack_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+# Shared Jidai Cable Standard headers (pitch, detector, volts), vendored unmodified; see third_party/jidai-common/COMMIT.
+target_include_directories(rack_core SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/jidai-common/include)
 set_target_properties(rack_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 juce_add_binary_data(BushidoAssets SOURCES assets/bushido_panel_bg.svg assets/bushido_layout.json assets/bushido_patterns.json)

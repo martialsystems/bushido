@@ -1,4 +1,5 @@
 #include "BushidoModule.h"
+#include <jidai/jcs/Volts.h>
 #include <cmath>
 #include <algorithm>
 
@@ -56,10 +57,7 @@ void BushidoModule::setParam(int i, float v)
 
 bool BushidoModule::edge(int which, float v)                         // JCS R3: rising edge with hysteresis, high > 1 V, low < 0.5 V
 {
-    bool& h = high[(size_t) which];
-    if (! h && v > 1.0f) { h = true; return true; }
-    if (h && v < 0.5f) h = false;
-    return false;
+    return detect[(size_t) which].rising(v);                          // the shared jidai::jcs::Schmitt
 }
 
 void BushidoModule::fire()                                           // start of a step on the current channel
@@ -114,7 +112,7 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
     int pressNow[3];
     for (int b = 0; b < 3; ++b) { const int c = presses[(size_t) b].load(); pressNow[b] = c - pressesSeen[(size_t) b]; pressesSeen[(size_t) b] = c; }
 
-    const float rangeA = p(RANGE_A) > 0.5f ? 5.0f : 1.0f, rangeB = p(RANGE_B) > 0.5f ? 5.0f : 1.0f;
+    const float rangeA = p(RANGE_A) > 0.5f ? jidai::jcs::kNominal : 1.0f, rangeB = p(RANGE_B) > 0.5f ? jidai::jcs::kNominal : 1.0f;   // 5 V or 1 V (JCS R1)
     const bool cIsTime = p(C_MODE) > 0.5f, external = p(SOURCE) > 0.5f;
     const bool host = external && p(EXT_SOURCE) > 0.5f, jackClock = external && ! host;
     const double tempoRate = stepsPerSecond(p(TEMPO));                      // 0.5..32 steps/s, INT only; DIV does not change it
@@ -180,7 +178,7 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
             const float knob = p(STEPS + 12 * chan + pos);       // row A or row B
             if (jk == 0) { const float v = knob * rangeA; tgtA = quantA ? (float) pitch::quantize(lawA, v) : v; }   // range, law and portamento belong to the jacks
             else         { const float v = knob * rangeB; tgtB = quantB ? (float) pitch::quantize(lawB, v) : v; }
-            cvC = p(STEPS + 24 + pos) * 5.0f;
+            cvC = p(STEPS + 24 + pos) * jidai::jcs::kNominal;     // unipolar CV 0..+5 V (JCS R1)
         }
         if (cIsTime) cvC = 0.0f;                                 // TIME: row C sets gate length only and is never emitted as CV
         cvA += (tgtA - cvA) * kA; cvB += (tgtB - cvB) * kB;
@@ -197,11 +195,11 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
 
         out[CV_A][i] = cvA; out[CV_B][i] = cvB; out[CV_C][i] = cvC;
         const bool gA = g && jk == 0, gB = g && jk == 1;
-        out[GATE_A][i] = gA ? 5.0f : 0.0f;
-        out[GATE_B][i] = gB ? 5.0f : 0.0f;
+        out[GATE_A][i] = jidai::jcs::gateVolts(gA);              // 0 / +5 V (JCS R2)
+        out[GATE_B][i] = jidai::jcs::gateVolts(gB);
         out[MIX_OUT][i] = (float) (in[MIX_IN1][i] * lvl1 + in[MIX_IN2][i] * lvl2);
         const bool trigOn = running && (! pulse || samplesInStep <= pulseLen);   // JCS R5.4: TRIG low while stopped
-        for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = (trigOn && pos == s) ? 5.0f : 0.0f;
+        for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = jidai::jcs::gateVolts(trigOn && pos == s);
 
         const bool gNow[2] = { gA, gB };
         for (int j = 0; j < 2; ++j) if (gNow[j] != gatePrev[j]) {
