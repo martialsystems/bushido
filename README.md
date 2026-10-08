@@ -12,7 +12,7 @@ BUSHIDO is a step sequencer you play by turning knobs and pulling cables. Three 
 - **Per-step triggers.** Every step has its own TRIG jack. Patch TRIG 6 into RESET and you have a 5-step loop.
 - **Clock your way.** Internal tempo with a draggable BPM readout and 1/8, 1/16 or 1/32 division, or step it from an external clock.
 - **Portamento and range** for rows A and B, 1 V or 5 V spans, and a two-input mixer.
-- **Patterns.** Two banks of up to 999 patterns. Type to search, save to the next free number. Bank A ships with 28 factory patterns: acid lines and 90s scenes (Detroit, Chicago, Goa, trance, rave, jungle, electro, minimal, gabber, UK garage, IDM, dub techno).
+- **Patterns.** Two banks of up to 999 patterns. Type to search, save to the next free number. Bank A ships with an INIT pattern; the factory set is being rewritten.
 - **MIDI out.** Row A plays on MIDI channel 1 and row B on channel 2, so you can drive any instrument in your DAW.
 - **BYPASS** keeps the sequencer running with its gates muted, so you can drop it in and out without losing time.
 - **Sharp at any size.** The panel is vector art, so it scales cleanly in your DAW.

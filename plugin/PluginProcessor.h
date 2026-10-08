@@ -18,7 +18,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 0.0; }
-    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory patterns (assets/bushido_patterns.json);
+    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory bank (assets/bushido_patterns.json, INIT only for now);
     // SAVE appends the panel as the next number of a bank. Saved patterns go to a user file shared by every instance.
     // The host sees bank A then bank B as one program list.
     int getNumPrograms() override;

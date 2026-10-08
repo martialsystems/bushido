@@ -18,7 +18,7 @@ Nothing in this repository depends on that happening.
 | `ui/CableLayer.*` | JUCE | One overlay over all racks: draws cables and handles patching. |
 | `ui/PatternScreen.*` | JUCE | Dot-matrix pattern screen and list, drawn from the layout's `screen` rects. |
 | `assets/bushido_panel_bg.svg`, `assets/bushido_layout.json` | — | BUSHIDO panel art (vector) and geometry. |
-| `assets/bushido_patterns.json` | — | 28 factory patterns: parameter values by id plus cables by jack id. BYPASS lives in the processor, not the engine or the patterns. |
+| `assets/bushido_patterns.json` | — | Factory bank (INIT only for now): parameter values by id plus cables by jack id. BYPASS lives in the processor, not the engine or the patterns. |
 
 ## Rules any host graph must keep
 - **One graph.** A second `PatchGraph`, or a plugin hosted inside another, would split the patch and give cables two timing laws.
