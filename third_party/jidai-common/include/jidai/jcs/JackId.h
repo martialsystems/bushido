@@ -8,8 +8,9 @@
 //   parseJackId (text) -> std::optional<JackId>      JackId::global(), JackId::local()
 //   formatJackId (prefix, n, section, label)
 //   isKnownPrefix ("SHOGUN")    BUSHIDO, RONIN, SHOGUN, ORIGAMI, RACK
-//   AliasTable                  per-device {old local id -> canonical local id}, applied on load before binding;
-//                               refuses to reuse an id for a different jack.
+//   AliasTable                  per-device {old local id -> canonical local id + input law (AliasConversion)},
+//                               applied on load before binding; refuses to reuse an id for a different jack.
+//                               resolve (id) -> {canonical id, conversion}; conversion.convert (volts)
 //
 // Character rules (as enforced here): PREFIX is A-Z, 0-9, '-' or '_', starting with a letter. SECTION and LABEL
 // are non-empty, contain no lowercase ASCII letters, no '#' and no ':'. SECTION has no '/'. LABEL MAY contain
@@ -17,6 +18,9 @@
 // "EG 2:OUT \u2212"). The split is at the FIRST '/' before the first ':'. This relaxes the "no '/'" wording of R6 to
 // match the ids that R6 itself lists as canonical.
 
+#include "Pitch.h"
+
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -138,40 +142,83 @@ inline std::string formatJackId (std::string_view prefix, int number, std::strin
     return std::string (prefix) + "#" + std::to_string (number) + "/" + std::string (section) + ":" + std::string (label);
 }
 
-// Per-device alias table (R6): old local id -> canonical local id. Ids are never reused for a different jack.
+// Input law of an alias (R6 + R4 migrations): how the volts arriving on a cable bound to the OLD jack convert for the
+// canonical jack. A unit declares its renames and their conversions in one place, its AliasTable.
+//   Identity      V' = V
+//   Lin55ToVoct   V' = log2(V) - 1.25  (old linear 1 V = 55 Hz input -> V/OCT, e.g. SHOGUN LEAD/BASS:HZ/V -> :NOTE);
+//                 V <= 0 -> -5 V (the rail), exactly pitch::lin55ToVoct
+//   HzvLinToVoct  V' = log2(V)         (HZ/V LIN, 1 V = C3 -> V/OCT, 0 V = C3); V <= 0 -> -5 V
+//   VoctToHzvLin  V' = 2^V             (V/OCT -> HZ/V LIN)
+//   Scale         V' = scale * V + offset
+enum class AliasLaw { Identity, Lin55ToVoct, HzvLinToVoct, VoctToHzvLin, Scale };
+
+struct AliasConversion
+{
+    AliasLaw law = AliasLaw::Identity;
+    double scale = 1.0, offset = 0.0;      // AliasLaw::Scale only
+
+    bool identity() const noexcept { return law == AliasLaw::Identity; }
+    double convert (double v) const noexcept
+    {
+        switch (law)
+        {
+            case AliasLaw::Identity: return v;
+            case AliasLaw::Lin55ToVoct: return pitch::lin55ToVoct (v);
+            case AliasLaw::HzvLinToVoct: return v > 0.0 ? std::log2 (v) : -pitch::kRail;
+            case AliasLaw::VoctToHzvLin: return std::exp2 (v);
+            case AliasLaw::Scale: return scale * v + offset;
+        }
+        return v;
+    }
+    static AliasConversion linear (double scale, double offset = 0.0) noexcept { return { AliasLaw::Scale, scale, offset }; }
+};
+
+// Per-device alias table (R6): old local id -> canonical local id, each with its input law. One hop only (an old id is
+// never a target and a target never an old id), and an id is never reused for a different jack.
 class AliasTable
 {
 public:
-    // False when `oldId` already maps elsewhere, when either id is malformed, or when `oldId` is itself a target.
-    bool add (const std::string& oldId, const std::string& canonical)
+    struct Resolved
+    {
+        std::string id;                   // canonical local id (the input id when no alias applies)
+        AliasConversion conversion;       // identity when no alias applies
+        bool aliased = false;
+    };
+
+    // False when `oldId` already maps elsewhere (or with a different law), when either id is malformed, or when the
+    // ids would chain.
+    bool add (const std::string& oldId, const std::string& canonical, AliasConversion conversion = {})
     {
         if (! isValidLocalId (oldId) || ! isValidLocalId (canonical) || oldId == canonical)
             return false;
-        for (auto& [o, c] : map_)
+        for (auto& e : map_)
         {
-            if (o == oldId) return c == canonical;
-            if (c == oldId) return false;
-            if (o == canonical) return false;
+            if (e.oldId == oldId)
+                return e.canonical == canonical && e.conversion.law == conversion.law
+                       && sameValue (e.conversion.scale, conversion.scale) && sameValue (e.conversion.offset, conversion.offset);
+            if (e.canonical == oldId) return false;
+            if (e.oldId == canonical) return false;
         }
-        map_.push_back ({ oldId, canonical });
+        map_.push_back ({ oldId, canonical, conversion });
         return true;
     }
-    // Applies chains (A -> B, B -> C) as well; unknown ids pass through unchanged.
-    std::string apply (std::string id) const
+    bool add (const std::string& oldId, const std::string& canonical, AliasLaw law) { return add (oldId, canonical, AliasConversion { law }); }
+
+    // The canonical id and the conversion for a stored id; unknown ids pass through with the identity law.
+    Resolved resolve (const std::string& id) const
     {
-        for (size_t guard = 0; guard <= map_.size(); ++guard)
-        {
-            bool changed = false;
-            for (auto& [o, c] : map_)
-                if (o == id) { id = c; changed = true; break; }
-            if (! changed) break;
-        }
-        return id;
+        for (auto& e : map_)
+            if (e.oldId == id)
+                return { e.canonical, e.conversion, true };
+        return { id, {}, false };
     }
+    std::string apply (const std::string& id) const { return resolve (id).id; }
     size_t size() const { return map_.size(); }
 
 private:
-    std::vector<std::pair<std::string, std::string>> map_;
+    struct Entry { std::string oldId, canonical; AliasConversion conversion; };
+    static bool sameValue (double a, double b) noexcept { return ! (a < b) && ! (b < a); }
+    std::vector<Entry> map_;
 };
 
 } // namespace jidai::jcs

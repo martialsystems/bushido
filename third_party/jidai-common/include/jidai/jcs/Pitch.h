@@ -2,8 +2,8 @@
 #pragma once
 // Jidai Cable Standard v1.1: pitch (JCS R4, DECIDED by the user). Header-only C++17, no deps.
 //
-//   V/OCT (rack standard)  0 V = C3 = 130.8128 Hz = MIDI 48, 1 V per octave.   V = (note - 48)/12
-//   HZ/V LIN (separate)    1 V = C3 = 130.8128 Hz, linear: f = 130.8128 * V.   note = 48 + 12*log2(V)
+//   V/OCT (rack standard)  0 V = C3 = 130.8127826502993 Hz = MIDI 48, 1 V per octave.   V = (note - 48)/12
+//   HZ/V LIN (separate)    1 V = C3 = 130.8127826502993 Hz, linear: f = kC3Hz * V.   note = 48 + 12*log2(V)
 //   Tuning knobs (fine +-100 cents, OCT/footage, A4 reference) move a voice's pitch; they never change what a
 //   jack's volts mean (R4.6). So no function here takes a tuning except voiceHz(), which is the receiver side.
 //
@@ -19,7 +19,9 @@ namespace jidai::jcs::pitch {
 
 enum class Law { VOct = 0, HzvLin = 1 };
 
-inline constexpr double kC3Hz = 130.8128;        // MIDI 48 at A4 = 440 (JCS R4.1)
+// MIDI 48 at A4 = 440 (JCS R4.1): exactly 440 * 2^(-21/12) = 55 * 2^(15/12), as a double. Never the rounded 130.8128.
+inline constexpr double kC3Hz = 130.8127826502993;
+inline constexpr double kLin55Octaves = 1.25;      // log2(kC3Hz / 55) exactly: C3 is 15 semitones above 55 Hz
 inline constexpr double kRefNote = 48.0;
 inline constexpr double kRail = 5.0;             // JCS R4.4
 inline constexpr double kLinFloor = 1.0 / 32.0;  // HZ/V LIN quantize: below 2^-5 V a row is silent (BUSHIDO QUANT)
@@ -98,13 +100,14 @@ inline double voiceHz (double voctVolts, double fineCents = 0.0, double a4Hz = 4
     return kC3Hz * (a4Hz / 440.0) * std::exp2 (voctVolts + (double) octaves + fineCents / 1200.0);
 }
 
-// RONIN's linear input as it plays at 8': f = 130.8128 * max(V, 0.05).
+// RONIN's linear input as it plays at 8': f = kC3Hz * max(V, 0.05).
 inline double roninHzvLinHz (double volts) { return kC3Hz * (volts > kRoninLinFloor ? volts : kRoninLinFloor); }
 
-// Migration (SHOGUN v2.0/2.1 HZ/V, old BUSHIDO MIDI law): linear 1 V = 55 Hz -> V/OCT. Exact: log2(V*55/130.8128).
+// Migration (SHOGUN v2.0/2.1 HZ/V, old BUSHIDO MIDI law): linear 1 V = 55 Hz -> V/OCT.
+// V' = log2(V * 55 / C3) = log2(V) - 1.25 exactly (55 / C3 = 2^(-15/12)); no rounded constant enters.
 inline double lin55ToVoct (double oldVolts)
 {
-    return oldVolts > 0.0 ? std::log2 (oldVolts * kOld55Hz / kC3Hz) : -kRail;
+    return oldVolts > 0.0 ? std::log2 (oldVolts) - kLin55Octaves : -kRail;
 }
 
 // JCS R4.4: pitch outputs stop hard at +-5 V and raise the over-range flag.

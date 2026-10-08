@@ -137,7 +137,9 @@ CHECK(B.create(48000).getParam(P.TRIG_MODE) === 0, "testTrigModeDefaultStep: a n
   const p = B.pitch;
   CHECK(p.midiNote(0, 0) === 48 && p.midiNote(1, 1) === 48 && p.midiNote(1, 0) === -1 && p.midiNote(0, 10) === 127 && p.midiNote(0, -5) === 0,
         "PitchLaw: 0 V V/OCT = 1 V LIN = MIDI 48 (C3); LIN 0 V = no note; clamped 0..127");
-  CHECK(Math.abs(p.hz(0, 0) - 130.8128) < 1e-9 && Math.abs(p.hz(1, 2) - 261.6256) < 1e-9 && p.hz(1, -1) === 0, "PitchLaw: C3 = 130.8128 Hz; LIN 2 V = C4");
+  const c3 = 440 * Math.pow(2, -21 / 12);   // C3 = MIDI 48 at A4 = 440, exactly (jidai-common 1.1.1 kC3Hz)
+  CHECK(p.kC3Hz === 130.8127826502993 && Math.abs(p.kC3Hz - c3) < 1e-12 && p.hz(0, 0) === p.kC3Hz && Math.abs(p.hz(1, 2) - 2 * c3) < 1e-12 && p.hz(1, -1) === 0,
+        "PitchLaw: C3 = 440 x 2^(-21/12) = 130.8127826502993 Hz; LIN 2 V = C4");
   CHECK(Math.abs(p.quantize(1, 5) - Math.pow(2, 27 / 12)) < 1e-12 && p.quantize(1, 0.03) === 0 && p.quantize(0, 5) === 5 && Math.abs(p.quantize(0, 0.53) - 0.5) < 1e-12,
         "PitchLaw QUANT: LIN 5 V -> note 75 (4.757 V), below 2^-5 V -> 0; V/OCT round(12 V)/12");
   CHECK(p.noteName(48) === "C3" && p.noteName(66) === "F#4" && p.noteName(0) === "C-1" && p.noteName(-1) === "--", "noteName: 48 = C3, 0 = C-1");

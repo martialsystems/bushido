@@ -27,7 +27,7 @@ inline float clampRail (float v, bool& over) noexcept
 {
     if (v > kRail) { over = true; return kRail; }
     if (v < -kRail) { over = true; return -kRail; }
-    if (v != v) { over = true; return 0.0f; }   // NaN never reaches a cable
+    if (std::isnan (v)) { over = true; return 0.0f; }   // NaN never reaches a cable
     return v;
 }
 
@@ -66,8 +66,8 @@ struct PitchRailFlag
 // Foreign signal levels at the rack boundary. NOT IMPLEMENTED on purpose: the user has not decided whether a
 // +-2.5 V-convention device joins the rack, nor whether the scaling is fixed or switchable.
 // The hook is here so a device can declare its level; r16BoundaryGain() is identity for every level until the
-// decision lands. When it does, the proposal is: LEVEL_2V5 audio inputs x0.5, audio outputs x2; CV/gates unscaled.
-enum class AudioLevel { Jidai5V, Level2V5 };   // the spec's name is avoided: no third-party names in code
+// decision lands. When it does, the proposal is: ModularHalfLevel audio inputs x0.5, audio outputs x2; CV/gates unscaled.
+enum class AudioLevel { Jidai5V, ModularHalfLevel };   // ModularHalfLevel: a ±2.5 V audio device; neutral name, no third-party names in code
 inline constexpr bool kR16Enabled = false;
 constexpr float r16BoundaryGain (AudioLevel, bool /*isAudioRole*/, bool /*isInput*/) noexcept { return 1.0f; }
 

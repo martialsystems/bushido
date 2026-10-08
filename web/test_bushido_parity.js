@@ -14,6 +14,11 @@ const HARNESS = String.raw`
 // harness <sr> <block> <ftz> <inputs.f32> <script.txt> <out.f32> <events.txt>
 int main(int argc, char** argv)
 {
+    if (argc == 2 && argv[1][0] == 'c') {                          // "c3": the shared pitch reference, for the JS port
+        using rack::pitch::Law;
+        printf("%.17g %.17g %.17g\n", rack::pitch::kC3Hz, rack::pitch::hz(Law::VOct, 0.5), rack::pitch::hz(Law::HzvLin, 2.0));
+        return 0;
+    }
     if (argc < 8) return 2;
     const double sr = atof(argv[1]); const int block = atoi(argv[2]);
     if (atoi(argv[3])) _mm_setcsr(_mm_getcsr() | 0x8040);       // FTZ + DAZ, as JUCE ScopedNoDenormals
@@ -60,6 +65,12 @@ const exe = path.join(TMP, "harness");
 fs.writeFileSync(path.join(TMP, "harness.cpp"), HARNESS);
 cp.execSync(`g++ -std=c++17 -O2 -I"${ROOT}" -isystem "${path.join(ROOT, "third_party/jidai-common/include")}" "${path.join(TMP, "harness.cpp")}" "${path.join(ROOT, "engine/BushidoModule.cpp")}" -o "${exe}"`, { stdio: "inherit" });
 
+// the pitch reference: JS kC3Hz and hz() equal the shared jidai-common kC3Hz (exactly 440 x 2^(-21/12)) bit for bit
+{
+  const [c3, v05, l2] = cp.execFileSync(exe, ["c3"]).toString().trim().split(" ").map(Number);
+  CHECK(Object.is(c3, B.pitch.kC3Hz) && Object.is(v05, B.pitch.hz(0, 0.5)) && Object.is(l2, B.pitch.hz(1, 2)),
+        `pitch: C++ jidai-common kC3Hz = JS kC3Hz = ${B.pitch.kC3Hz}, hz(V/OCT 0.5 V) and hz(LIN 2 V) bit-identical`);
+}
 // deterministic noise
 let seed = 12345; const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff };
 const NIN = 7, NOUT = B.JACKS.length - NIN;

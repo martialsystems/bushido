@@ -19,7 +19,7 @@ var RACK = (function () {
 
   // Monitor voice: BUSHIDO's own preview sound (two VCOs on the A and B jacks), saw + detuned square into a resonant
   // low-pass with a per-note filter sweep. It listens to the jacks, so it plays exactly what the jacks carry, under each
-  // row's PITCH LAW (JCS R4): V/OCT 0 V = C3 = 130.8128 Hz, HZ/V LIN 1 V = C3 (no note at or below 0 V), times the
+  // row's PITCH LAW (JCS R4): V/OCT 0 V = C3 = 130.8127826502993 Hz, HZ/V LIN 1 V = C3 (no note at or below 0 V), times the
   // footage multiplier (8' = 1). The old 1 V = 55 Hz reference is retired.
   function Voice(sr) {
     let ph1 = 0, ph2 = 0, s1 = 0, s2 = 0, amp = 0, fc = 1000, fcT = 1000, prev = false, t = 0;

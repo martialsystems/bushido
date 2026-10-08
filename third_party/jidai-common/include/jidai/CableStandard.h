@@ -5,7 +5,7 @@
 // Vendor the whole jidai-common/include/jidai folder; include this umbrella or the single headers:
 //   jidai/jcs/Detect.h     R2 gate levels, R3 Schmitt 1.0/0.5 V, R3s S-trig 1.0/1.5 V
 //   jidai/jcs/Volts.h      R1 volts and host x5 / x0.2, R4.4 rail clamp, R15 over-range LED, R16 hook (pending)
-//   jidai/jcs/Pitch.h      R4 V/OCT 0 V = C3 = 130.8128 Hz, HZ/V LIN, MIDI, quantize, lin55 migration
+//   jidai/jcs/Pitch.h      R4 V/OCT 0 V = C3 = 130.8127826502993 Hz, HZ/V LIN, MIDI, quantize, lin55 migration
 //   jidai/jcs/Roles.h      R14 role colours and glyphs, R4.3 badges
 //   jidai/jcs/JackId.h     R6 canonical ids PREFIX#N/SECTION:LABEL, parser, alias tables
 //   jidai/jcs/State.h      R7 format/unit header and migration chains

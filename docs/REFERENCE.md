@@ -11,7 +11,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 ## Pitch laws (JCS R4)
 The CV jacks are always plain volts: the knob -> volts mapping never changes, so CV A / CV B are bit-identical under either law.
 A row's PITCH LAW (STEPS tab) only decides what those volts mean: note names, QUANT, MIDI, and the jack's role (ring and cable colour,
-the `≠` badge when a cable expects the other law). Both laws use the same reference, **C3 = 130.81 Hz = MIDI 48**.
+the `≠` badge when a cable expects the other law). Both laws use the same reference, **C3 = 130.81 Hz = MIDI 48** (exactly 440 x 2^(-21/12) = 130.8127826502993 Hz, jidai-common `kC3Hz`).
 - **V/OCT** (default for new patches, the rack standard): **0 V = C3**, one volt per octave, note = 48 + 12 x V. RANGE 1 V spans C3..C4,
   RANGE 5 V spans C3..C8. Patch it into SHOGUN `NOTE` or RONIN `VCO:V/OCT`.
 - **HZ/V LIN** (shown as LIN): **1 V = C3**, doubling the volts is one octave, note = 48 + 12 x log2(V); 0 V or below has no note.

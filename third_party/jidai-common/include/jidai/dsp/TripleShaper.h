@@ -14,7 +14,10 @@
 //   First-order ADAA per stage, in double, with the CURRENT sample's (a, b) for both terms:
 //     F(x) = (1 - a)*x^2/2 + a*( -(2/(pi*g))*cos theta(x) - x*sin theta(0) )
 //     y[n] = (F(x[n]) - F(x[n-1])) / (x[n] - x[n-1]);   |dx| < 1e-6 -> f((x[n] + x[n-1])/2)
-//   A stage with a = 0 and b = 0 is skipped (a true wire, no ADAA half-sample delay); its x[n-1] still updates.
+//   A stage is skipped (a true wire, no ADAA half-sample delay; its x[n-1] still updates) only when a = 0 and b = 0
+//   for the WHOLE block: the caller plans each block with TripleShaper::planBlock (controls, steady, vcLive). A stage
+//   whose a and b merely pass through 0 on some samples (modulation, a live VC, a smoothing ramp) keeps its ADAA, so
+//   the half-sample delay never toggles mid-stream. Without a plan no stage is skipped.
 //   Macro m in [0,1] (front WAVE knob), staggered:
 //     c1 = clamp(2m), c2 = clamp(2m - 0.5), c3 = clamp(2m - 1)
 //     a_i = clamp(c_i + trim_i + mod_i + vc*vcToAmt_i, 0, 1)
@@ -30,11 +33,14 @@
 //   macroAmounts (m, c[3])
 //   ShaperControls       { macro, trim[3], sym[3], vcToAmt[3], vcToSym[3] } (+ modAmt[3], modSym[3] for SHOGUN's matrix)
 //   ShaperControls::isBypass (vcLive)   true -> skip everything (bit-exact bypass)
-//   TripleShaper         three AdaaStages in series:  double process (x, const ShaperControls&, double vc)
+//   TripleShaper         three AdaaStages in series:  planBlock (ctl, steady, vcLive) once per block, then
+//                        double process (x, const ShaperControls&, double vc)
 //                        (one VC for every stage, SHOGUN) or process (x, ctl, const double vc[3]) (one VC per
 //                        stage, ORIGAMI); processStages (x, a[3], b[3]); stageParams (...); setAdaa (bool); reset()
 //   LevelComp            detector-ratio LEVEL COMP: C = sqrt(<x^2>/<y^2>), 20 ms detectors, clamp +-12 dB,
-//                        5 ms gain smoothing:  prepare (fs);  double process (in, wet);  track (in) while bypassed
+//                        5 ms gain smoothing:  prepare (fs);  double process (in, wet);  track (in) while bypassed.
+//                        Both detectors are floored at 1e-30 (no 0/0 on silence). That floor is a deliberate
+//                        deviation from a bare ratio: SHOGUN measured it moving its output by at most 9.9e-7.
 //   DcBlocker            TPT one-pole high-pass, 8 Hz by default:  prepare (fs, hz);  double process (x)
 //   toUnits (volts) = volts/5,  toVolts (units) = units*5
 // Not here (SHOGUN-only): SHAPE from resonator quadrature, PRE-VCA routing, the voice envelope.
@@ -76,16 +82,22 @@ class AdaaStage
 {
 public:
     bool adaa = true;
+    // Set per block by TripleShaper::planBlock: a and b are 0 on every sample of this block, so the stage is a wire.
+    bool wire = false;
 
     void reset() noexcept { xPrev_ = 0.0; cacheValid_ = false; }
 
     double process (double x, double a, double b, double K) noexcept
     {
-        if (a == 0.0 && b == 0.0)
+        if (wire)
         {
-            xPrev_ = x;              // a true wire; keep the history so ADAA restarts cleanly
-            cacheValid_ = false;
-            return x;
+            if (same (a, 0.0) && same (b, 0.0))
+            {
+                xPrev_ = x;          // a true wire; keep the history so ADAA restarts cleanly
+                cacheValid_ = false;
+                return x;
+            }
+            wire = false;            // the plan was wrong (a control moved off 0 mid-block): run ADAA from here on
         }
         if (! adaa)
         {
@@ -140,11 +152,11 @@ struct ShaperControls
     // vcLive: a VC source is connected (jack patched or an internal source selected).
     bool isBypass (bool vcLive) const noexcept
     {
-        if (macro != 0.0) return false;
+        if (! same (macro, 0.0)) return false;
         for (int i = 0; i < 3; ++i)
         {
-            if (trim[i] != 0.0 || sym[i] != 0.0 || modAmt[i] != 0.0 || modSym[i] != 0.0) return false;
-            if (vcLive && (vcToAmt[i] != 0.0 || vcToSym[i] != 0.0)) return false;
+            if (! same (trim[i], 0.0) || ! same (sym[i], 0.0) || ! same (modAmt[i], 0.0) || ! same (modSym[i], 0.0)) return false;
+            if (vcLive && (! same (vcToAmt[i], 0.0) || ! same (vcToSym[i], 0.0))) return false;
         }
         return true;
     }
@@ -153,8 +165,31 @@ struct ShaperControls
 class TripleShaper
 {
 public:
-    void reset() noexcept { for (auto& s : st_) s.reset(); }
+    void reset() noexcept { for (auto& s : st_) { s.reset(); s.wire = false; } }
     void setAdaa (bool on) noexcept { for (auto& s : st_) s.adaa = on; }
+
+    // Once per block, before its first sample (SHOGUN spec 4.6: a stage is skipped when it is 0 for the whole block).
+    // c: the block's controls without VC. steady: c does not change during the block (no smoothing ramp, no
+    // per-sample modulation). vcLive[i]: a VC source drives stage i. Stage i is a wire for the block when steady,
+    // its a and b are exactly 0, and no live VC has depth on it.
+    void planBlock (const ShaperControls& c, bool steady, const bool vcLive[3]) noexcept
+    {
+        double m[3];
+        macroAmounts (c.macro, m);
+        for (int i = 0; i < 3; ++i)
+        {
+            const double a = clamp01 (m[i] + c.trim[i] + c.modAmt[i]);
+            const double b = clampSym (c.sym[i] + c.modSym[i]);
+            const bool vcDrives = vcLive[i] && (! same (c.vcToAmt[i], 0.0) || ! same (c.vcToSym[i], 0.0));
+            st_[i].wire = steady && same (a, 0.0) && same (b, 0.0) && ! vcDrives;
+        }
+    }
+    void planBlock (const ShaperControls& c, bool steady, bool vcLive) noexcept
+    {
+        const bool live[3] = { vcLive, vcLive, vcLive };
+        planBlock (c, steady, live);
+    }
+    bool stageIsWire (int i) const noexcept { return i >= 0 && i < 3 && st_[i].wire; }
 
     static void stageParams (const ShaperControls& c, double vc, double a[3], double b[3]) noexcept
     {

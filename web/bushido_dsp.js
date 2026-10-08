@@ -58,9 +58,9 @@ var BUSHIDO_DSP = (function () {
   const bpm = (t, d) => stepsPerSecond(t) * 60 / stepsPerBeat(d);
   const tempoForBpm = (b, d) => f32(clamp(Math.log2(Math.max(1e-6, b * stepsPerBeat(d) / 60 / 0.5)) / 6, 0, 1));
 
-  // ---- rack/PitchLaw.h (JCS R4). 0 V = C3 = 130.8128 Hz = MIDI 48. The old 55 Hz / MIDI 33 reference is retired. ----
+  // ---- rack/PitchLaw.h (JCS R4). 0 V = C3 = 130.8127826502993 Hz (jidai-common kC3Hz, exactly 440 x 2^(-21/12)) = MIDI 48. The old 55 Hz / MIDI 33 reference is retired. ----
   const pitch = (function () {
-    const Law = { VOct: 0, HzvLin: 1 }, kC3Hz = 130.8128, kRefNote = 48, kRail = 5, kLinFloor = 1 / 32;
+    const Law = { VOct: 0, HzvLin: 1 }, kC3Hz = 130.8127826502993, kRefNote = 48, kRail = 5, kLinFloor = 1 / 32;
     const note = (law, v) => (law === Law.VOct ? kRefNote + 12 * v : v > 0 ? kRefNote + 12 * Math.log2(v) : NaN);
     const hz = (law, v) => (law === Law.VOct ? kC3Hz * Math.pow(2, v) : v > 0 ? kC3Hz * v : 0);
     function midiNote(law, v) { const n = note(law, v); if (Number.isNaN(n)) return -1; const r = lround(n); return r < 0 ? 0 : r > 127 ? 127 : r }

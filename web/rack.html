@@ -162,9 +162,9 @@ var BUSHIDO_DSP = (function () {
   const bpm = (t, d) => stepsPerSecond(t) * 60 / stepsPerBeat(d);
   const tempoForBpm = (b, d) => f32(clamp(Math.log2(Math.max(1e-6, b * stepsPerBeat(d) / 60 / 0.5)) / 6, 0, 1));
 
-  // ---- rack/PitchLaw.h (JCS R4). 0 V = C3 = 130.8128 Hz = MIDI 48. The old 55 Hz / MIDI 33 reference is retired. ----
+  // ---- rack/PitchLaw.h (JCS R4). 0 V = C3 = 130.8127826502993 Hz (jidai-common kC3Hz, exactly 440 x 2^(-21/12)) = MIDI 48. The old 55 Hz / MIDI 33 reference is retired. ----
   const pitch = (function () {
-    const Law = { VOct: 0, HzvLin: 1 }, kC3Hz = 130.8128, kRefNote = 48, kRail = 5, kLinFloor = 1 / 32;
+    const Law = { VOct: 0, HzvLin: 1 }, kC3Hz = 130.8127826502993, kRefNote = 48, kRail = 5, kLinFloor = 1 / 32;
     const note = (law, v) => (law === Law.VOct ? kRefNote + 12 * v : v > 0 ? kRefNote + 12 * Math.log2(v) : NaN);
     const hz = (law, v) => (law === Law.VOct ? kC3Hz * Math.pow(2, v) : v > 0 ? kC3Hz * v : 0);
     function midiNote(law, v) { const n = note(law, v); if (Number.isNaN(n)) return -1; const r = lround(n); return r < 0 ? 0 : r > 127 ? 127 : r }
@@ -823,7 +823,10 @@ var RONIN_DSP = (function () {
   }
 
   // ---------- VCO (S-02..S-06) ----------
-  const kFootage = [32.703, 65.406, 130.813, 261.626].map(F);
+  // S-03 footage (RONIN ecde6dd): 8' = the shared exact C3 (jidai-common kC3Hz = 130.8127826502993 Hz); 32', 16' and 4' are
+  // whole octaves of it, each rounded to float as Vco.cpp's static_cast<float>.
+  const kC3 = 130.8127826502993;
+  const kFootage = [kC3 / 4, kC3 / 2, kC3, kC3 * 2].map(F);
   const DT_MIN = F(1.0e-8);
   function polyBlep(t, dt) {
     if (dt <= DT_MIN) return 0;
@@ -1310,7 +1313,7 @@ var RACK = (function () {
 
   // Monitor voice: BUSHIDO's own preview sound (two VCOs on the A and B jacks), saw + detuned square into a resonant
   // low-pass with a per-note filter sweep. It listens to the jacks, so it plays exactly what the jacks carry, under each
-  // row's PITCH LAW (JCS R4): V/OCT 0 V = C3 = 130.8128 Hz, HZ/V LIN 1 V = C3 (no note at or below 0 V), times the
+  // row's PITCH LAW (JCS R4): V/OCT 0 V = C3 = 130.8127826502993 Hz, HZ/V LIN 1 V = C3 (no note at or below 0 V), times the
   // footage multiplier (8' = 1). The old 1 V = 55 Hz reference is retired.
   function Voice(sr) {
     let ph1 = 0, ph2 = 0, s1 = 0, s2 = 0, amp = 0, fc = 1000, fcT = 1000, prev = false, t = 0;
