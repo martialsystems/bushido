@@ -1,6 +1,7 @@
 #include "CableModel.h"
 #include <cmath>
 #include <algorithm>
+#include <functional>
 #include <map>
 
 namespace rack {
@@ -110,7 +111,10 @@ void CableModel::push(const Cable& c, V2& n) const
         const RectF& r = labels[(size_t) hoverLabel];
         if (r.contains(n, kPad)) {
             const float l = n.x - (r.x - kPad), rr = r.x + r.w + kPad - n.x, t = n.y - (r.y - kPad), b = r.y + r.h + kPad - n.y, m = std::min({ l, rr, t, b });
-            if (m == l) n.x -= l * 0.6f; else if (m == rr) n.x += rr * 0.6f; else if (m == t) n.y -= t * 0.6f; else n.y += b * 0.6f;
+            // m is one of the four values, so these are identity tests on the min: exact compares on purpose (std::equal_to
+            // is the same operator==, written out so -Wfloat-equal stays quiet). First match wins, as before.
+            const std::equal_to<float> is {};
+            if (is(m, l)) n.x -= l * 0.6f; else if (is(m, rr)) n.x += rr * 0.6f; else if (is(m, t)) n.y -= t * 0.6f; else n.y += b * 0.6f;
         }
     }
     if (n.y > floorY) n.y = floorY;

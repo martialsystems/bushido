@@ -48,7 +48,7 @@ private:
     bool clickCarry = false, swallowUp = false;
     std::unique_ptr<Chooser> chooser;
 
-    float scale() const { return getWidth() / dw; }
+    float scale() const { return static_cast<float>(getWidth()) / dw; }
     juce::Point<float> toDesign(juce::Point<float> p) const { return p / scale(); }
     void rebuildScene();
     void track(const juce::MouseEvent&);

@@ -5,6 +5,7 @@
 #include "../engine/MidiOut.h"
 #include "../engine/BushidoState.h"
 #include <cstdio>
+#include <type_traits>
 #include <cstring>
 #include <cmath>
 #include <functional>
@@ -12,6 +13,9 @@
 using namespace rack;
 static int fails = 0;
 #define CHECK(c, msg) do { bool _ok = (c); std::printf("%s %s\n", _ok ? "PASS" : "FAIL", msg); if (!_ok) ++fails; } while (0)
+// Exact floating-point compare, spelled out so -Wfloat-equal stays quiet under the rack's flags: same result as a == b
+// (usual arithmetic conversions via std::common_type, NaN never equal, -0 == +0). Not an epsilon compare.
+template <class A, class B> static constexpr bool exactEq(A a, B b) { using C = std::common_type_t<A, B>; return std::equal_to<C>{}(static_cast<C>(a), static_cast<C>(b)); }
 
 // Drives any number of outputs from a function of the absolute sample index.
 struct Driver : Module {
@@ -103,13 +107,13 @@ static void testSettle()
         if (! vintage) CHECK(gate - trig == 1 && cv - trig == 1 && gate - trig <= 2, "R5.5 TIGHT (default): GATE and CV within 2 samples of TRIG");
         else           CHECK(gate - trig == 28 && cv - trig == 28, "VINTAGE: v1's 0.6 ms settle (28.8 samples at 48 kHz) is kept");
     }
-    BushidoModule m; CHECK(m.getParam(BushidoModule::SETTLE) == 0.0f, "new patches use SETTLE = TIGHT");
+    BushidoModule m; CHECK(exactEq(m.getParam(BushidoModule::SETTLE), 0.0f), "new patches use SETTLE = TIGHT");
 }
 
 // ------------------------------------------------------------------ TRIG self-patch still works with TIGHT
 static void testTrigResetTight()
 {
-    Rig r; r.sq.setParam(BushidoModule::MODE, 0.0f); for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + i, (i + 1) / 12.0f);
+    Rig r; r.sq.setParam(BushidoModule::MODE, 0.0f); for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + i, static_cast<float>(i + 1) / 12.0f);
     r.g.setCables({ { r.S, r.jack("5:TRIG"), r.S, r.jack("INPUTS:RESET") } });
     r.press("MODE:START/STOP"); float mx = 0; const int ca = r.jack("OUTPUTS:CV A");
     r.run(48000 * 3, [&](long long, int i) { mx = std::max(mx, r.out(ca, i)); });
@@ -119,13 +123,13 @@ static void testTrigResetTight()
 // ------------------------------------------------------------------ B4: TRIG outs
 static void testTrigs()
 {
-    BushidoModule m; CHECK(m.getParam(BushidoModule::TRIG_MODE) == 0.0f, "testTrigModeDefaultStep: a new patch is STEP");
+    BushidoModule m; CHECK(exactEq(m.getParam(BushidoModule::TRIG_MODE), 0.0f), "testTrigModeDefaultStep: a new patch is STEP");
     { Rig r; r.press("MODE:STEP"); int hi = 0; const int t1 = r.jack("1:TRIG");
       r.run(4800, [&](long long, int i) { hi += r.out(t1, i) > 1; });
       CHECK(r.sq.currentStep() == 0 && hi == 0, "B4: TRIG outs stay low while stopped (STEP button moved to step 1)"); }
     { Rig r; r.press("MODE:START/STOP"); r.run(6000); r.press("MODE:START/STOP"); int hi = 0; const int t1 = r.jack("1:TRIG");
       r.run(1, [&](long long, int i) { hi += r.out(t1, i) > 1; });
-      CHECK(hi == 0 && r.sq.indicator(2) == 1.0f, "R5.4: STOP drops TRIG on that block; the step lamp stays lit"); }
+      CHECK(hi == 0 && exactEq(r.sq.indicator(2), 1.0f), "R5.4: STOP drops TRIG on that block; the step lamp stays lit"); }
     { Rig r; int hi = 0, run = 0, maxRun = 0; const int t1 = r.jack("1:TRIG"); r.press("MODE:START/STOP");
       r.run(11000, [&](long long, int i) { const bool h = r.out(t1, i) > 1; hi += h; run = h ? run + 1 : 0; maxRun = std::max(maxRun, run); });
       CHECK(hi == 11000, "TRIG MODE STEP: high for the whole step");
@@ -145,7 +149,7 @@ static void testPortaLawUnchanged()
         Rig r(sr); r.sq.setParam(BushidoModule::SETTLE, 1.0f); r.sq.setParam(BushidoModule::PORTA_A, porta); r.sq.setParam(BushidoModule::STEPS, 0.8f);
         const int ca = r.jack("OUTPUTS:CV A"); std::vector<float> got; long long first = -1;
         r.press("MODE:START/STOP");
-        r.run(6000, [&](long long t, int i) { const float v = r.out(ca, i); if (first < 0 && v != 0.0f) first = t; if (first >= 0 && (long long) got.size() < 4800) got.push_back(v); });
+        r.run(6000, [&](long long t, int i) { const float v = r.out(ca, i); if (first < 0 && ! exactEq(v, 0.0f)) first = t; if (first >= 0 && (long long) got.size() < 4800) got.push_back(v); });
         const double tau = (double) porta * porta * 2.0;                          // v1 engine module, L90 and L124, copied verbatim
         const float k = tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr)));
         float cv = 0.0f; const float tgt = 0.8f * 5.0f; bool same = got.size() == 4800;
@@ -208,7 +212,7 @@ static void testMixerSmoothing()
     float maxStep = 0; for (size_t i = 1; i < o.size(); ++i) maxStep = std::max(maxStep, std::abs(o[i] - o[i - 1]));
     CHECK(o[0] < 0.02f && maxStep < 0.02f, "B8: a LEVEL jump ramps instead of stepping (no zipper)");
     CHECK(std::abs(o[479] - 5.0f * (1.0f - std::exp(-1.0f))) < 0.01f, "B8: 10 ms one-pole (63 % after 480 samples)");
-    CHECK(o.back() == 5.0f, "B8: the level lands exactly (gain law unchanged)");
+    CHECK(exactEq(o.back(), 5.0f), "B8: the level lands exactly (gain law unchanged)");
 }
 
 // ------------------------------------------------------------------ HOST sync
@@ -245,18 +249,18 @@ static void testHostSyncTicksOnSixteenths()
 static void testHostDefaults()
 {
     { BushidoModule m; m.applyNewInstanceDefaults(true, true);
-      CHECK(m.getParam(BushidoModule::SOURCE) == 1.0f && m.getParam(BushidoModule::EXT_SOURCE) == 1.0f, "testHostDefaultOnlyNewRackInstancePlaying: new rack instance, transport playing -> HOST"); }
+      CHECK(exactEq(m.getParam(BushidoModule::SOURCE), 1.0f) && exactEq(m.getParam(BushidoModule::EXT_SOURCE), 1.0f), "testHostDefaultOnlyNewRackInstancePlaying: new rack instance, transport playing -> HOST"); }
     { BushidoModule m; m.applyNewInstanceDefaults(true, false);
-      CHECK(m.getParam(BushidoModule::SOURCE) == 0.0f && m.getParam(BushidoModule::EXT_SOURCE) == 0.0f, "testHostDefaultOnlyNewRackInstancePlaying: stopped -> panel default (INT)"); }
+      CHECK(exactEq(m.getParam(BushidoModule::SOURCE), 0.0f) && exactEq(m.getParam(BushidoModule::EXT_SOURCE), 0.0f), "testHostDefaultOnlyNewRackInstancePlaying: stopped -> panel default (INT)"); }
     { BushidoModule m; m.applyNewInstanceDefaults(false, true);
-      CHECK(m.getParam(BushidoModule::SOURCE) == 0.0f && m.getParam(BushidoModule::EXT_SOURCE) == 0.0f, "testHostDefaultOnlyNewRackInstancePlaying: outside the rack -> panel (INT)"); }
+      CHECK(exactEq(m.getParam(BushidoModule::SOURCE), 0.0f) && exactEq(m.getParam(BushidoModule::EXT_SOURCE), 0.0f), "testHostDefaultOnlyNewRackInstancePlaying: outside the rack -> panel (INT)"); }
     for (int src = 0; src < 3; ++src) {                                                          // INT, EXT-JACK, EXT-HOST
         std::map<std::string, float> p { { "CLOCK:SOURCE", src ? 1.0f : 0.0f }, { "CLOCK:EXT SOURCE", src == 2 ? 1.0f : 0.0f } };
         auto before = p; bushido::migrate(bushido::kFormat, p, {});
         CHECK(p == before, src == 0 ? "testLoadKeepsSource: INT loads unchanged" : src == 1 ? "testLoadKeepsSource: EXT-JACK loads unchanged" : "testLoadKeepsSource: EXT-HOST loads unchanged");
     }
     std::map<std::string, float> old { { "CLOCK:SOURCE", 1.0f } }; bushido::migrate(0, old, {});
-    CHECK(old["CLOCK:SOURCE"] == 1.0f && old["CLOCK:EXT SOURCE"] == 0.0f, "testLoadKeepsSource: a v1 EXT patch stays EXT-JACK (never flipped to HOST)");
+    CHECK(exactEq(old["CLOCK:SOURCE"], 1.0f) && exactEq(old["CLOCK:EXT SOURCE"], 0.0f), "testLoadKeepsSource: a v1 EXT patch stays EXT-JACK (never flipped to HOST)");
 }
 
 // ------------------------------------------------------------------ EXT pin and the v1 contract
@@ -284,20 +288,20 @@ static void testMigration()
     auto lawOf = [](std::vector<std::pair<std::string, std::string>> cables, const std::string& self = "") {
         std::map<std::string, float> p; auto rep = bushido::migrate(0, p, cables, self); return std::make_pair(p, rep); };
     { auto [p, r] = lawOf({ { "BUSHIDO#1/OUTPUTS:CV A", "RONIN#2/VCO:HZ/V" } });
-      CHECK(p["STEPS:LAW A"] == 1.0f && p["STEPS:LAW B"] == 0.0f, "testMigrationPitchLawFromCables: row A into RONIN VCO:HZ/V -> LIN, row B -> V/OCT"); }
+      CHECK(exactEq(p["STEPS:LAW A"], 1.0f) && exactEq(p["STEPS:LAW B"], 0.0f), "testMigrationPitchLawFromCables: row A into RONIN VCO:HZ/V -> LIN, row B -> V/OCT"); }
     { auto [p, r] = lawOf({ { "RONIN#1/VCO:V/OCT", "BUSHIDO#1/OUTPUTS:CV A" }, { "BUSHIDO#1/OUTPUTS:CV B", "SHOGUN#1/LEAD:NOTE" } });
-      CHECK(p["STEPS:LAW A"] == 0.0f && p["STEPS:LAW B"] == 0.0f, "testMigrationPitchLawFromCables: into RONIN V/OCT or SHOGUN NOTE -> V/OCT"); }
+      CHECK(exactEq(p["STEPS:LAW A"], 0.0f) && exactEq(p["STEPS:LAW B"], 0.0f), "testMigrationPitchLawFromCables: into RONIN V/OCT or SHOGUN NOTE -> V/OCT"); }
     { auto [p, r] = lawOf({ { "BUSHIDO/OUTPUTS:CV B", "RONIN/VCO:HZ/V" } });
-      CHECK(p["STEPS:LAW B"] == 1.0f && p["STEPS:LAW A"] == 0.0f, "testMigrationPitchLawFromCables: file form BUSHIDO/... into RONIN/VCO:HZ/V -> LIN"); }
+      CHECK(exactEq(p["STEPS:LAW B"], 1.0f) && exactEq(p["STEPS:LAW A"], 0.0f), "testMigrationPitchLawFromCables: file form BUSHIDO/... into RONIN/VCO:HZ/V -> LIN"); }
     { const std::string old = std::string("SQ") + "-10";   // a retired prefix, built from parts so the repo has no literal old name
       auto [p, r] = lawOf({ { old + "#1/OUTPUTS:CV B", "RONIN#1/VCO:HZ/V" } });
-      CHECK(p["STEPS:LAW B"] == 0.0f && bushido::splitJack(old + "/OUTPUTS:CV B").first == old, "no prefix aliases: a retired-prefix cable is not rewritten and sets no law"); }
+      CHECK(exactEq(p["STEPS:LAW B"], 0.0f) && bushido::splitJack(old + "/OUTPUTS:CV B").first == old, "no prefix aliases: a retired-prefix cable is not rewritten and sets no law"); }
     { auto [p, r] = lawOf({ { "BUSHIDO#1/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V" }, { "BUSHIDO#1/OUTPUTS:CV A", "RONIN#2/VCO:V/OCT" } });
-      CHECK(p["STEPS:LAW A"] == 1.0f && r.lawMismatch[0], "a row cabled to both gets LIN and flags its V/OCT cable"); }
+      CHECK(exactEq(p["STEPS:LAW A"], 1.0f) && r.lawMismatch[0], "a row cabled to both gets LIN and flags its V/OCT cable"); }
     { auto [p, r] = lawOf({ { "BUSHIDO#2/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V" } }, "BUSHIDO#1");
-      CHECK(p["STEPS:LAW A"] == 0.0f, "another BUSHIDO's cable does not set this instance's law"); }
+      CHECK(exactEq(p["STEPS:LAW A"], 0.0f), "another BUSHIDO's cable does not set this instance's law"); }
     { auto [p, r] = lawOf({});
-      CHECK(p["CLOCK:SETTLE"] == 1.0f && p["CLOCK:TRIG MODE"] == 0.0f && ! r.lines.empty(), "format 0 -> 1: SETTLE = VINTAGE, TRIG MODE = STEP, report lines for SETUP"); }
+      CHECK(exactEq(p["CLOCK:SETTLE"], 1.0f) && exactEq(p["CLOCK:TRIG MODE"], 0.0f) && ! r.lines.empty(), "format 0 -> 1: SETTLE = VINTAGE, TRIG MODE = STEP, report lines for SETUP"); }
     { std::map<std::string, float> p { { "A:1", 0.3f } }; auto r = bushido::migrate(7, p, {});
       CHECK(r.readOnly && p.size() == 1, "a newer format loads read-only and untouched"); }
     using SP = std::pair<std::string, std::string>;
@@ -306,7 +310,7 @@ static void testMigration()
     CHECK(bushido::splitJack("RONIN#2/VCO:HZ/V") == SP("RONIN", "VCO:HZ/V") && bushido::splitJack("BUSHIDO/INPUTS:START/STOP") == SP("BUSHIDO", "INPUTS:START/STOP")
           && bushido::splitJack("bushido#1/outputs:cv a") == SP("bushido", "outputs:cv a"), "splitJack: prefix at the first '/' before ':'; ids the shared parser rejects split the same way");
     { auto [p, r] = lawOf({ { "OUTPUTS:CV A", "INPUTS:START/STOP" }, { "BUSHIDO/OUTPUTS:CV B", "RONIN/VCO:HZ/V" } });
-      CHECK(p["STEPS:LAW A"] == 0.0f && p["STEPS:LAW B"] == 1.0f, "verify: cables-to-law with a bare START/STOP cable; RONIN VCO:HZ/V gives LIN"); }
+      CHECK(exactEq(p["STEPS:LAW A"], 0.0f) && exactEq(p["STEPS:LAW B"], 1.0f), "verify: cables-to-law with a bare START/STOP cable; RONIN VCO:HZ/V gives LIN"); }
 }
 
 int main()

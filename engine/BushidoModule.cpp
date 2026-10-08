@@ -2,6 +2,7 @@
 #include <jidai/jcs/Volts.h>
 #include <cmath>
 #include <algorithm>
+#include <functional>
 
 using namespace rack;
 
@@ -156,7 +157,7 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
             bool t = doStep;
             if (running && ! external) {                         // TEMPO and TEMPO CV bend the internal clock only; EXT ignores both
                 const double v = (double) in[TEMPO_CV][i];
-                if (std::abs(v - lastTempoCv) > 1e-6 || tempoRate != lastTempoRate) {
+                if (std::abs(v - lastTempoCv) > 1e-6 || std::not_equal_to<double>{}(tempoRate, lastTempoRate)) {   // exact: any TEMPO change (same as !=)
                     lastTempoCv = v; lastTempoRate = tempoRate;
                     rate = std::clamp(tempoRate * std::exp2(v), 0.05, 200.0);
                 }

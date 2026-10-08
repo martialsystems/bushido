@@ -1,19 +1,24 @@
 // CableModel tests. Build: g++ -std=c++17 -O2 -I. tests/test_cables.cpp rack/CableModel.cpp
 #include "../rack/CableModel.h"
 #include <cstdio>
+#include <type_traits>
+#include <functional>
 #include <cmath>
 #include <algorithm>
 using namespace rack;
 static int fails = 0;
 #define CHECK(c, msg) do { bool _ok = (c); std::printf("%s %s\n", _ok ? "PASS" : "FAIL", msg); if (!_ok) ++fails; } while (0)
+// Exact floating-point compare, spelled out so -Wfloat-equal stays quiet under the rack's flags: same result as a == b
+// (usual arithmetic conversions via std::common_type, NaN never equal, -0 == +0). Not an epsilon compare.
+template <class A, class B> static constexpr bool exactEq(A a, B b) { using C = std::common_type_t<A, B>; return std::equal_to<C>{}(static_cast<C>(a), static_cast<C>(b)); }
 int main() {
     // four jacks in a row and one label under jack 1
     CableModel m; m.setScene({ { 100, 300 }, { 300, 300 }, { 500, 300 }, { 700, 300 } }, { { 285, 315, 30, 9 } }, 600);
     int c0 = m.add(0, 2, 0);
-    CHECK(m.plugPos(c0, 0).x == 100 && m.plugPos(c0, 0).y == 300, "plug sits on its jack");
+    CHECK(exactEq(m.plugPos(c0, 0).x, 100) && exactEq(m.plugPos(c0, 0).y, 300), "plug sits on its jack");
     int c1 = m.add(0, 3, 1);
     auto st = m.plugsAt(0);
-    CHECK(st.size() == 2 && st[1].first == c1 && m.plugPos(c1, 0).x == 98 && m.plugPos(c1, 0).y == 297, "second plug stacks on top, offset 2 px left / 3 px up");
+    CHECK(st.size() == 2 && st[1].first == c1 && exactEq(m.plugPos(c1, 0).x, 98) && exactEq(m.plugPos(c1, 0).y, 297), "second plug stacks on top, offset 2 px left / 3 px up");
     m.reorderStack(0, { c1, c0 });
     st = m.plugsAt(0); CHECK(m.cables()[(size_t) st[1].first].color == 0 && m.cables()[(size_t) st[0].first].color == 1, "reorder puts the first cable back on top");
     // carry: move the top plug on jack 0 to jack 1

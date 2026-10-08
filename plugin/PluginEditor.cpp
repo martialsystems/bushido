@@ -6,7 +6,7 @@ class BushidoEditor::Swatches : public juce::Component {
 public:
     explicit Swatches(CableLayer& c) : cl(c) {}
     void paint(juce::Graphics& g) override {
-        const float d = getHeight() * 0.62f;
+        const float d = static_cast<float>(getHeight()) * 0.62f;
         for (int i = 0; i < 4; ++i) { auto r = cell(i).withSizeKeepingCentre(d, d);
             g.setColour(CableLayer::cableColour(i, 0)); g.fillEllipse(r);
             if (i == cl.getColour()) { g.setColour(juce::Colours::white); g.drawEllipse(r.expanded(2.5f), 1.5f); } }
@@ -14,7 +14,7 @@ public:
     void mouseDown(const juce::MouseEvent& e) override { for (int i = 0; i < 4; ++i) if (cell(i).contains(e.position)) { cl.setColour(i); repaint(); } }
 private:
     CableLayer& cl;
-    juce::Rectangle<float> cell(int i) const { const float w = getWidth() / 4.0f; return { w * (float) i, 0, w, (float) getHeight() }; }
+    juce::Rectangle<float> cell(int i) const { const float w = static_cast<float>(getWidth()) / 4.0f; return { w * (float) i, 0, w, (float) getHeight() }; }
 };
 
 BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), proc(p)
@@ -67,7 +67,7 @@ void BushidoEditor::resized()
     mainFace.setBounds(face); page->setBounds(face);
     const auto local = mainFace.getLocalBounds();
     panel->setBounds(local); cables.setBounds(local);
-    const float s = w / 1600.0f;
+    const float s = static_cast<float>(w) / 1600.0f;
     swatches->setBounds(juce::Rectangle<float>(1450 * s, 12 * s, 136 * s, 30 * s).toNearestInt());
     screen->placeIn(local);
     if (w != (int) proc.apvts.state.getProperty("uiWidth", 1280)) proc.apvts.state.setProperty("uiWidth", w, nullptr);

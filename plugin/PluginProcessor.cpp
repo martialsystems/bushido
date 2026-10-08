@@ -1,6 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "BinaryData.h"
+#include <functional>
 
 juce::String BushidoProcessor::paramIdFor(const std::string& id)
 {
@@ -171,7 +172,7 @@ void BushidoProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Midi
 {
     juce::ScopedNoDenormals noDenormals;
     midi.clear();
-    for (size_t i = 0; i < raw.size(); ++i) if (raw[i]) { const float v = raw[i]->load(); if (v != lastSent[i]) { sq.setParam((int) i, v); lastSent[i] = v; } }
+    for (size_t i = 0; i < raw.size(); ++i) if (raw[i]) { const float v = raw[i]->load(); if (std::not_equal_to<float>{}(v, lastSent[i])) { sq.setParam((int) i, v); lastSent[i] = v; } }   // exact change test (same as !=)
     rack::Transport t;                                                    // HOST clock (CLOCK tab): the DAW's play state, tempo and position
     if (auto* ph = getPlayHead()) if (const auto pos = ph->getPosition()) {
         t.valid = pos->getBpm().hasValue() && pos->getPpqPosition().hasValue();
