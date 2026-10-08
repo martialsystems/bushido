@@ -60,4 +60,4 @@ The Jidai Collection is Martial Systems' line of patchable instruments. Its piec
 
 Copyright © 2026 Martial Systems LLC. All rights reserved. See `LICENSE`.
 
-BUSHIDO is inspired by classic Korg gear. Korg is a trademark of its owner. Martial Systems is not affiliated with or endorsed by Korg.
+BUSHIDO is an original Martial Systems design inspired by classic Korg gear. Korg is a trademark of its owner. Martial Systems LLC is not affiliated with or endorsed by Korg.
