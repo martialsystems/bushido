@@ -248,4 +248,48 @@ CHECK(B.create(48000).getParam(P.TRIG_MODE) === 0, "testTrigModeDefaultStep: a n
   }
   CHECK(bad.length === 0, "JCS R4: no 55 Hz / MIDI 33 pitch law left in the web sources" + (bad.length ? " (" + bad.join(", ") + ")" : ""));
 }
+// ------------------------------------------------------------------ factory bank: the pages embed assets/bushido_patterns.json as it is, and every
+// pattern plays in the web engine (the C++ side is tests/test_plugin.cpp; C++ vs JS sample parity on some patterns: web/test_bushido_parity.js)
+{
+  const fs = require("fs"), bank = JSON.parse(fs.readFileSync(W + "../assets/bushido_patterns.json", "utf8"));
+  const embedded = (file, marker) => {                          // the JSON object literal right after `marker` in a built page
+    const s = fs.readFileSync(W + file, "utf8"), at = s.indexOf(marker); if (at < 0) return null;
+    let i = at + marker.length, depth = 0, str = false; const from = i;
+    for (; i < s.length; i++) { const c = s[i]; if (str) { if (c === "\\") i++; else if (c === '"') str = false; continue }
+      if (c === '"') str = true; else if (c === "{") depth++; else if (c === "}" && --depth === 0) break }
+    return JSON.parse(s.slice(from, i + 1));
+  };
+  const names = b => b ? b.patterns.map(q => q.name).join(",") : "";
+  for (const [file, marker] of [["bushido.html", "const PATTERNS="], ["rack.html", ",PATTERNS="]]) {
+    const e = embedded(file, marker);
+    CHECK(e && names(e) === names(bank) && JSON.stringify(e) === JSON.stringify(bank), `factory bank: web/${file} lists the same ${bank.patterns.length} patterns in the same order, every value equal`);
+  }
+  const ids = B.PARAMS.filter(q => q.positions !== -1).map(q => q.id).sort().join(",");
+  CHECK(bank.patterns[0].name === "INIT" && bank.patterns.every(q => q.format === 1 && Object.keys(q.params).sort().join(",") === ids && q.name.length <= 12),
+        "factory bank: INIT first; every pattern is format 1, sets all " + ids.split(",").length + " parameters and has a name of at most 12 characters");
+  const N = 48000 * 4;
+  bank.patterns.forEach((q, k) => {
+    const e = RACK.create(48000); e.msg({ t: "devices", list: ["BUSHIDO#1"] }); e.msg({ t: "monitor", mode: "off" });
+    const sq = e.devices["BUSHIDO#1"].sq;
+    for (const id in q.params) sq.setParam(id, q.params[id]);
+    e.setCables(q.cables.map(c => ["BUSHIDO#1/" + c[0], "BUSHIDO#1/" + c[1]]));
+    const host = q.params["CLOCK:SOURCE"] > 0.5 && q.params["CLOCK:EXT SOURCE"] > 0.5;
+    if (!host) sq.press("MODE:START/STOP");
+    const midi = B.createMidiOut(); let on = 0, bad = 0, rails = true, rises = 0, falls = 0; const g = [false, false];
+    const fromC = j => q.params["CH:C MODE"] < 0.5 && q.params[j ? "MIDI:VEL B" : "MIDI:VEL A"] > 0.5;
+    const vel = j => new Set(fromC(j) ? Array.from({ length: 12 }, (_, i) => midi.velocity(sq, j, Math.fround(sq.getParam("C:" + (i + 1)) * 5))) : [100]);
+    const velOk = [vel(0), vel(1)];
+    for (let t = 0; t < N; t++) {
+      if (host && t % 512 === 0) sq.setTransport({ valid: true, playing: true, bpm: 120, ppq: t * 120 / (60 * 48000), samplePos: t });
+      e.processGraph();
+      const pv = sq.portValue;
+      for (const j of [B.CV_A, B.CV_B, B.CV_C]) rails = rails && Number.isFinite(pv[j]) && Math.abs(pv[j]) <= 5;
+      [pv[B.GATE_A] > 1, pv[B.GATE_B] > 1].forEach((x, j) => { if (x !== g[j]) { x ? rises++ : falls++; g[j] = x } });
+      if ((t + 1) % 512 === 0) midi.handle(sq, sq.takeGateEvents(), m => { if (!m.on) return; on++; const j = m.channel === midi.channel(sq, 0) ? 0 : 1;
+        if (m.note < 0 || m.note > 127 || !velOk[j].has(m.velocity)) bad++ });
+    }
+    CHECK(on > 0 && bad === 0 && rails && rises >= 4 && falls >= 4,
+          `factory ${String(k + 1).padStart(3, "0")} ${q.name}: plays in the web engine (${on} note-ons, ${rises} gate rises, CVs finite and within +/-5 V, notes 0..127, velocities as set)`);
+  });
+}
 console.log(fails ? fails + " FAILED (" + passes + " passed)" : "ALL PASSED (" + passes + ")"); process.exit(fails ? 1 : 0);

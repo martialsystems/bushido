@@ -12,6 +12,16 @@ target_include_directories(rack_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Shared Jidai Cable Standard headers (pitch, detector, volts), vendored unmodified; see third_party/jidai-common/COMMIT.
 target_include_directories(rack_core SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/jidai-common/include)
 set_target_properties(rack_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# Bit-exact floats on every compiler and CPU: no FMA contraction (aarch64, or x86 with FMA, would otherwise fuse a * b + c). The engine,
+# the tests' exact compares and the browser port (web/test_bushido_parity.js) then agree everywhere. PUBLIC: the plugin and the tests
+# that link rack_core get it too. MSVC: /fp:precise, its default, stated (VS 2022 keeps contraction off unless /fp:contract is given).
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(rack_core PUBLIC /fp:precise)
+elseif(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")   # clang-cl
+    target_compile_options(rack_core PUBLIC /clang:-ffp-contract=off)
+else()
+    target_compile_options(rack_core PUBLIC -ffp-contract=off)
+endif()
 
 juce_add_binary_data(BushidoAssets SOURCES assets/bushido_panel_bg.svg assets/bushido_layout.json assets/bushido_patterns.json)
 

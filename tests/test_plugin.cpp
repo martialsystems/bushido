@@ -1,13 +1,17 @@
-// Headless BushidoProcessor test (JUCE, no editor): state format and migration, MIDI out, sub-blocks, bypass, HOST sync.
-// Runs with HOME pointed at a temp dir, so the user pattern file is never the real one.
+// Headless BushidoProcessor test (JUCE, no editor): state format and migration, MIDI out, sub-blocks, bypass, HOST sync, factory bank.
+// The user pattern file is redirected to a temp dir (BushidoProcessor::setUserPatternFile), so the real one is never touched on any OS.
 #include "../plugin/PluginProcessor.h"
+#include "BinaryData.h"
+#include <jidai/jcs/Volts.h>
 #if defined(__GNUC__)
  #pragma GCC diagnostic ignored "-Wfloat-equal"   // exact compares are intended: parameter values and saved state round-trip bit-exactly
 #endif
 #include <cstdio>
-#include <cstdlib>
 #include <vector>
 #include <functional>
+#include <set>
+#include <map>
+#include <cmath>
 
 static int fails = 0, passes = 0;
 static void CHECK(bool c, const juce::String& msg) { std::printf("%s %s\n", c ? "PASS" : "FAIL", msg.toRawUTF8()); if (c) ++passes; else ++fails; }
@@ -29,6 +33,7 @@ struct Host {
     std::unique_ptr<BushidoProcessor> p = std::make_unique<BushidoProcessor>();
     FakePlayHead ph; int hostBlock; long long t = 0;
     std::vector<Ev> ev; std::vector<long long> riseA, fallA, riseB, fallB; bool gA = false, gB = false; bool trackGates;
+    float peak = 0.0f; bool outNaN = false;                                     // the plugin's audio out over every block
     Host(int hb = 512, int maxBlock = 512) : hostBlock(hb), trackGates(maxBlock >= hb)
     { p->setRateAndBufferSizeDetails(48000.0, maxBlock); p->prepareToPlay(48000.0, maxBlock); p->setPlayHead(&ph); }
     void set(const char* id, float v) { auto* a = p->parameter(id); a->setValueNotifyingHost(a->convertTo0to1(v)); }
@@ -40,6 +45,7 @@ struct Host {
     {
         juce::AudioBuffer<float> buf(2, hostBlock); buf.clear(); juce::MidiBuffer midi;
         ph.sample = t; p->processBlock(buf, midi);
+        for (int c = 0; c < buf.getNumChannels(); ++c) for (int i = 0; i < hostBlock; ++i) { const float x = buf.getSample(c, i); outNaN |= ! std::isfinite(x); peak = std::max(peak, std::abs(x)); }
         for (const auto m : midi) { const auto msg = m.getMessage();
             if (msg.isNoteOn()) ev.push_back({ t + m.samplePosition, msg.getChannel(), msg.getNoteNumber(), msg.getVelocity(), true });
             else if (msg.isNoteOff()) ev.push_back({ t + m.samplePosition, msg.getChannel(), msg.getNoteNumber(), 0, false }); }
@@ -131,15 +137,15 @@ static void testPatterns()
     h.set("STEPS:LAW A", 1.0f); h.set("MIDI:VEL A", 1.0f);
     h.p->loadPattern(0, 0);
     CHECK(h.get("CLOCK:SETTLE") == 0.0f && h.get("CLOCK:TRIG MODE") == 0.0f && h.get("STEPS:LAW A") == 0.0f && h.get("STEPS:LAW B") == 0.0f && h.get("MIDI:VEL A") == 0.0f
-          && h.p->migrationLines().empty(), "loadPattern(0,0): factory INIT (format 1) gives TIGHT, STEP, V/OCT; params it does not list go to default");
+          && h.p->migrationLines().empty(), "loadPattern(0,0): factory INIT (format 1) gives TIGHT, STEP, V/OCT, whatever the panel held before");
     Host fresh;
     CHECK(fresh.get("CLOCK:SETTLE") == 0.0f && fresh.get("CLOCK:TRIG MODE") == 0.0f && fresh.get("STEPS:LAW A") == 0.0f && fresh.p->loadedBank() == 0 && fresh.p->loadedPattern() == 0,
           "a fresh instance opens on A001 INIT: TIGHT, STEP, V/OCT (not VINTAGE)");
     fresh.set("CLOCK:TRIG MODE", 1.0f); fresh.set("STEPS:LAW B", 1.0f);
     const int idx = fresh.p->savePattern(1, "MINE");
     const auto file = BushidoProcessor::userPatternFile(); const auto j = juce::JSON::parse(file);
-    CHECK(idx == 0 && file.getFullPathName().startsWith(juce::String(std::getenv("HOME"))) && (int) j["B"][0]["format"] == 1,
-          "savePattern writes format 1 into the user file under the test's temp HOME (" + file.getFullPathName() + ")");
+    CHECK(idx == 0 && file.isAChildOf(juce::File::getSpecialLocation(juce::File::tempDirectory)) && (int) j["B"][0]["format"] == 1,
+          "savePattern writes format 1 into the user file under the test's temp dir (" + file.getFullPathName() + ")");
     fresh.set("CLOCK:TRIG MODE", 0.0f); fresh.p->loadPattern(1, 0);
     CHECK(fresh.get("CLOCK:TRIG MODE") == 1.0f && fresh.get("STEPS:LAW B") == 1.0f, "a saved pattern carries the tab params back");
 }
@@ -237,20 +243,107 @@ static void testHost()
     }
 }
 
+// ------------------------------------------------------------------ factory bank (assets/bushido_patterns.json, embedded as binary data)
+// Every factory pattern: loads, saves back equal to its entry, and runs for 8 s at 48 kHz with gates, MIDI notes, CVs inside the rails.
+static void testFactory()
+{
+    const auto d = juce::JSON::parse(juce::String::fromUTF8(BinaryData::bushido_patterns_json, BinaryData::bushido_patterns_jsonSize));
+    const auto* list = d["patterns"].getArray();
+    Host first; const auto bankA = first.p->patternNames(0);
+    const int n = list != nullptr ? list->size() : 0;
+    bool order = n > 1 && bankA.size() >= n && (*list)[0]["name"].toString() == "INIT";
+    for (int i = 0; order && i < n; ++i) order &= bankA[i] == (*list)[i]["name"].toString();
+    CHECK(order, "factory bank: " + juce::String(n) + " patterns from the binary data, INIT first, in file order at the front of bank A");
+    std::set<juce::String> ids; for (auto& prm : first.p->sq.params()) if (prm.positions != -1) ids.insert(juce::String(prm.id));
+    const float rail = jidai::jcs::kRail;
+
+    for (int i = 0; i < n; ++i) {
+        const auto& fp = (*list)[i]; const juce::String name = fp["name"].toString(), tag = "factory " + juce::String(i + 1).paddedLeft('0', 3) + " " + name + ": ";
+        auto* fpar = fp["params"].getDynamicObject(); const auto* fcab = fp["cables"].getArray();
+        Host h; h.p->loadPattern(0, i);
+        // 1. loads: format 1, every parameter listed, nothing migrated, every cable binds to a real jack
+        std::set<juce::String> keys; bool vals = fpar != nullptr && fcab != nullptr && (int) fp["format"] == 1;
+        if (fpar) for (auto& kv : fpar->getProperties()) { keys.insert(kv.name.toString()); auto* ap = h.p->parameter(kv.name.toString()); const bool eq = ap != nullptr && ap->getValue() == (float) kv.value; vals &= eq;
+            if (! eq && ap) std::printf("  mismatch %s: pattern %.9g, parameter %.9g\n", kv.name.toString().toRawUTF8(), (double) (float) kv.value, (double) ap->getValue()); }
+        const auto cs = h.p->getCables(); bool cab = fcab != nullptr && (int) cs.size() == fcab->size();
+        for (size_t k = 0; cab && k < cs.size(); ++k)
+            cab &= cs[k].a == "BUSHIDO/" + (*fcab)[(int) k][0].toString() && cs[k].b == "BUSHIDO/" + (*fcab)[(int) k][1].toString()
+                   && h.jack(cs[k].a.fromFirstOccurrenceOf("/", false, false).toRawUTF8()) >= 0 && h.jack(cs[k].b.fromFirstOccurrenceOf("/", false, false).toRawUTF8()) >= 0;
+        CHECK(vals && keys == ids && cab && h.p->migrationLines().empty() && ! h.p->isReadOnly() && h.p->loadedBank() == 0 && h.p->loadedPattern() == i,
+              tag + "loads (format 1, all " + juce::String((int) ids.size()) + " parameters exact, " + juce::String((int) cs.size()) + " cables bound, no migration)");
+        // 2. save -> reload: the saved entry equals the factory entry (name, format, params, cables), and loading it gives the same panel
+        const int idx = h.p->savePattern(1, name);
+        const auto uj = juce::JSON::parse(BushidoProcessor::userPatternFile()); const auto sv = uj["B"][idx];
+        bool same = idx >= 0 && sv["name"].toString() == name && (int) sv["format"] == 1;
+        if (auto* so = sv["params"].getDynamicObject()) { same &= so->getProperties().size() == (int) ids.size();
+            for (auto& kv : so->getProperties()) same &= fpar->hasProperty(kv.name) && (float) kv.value == (float) fpar->getProperty(kv.name); } else same = false;
+        same &= juce::JSON::toString(sv["cables"], true) == juce::JSON::toString(fp["cables"], true);
+        std::map<juce::String, float> before; for (auto& id : ids) before[id] = h.p->parameter(id)->getValue();
+        h.set("MODE:MODE", 0.0f); h.set("A:1", 0.123f); h.p->setCables({});
+        h.p->loadPattern(1, idx);
+        for (auto& id : ids) same &= h.p->parameter(id)->getValue() == before[id];
+        const auto cs2 = h.p->getCables(); same &= cs2.size() == cs.size();
+        for (size_t k = 0; same && k < cs.size(); ++k) same &= cs2[k].a == cs[k].a && cs2[k].b == cs[k].b && cs2[k].color == cs[k].color;
+        CHECK(same, tag + "save -> reload round-trips (saved JSON equals the factory entry; reloading gives every parameter and cable back)");
+        // 3. run 8 s at 48 kHz: INT patterns from START, HOST patterns from a playing transport at 120 BPM
+        const bool hostClock = h.get("CLOCK:SOURCE") > 0.5f && h.get("CLOCK:EXT SOURCE") > 0.5f;
+        h.p->loadPattern(0, i);
+        if (hostClock) { h.ph.playing = true; h.ph.bpm = 120.0; h.ph.ppq0 = 0.0; } else h.press("MODE:START/STOP");
+        bool railsOk = true; int maxStep = -1; std::set<int> steps;
+        const int jA = BushidoModule::CV_A, jB = BushidoModule::CV_B, jC = BushidoModule::CV_C;
+        while (h.t < 48000LL * 8) h.block([&](long long, int s) {
+            for (int jk : { jA, jB, jC }) { const float v = h.p->graph.output(0, jk)[s]; railsOk &= std::isfinite(v) && v >= -rail && v <= rail; }
+            const int st = h.p->sq.currentStep(); maxStep = std::max(maxStep, st); steps.insert(st); });
+        const int chA = 1 + (int) std::lround(h.p->parameter("MIDI:CH A")->getValue() * 15.0f), chB = 1 + (int) std::lround(h.p->parameter("MIDI:CH B")->getValue() * 15.0f);
+        const bool cv = h.get("CH:C MODE") < 0.5f;
+        std::set<int> velA { 100 }, velB { 100 };
+        auto fromC = [&](const char* vel, std::set<int>& out) { if (! cv || h.get(vel) < 0.5f) return; out.clear();
+            for (int k = 1; k <= 12; ++k) { const float cvC = h.p->sq.getParam(BushidoModule::STEPS + 23 + k) * 5.0f; out.insert((int) std::clamp(std::lround(1.0 + 126.0 * (double) cvC / 5.0), 1L, 127L)); } };
+        fromC("MIDI:VEL A", velA); fromC("MIDI:VEL B", velB);
+        int onA = 0, onB = 0; bool midiOk = true;
+        for (auto& e : h.ev) { midiOk &= e.note >= 0 && e.note <= 127 && (e.ch == chA || e.ch == chB); if (! e.on) continue;
+            if (e.ch == chA) { ++onA; midiOk &= velA.count(e.vel) == 1; } else { ++onB; midiOk &= velB.count(e.vel) == 1; } }
+        const size_t rises = h.riseA.size() + h.riseB.size(), falls = h.fallA.size() + h.fallB.size();
+        CHECK(onA + onB > 0 && rises >= 8 && falls >= 8 && railsOk && midiOk && ! h.outNaN && h.peak <= 1.0f,
+              tag + "plays: " + juce::String(onA + onB) + " note-ons (" + juce::String(onA) + " ch " + juce::String(chA) + ", " + juce::String(onB) + " ch " + juce::String(chB) + "), "
+              + juce::String((int) rises) + " gate rises, CV A/B/C finite and within +/-" + juce::String(rail, 0) + " V, notes 0..127, velocities as set, audio out finite and <= 1");
+        // 4. what the pattern is built to do
+        juce::String what; bool ok = true;
+        for (size_t k = 0; k < cs.size(); ++k) {
+            const auto a = cs[k].a.fromFirstOccurrenceOf("/", false, false), b = cs[k].b.fromFirstOccurrenceOf("/", false, false);
+            if (b == "INPUTS:RESET" && a.endsWith(":TRIG")) { const int len = a.getIntValue() - 1; bool all = true; for (int s2 = 0; s2 < len; ++s2) all &= steps.count(s2) == 1;
+                ok &= maxStep == len - 1 && all; what << len << "-step loop (TRIG " << len + 1 << " -> RESET); "; }
+            else if (b == "INPUTS:STEP" && a.endsWith(":TRIG")) what << "skips step " << a.getIntValue() << " (TRIG -> STEP); ";
+            else if (b == "CLOCK:TEMPO CV") what << "row C bends the clock (CV C -> TEMPO CV); ";
+        }
+        bool rest = false; if (h.get("STEPS:LAW A") > 0.5f) for (int k = 0; k < 12; ++k) rest |= h.p->sq.getParam(BushidoModule::STEPS + k) <= 0.0f;
+        if (rest) { ok &= onA < (int) h.riseA.size() && onA > 0; what << "LIN rests send no note (" << onA << " notes for " << (int) h.riseA.size() << " gates); "; }
+        if (hostClock) {
+            const int q = BushidoModule::stepsPerBeat(h.p->sq.getParam(BushidoModule::DIV)); const long long stepLen = 24000 / q, off = h.p->sq.settleSamples() - 1;
+            bool grid = ! h.riseA.empty(); for (auto r : h.riseA) grid &= (r - off) % stepLen == 0 || (r - off) % stepLen == 1;   // +1: a step entered by a TRIG -> RESET cable
+            ok &= grid; what << "HOST 120 BPM: every gate on the 1/" << q * 4 << " grid; "; }
+        if (h.get("MODE:MODE") > 0.75f) { ok &= onA > 0 && onB > 0; what << "ALT plays both rows on their own channels; "; }
+        if (what.isNotEmpty()) CHECK(ok, tag + what.trimCharactersAtEnd("; "));
+    }
+}
+
 int main()
 {
-    const auto home = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("bushido_test_home_" + juce::String(juce::Time::currentTimeMillis()));
-    home.createDirectory(); setenv("HOME", home.getFullPathName().toRawUTF8(), 1);   // the user pattern file goes under here, never the real one
+    juce::File home;
     {
         juce::ScopedJuceInitialiser_GUI juce;
+        home = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("bushido_test_home_" + juce::String(juce::Time::currentTimeMillis()));
+        home.createDirectory();
+        BushidoProcessor::setUserPatternFile(home.getChildFile("user_patterns.json"));   // portable: no HOME or APPDATA games
         testState();
         testNoAliases();
         testPatterns();
         testMidi();
         testBypass();
         testHost();
+        testFactory();
+        home.deleteRecursively();
     }
-    home.deleteRecursively();
     std::printf(fails ? "%d FAILED (%d passed)\n" : "ALL PASSED (%d)\n", fails ? fails : passes, passes);
     return fails ? 1 : 0;
 }

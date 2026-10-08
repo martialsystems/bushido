@@ -11,6 +11,7 @@ BUSHIDO is a hands-on step sequencer for your DAW. You build lines by turning kn
 - **Three play modes.** A loops twelve steps. A+B plays both rows as one 24-step line on the A jacks. ALT plays one row per pass, each on its own jacks.
 - **A TRIG jack for every step.** Patch TRIG N+1 into RESET for an N-step loop, or patch any TRIG or GATE into STEP, START/STOP or (with SOURCE on EXT) CLOCK.
 - **TRIG STEP or PULSE.** In STEP mode each TRIG jack stays high for its whole step. In PULSE mode it fires a 5 ms trigger.
+- **Factory bank.** Bank A opens with INIT and 21 original patterns for electronic music: seven acid lines with slides and accents, plus house and rolling basslines, trance and broken arps, techno stabs, plucks and leads. Between them they use every play mode, both pitch laws, odd loop lengths, skipped steps, ratchets and swing from row C, gate-length grooves and HOST sync.
 - **Patterns.** Two banks, A and B, of up to 999 patterns each. Click the pattern screen and type to search, or use the arrow keys. SAVE stores the panel, including its cables, as the next number in the lit bank. Saved patterns are shared by every BUSHIDO instance on the computer, and your host sees both banks as one program list.
 
 ### Clock
@@ -104,7 +105,7 @@ node web/test_bushido_redesign.js
 node web/test_bushido_parity.js
 ```
 
-`ctest` runs the engine, cable, sequencer and plugin suites. The Node tests cover the browser version. `test_bushido_parity.js` compiles the C++ engine with g++ and checks that the browser engine matches it sample for sample. After you change the browser engine, rebuild the pages with `python3 web/build_web.py` and `python3 web/build_rack.py`.
+`ctest` runs the engine, cable, sequencer and plugin suites. The Node tests cover the browser version. `test_bushido_parity.js` compiles the C++ engine with g++ (set `CXX` to use another compiler) and checks that the browser engine matches it sample for sample, factory patterns included. After you change the browser engine, or the factory bank (edit and run `python3 panel/build_patterns.py`), rebuild the pages with `python3 web/build_web.py` and `python3 web/build_rack.py`.
 
 ## Documentation
 

@@ -27,7 +27,7 @@ build, put the repository root and `third_party/jidai-common/include` on the inc
 | `ui/CableLayer.*` | JUCE | One overlay over all racks: draws cables and handles patching. |
 | `ui/PatternScreen.*` | JUCE | Dot-matrix pattern screen and list, drawn from the layout's `screen` rects. |
 | `assets/bushido_panel_bg.svg`, `assets/bushido_layout.json` | — | BUSHIDO panel art (vector) and geometry. |
-| `assets/bushido_patterns.json` | — | Factory bank, starting with the INIT pattern: parameter values by id plus cables by jack id. BYPASS lives in the processor, not the engine or the patterns. |
+| `assets/bushido_patterns.json` | — | Factory bank, INIT first, written by `panel/build_patterns.py`: parameter values by id plus cables by jack id. BYPASS lives in the processor, not the engine or the patterns. |
 
 ## Rules any host graph must keep
 - **One graph.** Run every module in one `PatchGraph`. Splitting the patch over two graphs, or hosting one plugin inside another, would give cables two timing laws.

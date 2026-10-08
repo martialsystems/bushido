@@ -1,17 +1,31 @@
 // C++ vs JS sample parity for BUSHIDO: builds a tiny harness around engine/BushidoModule.cpp under the system temp dir, runs the
 // same scenarios through it and through web/bushido_dsp.js, and compares every output on every sample plus the gate events.
-// Run: node web/test_bushido_parity.js   (needs g++; BUSHIDO_CPP_ROOT=<dir> uses another copy of the C++ sources)
+// Factory patterns with cables run through rack/PatchGraph.cpp on the C++ side and web/rack_engine.js's graph on the JS side.
+// Run: node web/test_bushido_parity.js   (needs a C++17 compiler: g++ by default, CXX=clang++ for another; BUSHIDO_CPP_ROOT=<dir> uses
+// another copy of the C++ sources). The harness is built with -ffp-contract=off, so no FMA contraction (aarch64, or x86 with FMA) can
+// change a float result: the comparison stays bit-exact on every machine.
 const fs = require("fs"), path = require("path"), os = require("os"), cp = require("child_process");
 const B = require(path.join(__dirname, "bushido_dsp.js")), P = B.P;
+global.BUSHIDO_DSP = B; global.RONIN_DSP = require(path.join(__dirname, "ronin_dsp.js")); const RACK = require(path.join(__dirname, "rack_engine.js"));
+const BANK = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "assets", "bushido_patterns.json"), "utf8")).patterns;
 const ROOT = process.env.BUSHIDO_CPP_ROOT || path.join(__dirname, ".."), TMP = path.join(os.tmpdir(), "bushido_parity");
 const HARNESS = String.raw`
 #include "engine/BushidoModule.h"
+#include "rack/PatchGraph.h"
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
 #include <map>
-#include <xmmintrin.h>
-// harness <sr> <block> <ftz> <inputs.f32> <script.txt> <out.f32> <events.txt>
+#if defined(__SSE__) || defined(_M_X64) || defined(_M_IX86)
+ #include <xmmintrin.h>
+ static void flushDenormals() { _mm_setcsr(_mm_getcsr() | 0x8040); }      // FTZ + DAZ, as JUCE ScopedNoDenormals
+#elif defined(__aarch64__)
+ static void flushDenormals() { unsigned long long r; __asm__ volatile("mrs %0, fpcr" : "=r"(r)); r |= 1ull << 24; __asm__ volatile("msr fpcr, %0" :: "r"(r)); }   // FZ, as JUCE
+#else
+ static void flushDenormals() {}
+#endif
+// harness <sr> <block> <ftz> <inputs.f32> <script.txt> <out.f32> <events.txt> [<cables.txt>]
+// With a cables file ("jackA jackB" per line, BUSHIDO to itself) the module runs inside a rack::PatchGraph and its inputs come from the cables.
 int main(int argc, char** argv)
 {
     if (argc == 2 && argv[1][0] == 'c') {                          // "c3": the shared pitch reference, for the JS port
@@ -21,7 +35,7 @@ int main(int argc, char** argv)
     }
     if (argc < 8) return 2;
     const double sr = atof(argv[1]); const int block = atoi(argv[2]);
-    if (atoi(argv[3])) _mm_setcsr(_mm_getcsr() | 0x8040);       // FTZ + DAZ, as JUCE ScopedNoDenormals
+    if (atoi(argv[3])) flushDenormals();
     FILE* fi = fopen(argv[4], "rb"); std::vector<float> in; float x; while (fread(&x, 4, 1, fi) == 1) in.push_back(x); fclose(fi);
     const int NIN = BushidoModule::NUM_IN; const long long N = (long long) in.size() / NIN;
     struct Act { char k; int idx; double v[3]; };
@@ -35,6 +49,10 @@ int main(int argc, char** argv)
     }
     fclose(fs);
     BushidoModule sq; const int nj = (int) sq.jacks().size(); sq.prepare(sr, block);
+    std::vector<rack::Cable> cab;
+    if (argc > 8) { FILE* fc = fopen(argv[8], "r"); int a, b; while (fscanf(fc, "%d %d", &a, &b) == 2) cab.push_back({ 0, a, 0, b }); fclose(fc); }
+    rack::PatchGraph graph; const bool inGraph = argc > 8;
+    if (inGraph) { graph.addModule(&sq); graph.prepare(sr, block); graph.setCables(cab); }
     std::vector<std::vector<float>> ib((size_t) nj, std::vector<float>((size_t) block)), ob((size_t) nj, std::vector<float>((size_t) block));
     std::vector<const float*> ip((size_t) nj); std::vector<float*> op((size_t) nj);
     for (int j = 0; j < nj; ++j) { ip[(size_t) j] = ib[(size_t) j].data(); op[(size_t) j] = ob[(size_t) j].data(); }
@@ -49,8 +67,8 @@ int main(int argc, char** argv)
         }
         const int n = (int) std::min<long long>(block, N - s0);
         for (int j = 0; j < nj; ++j) for (int i = 0; i < n; ++i) ib[(size_t) j][(size_t) i] = j < NIN ? in[(size_t) ((s0 + i) * NIN + j)] : 0.0f;
-        sq.process(ip.data(), op.data(), n);
-        for (int i = 0; i < n; ++i) for (int j = NIN; j < nj; ++j) fwrite(&ob[(size_t) j][(size_t) i], 4, 1, fo);
+        if (inGraph) { graph.process(n); for (int i = 0; i < n; ++i) for (int j = NIN; j < nj; ++j) fwrite(&graph.output(0, j)[i], 4, 1, fo); }
+        else { sq.process(ip.data(), op.data(), n); for (int i = 0; i < n; ++i) for (int j = NIN; j < nj; ++j) fwrite(&ob[(size_t) j][(size_t) i], 4, 1, fo); }
         BushidoModule::GateEvent ev[BushidoModule::kMaxEvents]; const int ke = sq.takeGateEvents(ev, BushidoModule::kMaxEvents);
         for (int e = 0; e < ke; ++e) fprintf(fe, "%lld %d %d %.9g %.9g\n", ev[e].sample, ev[e].jack, ev[e].on ? 1 : 0, (double) ev[e].target, (double) ev[e].cvC);
     }
@@ -59,11 +77,12 @@ int main(int argc, char** argv)
 `;
 let fails = 0, passes = 0;
 const CHECK = (c, msg) => { console.log((c ? "PASS " : "FAIL ") + msg); if (c) passes++; else fails++ };
-try { cp.execSync("g++ --version", { stdio: "ignore" }) } catch (e) { console.log("SKIP: no g++ on this machine, parity not checked"); process.exit(0) }
+const CXX = process.env.CXX || "g++";
+try { cp.execSync(`${CXX} --version`, { stdio: "ignore" }) } catch (e) { console.log(`SKIP: no ${CXX} on this machine, parity not checked`); process.exit(0) }
 fs.mkdirSync(TMP, { recursive: true });
 const exe = path.join(TMP, "harness");
 fs.writeFileSync(path.join(TMP, "harness.cpp"), HARNESS);
-cp.execSync(`g++ -std=c++17 -O2 -I"${ROOT}" -isystem "${path.join(ROOT, "third_party/jidai-common/include")}" "${path.join(TMP, "harness.cpp")}" "${path.join(ROOT, "engine/BushidoModule.cpp")}" -o "${exe}"`, { stdio: "inherit" });
+cp.execSync(`${CXX} -std=c++17 -O2 -ffp-contract=off -I"${ROOT}" -isystem "${path.join(ROOT, "third_party/jidai-common/include")}" "${path.join(TMP, "harness.cpp")}" "${path.join(ROOT, "engine/BushidoModule.cpp")}" "${path.join(ROOT, "rack/PatchGraph.cpp")}" -o "${exe}"`, { stdio: "inherit" });
 
 // the pitch reference: JS kC3Hz and hz() equal the shared jidai-common kC3Hz (exactly 440 x 2^(-21/12)) bit for bit
 {
@@ -82,11 +101,18 @@ function runBoth(sc) {
   const fIn = path.join(TMP, sc.tag + ".in.f32"), fSc = path.join(TMP, sc.tag + ".txt"), fOut = path.join(TMP, sc.tag + ".out.f32"), fEv = path.join(TMP, sc.tag + ".ev.txt");
   fs.writeFileSync(fIn, Buffer.from(inp.buffer));
   fs.writeFileSync(fSc, sc.acts.map(a => [a[1], a[0], ...a.slice(2)].join(" ")).join("\n") + "\n");   // "<kind> <at> ..."
-  cp.execFileSync(exe, [String(sc.sr), String(sc.block), sc.ftz ? "1" : "0", fIn, fSc, fOut, fEv]);
+  const args = [String(sc.sr), String(sc.block), sc.ftz ? "1" : "0", fIn, fSc, fOut, fEv];
+  if (sc.cables) { const fCb = path.join(TMP, sc.tag + ".cables.txt"); fs.writeFileSync(fCb, sc.cables.map(c => B.JACKS.indexOf(c[0]) + " " + B.JACKS.indexOf(c[1])).join("\n") + "\n"); args.push(fCb) }
+  cp.execFileSync(exe, args);
   const cOut = new Float32Array(fs.readFileSync(fOut).buffer.slice(0));
   const cEv = fs.readFileSync(fEv, "utf8").trim().split("\n").filter(Boolean).map(l => l.split(" ").map(Number));
   // JS: the same actions at the same samples, one sample at a time
-  const m = B.create(sc.sr); m.prepare(sc.sr); const pv = m.portValue, byAt = {};
+  let m, step;
+  if (sc.cables) {                                               // the same BUSHIDO inside the page's rack graph, patched to itself
+    const e = RACK.create(sc.sr); e.msg({ t: "devices", list: ["BUSHIDO#1"] }); e.msg({ t: "monitor", mode: "off" });
+    e.setCables(sc.cables.map(c => ["BUSHIDO#1/" + c[0], "BUSHIDO#1/" + c[1]])); m = e.devices["BUSHIDO#1"].sq; step = () => e.processGraph();
+  } else { m = B.create(sc.sr); m.prepare(sc.sr); step = () => m.processSample() }
+  const pv = m.portValue, byAt = {};
   for (const a of sc.acts) (byAt[a[0]] = byAt[a[0]] || []).push(a);
   let maxCv = 0, maxMix = 0, logicBad = 0, samplesOff = 0, exact = 0; const jEv = [];
   for (let t = 0; t < sc.N; t++) {
@@ -94,8 +120,8 @@ function runBoth(sc) {
       if (a[1] === "p") m.setParam(a[2], a[3]); else if (a[1] === "b") m.press(a[2]);
       else m.setTransport({ valid: a[2] !== 0, playing: a[3] !== 0, bpm: a[4], ppq: a[5], samplePos: t });
     }
-    for (let j = 0; j < NIN; j++) pv[j] = inp[t * NIN + j];
-    m.processSample();
+    if (!sc.cables) for (let j = 0; j < NIN; j++) pv[j] = inp[t * NIN + j];
+    step();
     let same = true;
     for (let k = 0; k < NOUT; k++) {
       const c = cOut[t * NOUT + k], v = pv[NIN + k], d = Math.abs(c - v), jack = NIN + k;
@@ -163,6 +189,17 @@ const knobActs = at => { const a = []; for (let i = 0; i < 36; i++) a.push([at, 
   for (let i = 1; i < 12; i++) acts.push([0, "p", P.STEPS + i, 0], [0, "p", P.STEPS + 12 + i, 0]);
   acts.push([256, "b", P.BTN_START, 1]);
   const sc = { name: "D FTZ 48k", tag: "d", sr: 48000, block: 256, ftz: true, N: 400128, input: () => 0, acts };
+  report(sc, runBoth(sc), true);
+}
+// E: factory patterns (assets/bushido_patterns.json) with their cables, in rack::PatchGraph vs web/rack_engine.js, 48 kHz, 8 s each:
+// a TRIG -> RESET loop with PULSE TRIGs, row C into TEMPO CV (ratchets), HZ/V LIN rests, and a HOST-synced A+B line
+for (const name of ["ACID SEVENS", "RATCHET ROLL", "ACID GHOSTS", "ACID VOYAGE"]) {
+  const q = BANK.find(x => x.name === name), blk = 512, N = 48000 * 8, sr = 48000;
+  const acts = Object.keys(q.params).map(id => [0, "p", B.PARAMS.findIndex(x => x.id === id), q.params[id]]);
+  const host = q.params["CLOCK:SOURCE"] > 0.5 && q.params["CLOCK:EXT SOURCE"] > 0.5;
+  if (host) for (let b = 0; b * blk < N; b++) acts.push([b * blk, "t", 1, 1, 120, +(b * blk * 120 / (60 * sr)).toFixed(12)]);
+  else acts.push([0, "b", P.BTN_START, 1]);
+  const sc = { name: "E factory " + name, tag: "e" + name.replace(/\W/g, ""), sr, block: blk, ftz: true, N, input: () => 0, acts, cables: q.cables };
   report(sc, runBoth(sc), true);
 }
 console.log(fails ? fails + " FAILED (" + passes + " passed)" : "ALL PASSED (" + passes + ")"); process.exit(fails ? 1 : 0);

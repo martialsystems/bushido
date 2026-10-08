@@ -20,7 +20,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 0.0; }
-    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory bank (assets/bushido_patterns.json, the INIT pattern);
+    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory bank (assets/bushido_patterns.json, INIT first);
     // SAVE appends the panel as the next number of a bank. Saved patterns go to a user file shared by every instance.
     // The host sees bank A then bank B as one program list.
     int getNumPrograms() override;
@@ -47,7 +47,8 @@ public:
     int loadedPattern() const { return curPattern.load(); }
     void loadPattern(int bank, int index);
     int savePattern(int bank, const juce::String& name);                // returns the new index, or -1 when the bank is full
-    static juce::File userPatternFile();
+    static juce::File userPatternFile();                                // per-user app data folder on every OS (JUCE's userApplicationDataDirectory)
+    static void setUserPatternFile(const juce::File& f);                 // tests only: point every instance at a temp file
     bool isBypassed() const { return bypass != nullptr && bypass->get(); }
     // The last load's migration report (SETUP tab): empty when the state was already format 1.
     std::vector<juce::String> migrationLines() const { const juce::ScopedLock sl(bankLock); return migration; }

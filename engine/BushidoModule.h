@@ -85,7 +85,7 @@ private:
     bool running = false;
     int pos = -1, chan = 0;
     double phase = 0.0, rate = 4.0;                  // internal clock, steps per second
-    double samplesInStep = 0.0, lastPeriod = 0.25;   // seconds
+    double samplesInStep = 0.0;
     double sinceTick = 0.0, settle = 2.0;
     float cvA = 0, cvB = 0, cvC = 0, tgtA = 0, tgtB = 0;
     bool gateOn = false;
@@ -96,7 +96,7 @@ private:
     std::atomic<double> hostBpmShown { 0.0 };
     long long sampleCount = 0, absorbUntil = -1000;   // START absorbs an EXT edge on its sample and the next 2
     // INT clock: exp2 only when TEMPO CV moves
-    double lastTempoCv = 1e30, lastTempoRate = -1.0, tempoFactor = 1.0;
+    double lastTempoCv = 1e30, lastTempoRate = -1.0;
     // HOST clock
     rack::Transport transport;
     int hostOffset = 0;

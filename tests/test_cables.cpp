@@ -49,7 +49,8 @@ int main() {
     bool coveredBefore = false; for (auto& n : nodes()) coveredBefore |= RectF{ 385, 330, 30, 9 }.contains(n, 6);
     h.setHoverLabel(0); for (int i = 0; i < 300; ++i) h.step();
     int inside = 0; auto p = nodes(); for (size_t i = 0; i + 1 < p.size(); ++i) { V2 mid{ (p[i].x + p[i + 1].x) / 2, (p[i].y + p[i + 1].y) / 2 }; inside += RectF{ 385, 330, 30, 9 }.contains(p[i]) + RectF{ 385, 330, 30, 9 }.contains(mid); }
-    CHECK(inside == 0, "hovering a label clears every rope node and segment off it");
+    CHECK(inside == 0, coveredBefore ? "hovering a label clears every rope node and segment off it (the cable lay on it before)"
+                                     : "hovering a label clears every rope node and segment off it (the cable missed it before)");
     h.setHoverLabel(-1); for (int i = 0; i < 300; ++i) h.step();
     V2 t = nodes()[CableModel::N / 2]; h.setPointer(true, t); for (int i = 0; i < 200; ++i) h.step();
     float md = 1e9f; for (auto& n : nodes()) md = std::min(md, std::hypot(n.x - t.x, n.y - t.y));

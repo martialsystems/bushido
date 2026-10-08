@@ -64,8 +64,12 @@ juce::var BushidoProcessor::patternToVar(const Pattern& pat)
     return juce::var(o);
 }
 
+static juce::File& userPatternFileOverride() { static juce::File f; return f; }
+void BushidoProcessor::setUserPatternFile(const juce::File& f) { userPatternFileOverride() = f; }
+
 juce::File BushidoProcessor::userPatternFile()
 {
+    if (userPatternFileOverride() != juce::File()) return userPatternFileOverride();
     return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("BUSHIDO").getChildFile("user_patterns.json");
 }
 
