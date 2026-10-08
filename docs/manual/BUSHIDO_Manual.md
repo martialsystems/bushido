@@ -236,7 +236,7 @@ BUSHIDO has 25 jacks: 7 inputs and 18 outputs. The ids are the names the jacks h
 
 Under V/OCT, BUSHIDO's lowest note is C3, because its CVs do not go below 0 V. To play bass lines, set the receiving voice an octave or two lower (for RONIN, VCO RANGE 16' or 32').
 
-Under HZ/V LIN, the top of the 5 V range is just below E5. With QUANT on, it snaps to D#5 (4.757 V). A step at 0 V is a rest: it sends no MIDI note. With QUANT on, anything below 1/32 V becomes exactly 0 V, so turning a step fully down makes a rest.
+Under HZ/V LIN, the top of the 5 V range is just below E5. With QUANT on, it snaps to D#5 (4.757 V). A step at 0 V is a rest: it sends no MIDI note (GATE A still opens). With QUANT on, anything below 1/32 V becomes exactly 0 V, so turning a step fully down makes a rest.
 
 **Mixer.** The two LEVEL knobs go from 0 to 1 (default 0.7), with 10 ms smoothing. The mixer is independent of the sequencer. Use it to mix two CVs, or to scale one CV with a single LEVEL.
 
@@ -354,31 +354,36 @@ FROM C applies to row A. In the accent patterns, row C at full gives velocity 12
 
 ### 6.2 RONIN patch ideas
 
-Each pattern sounds good on RONIN in the JIDAI RACK, or on any monophonic synth over MIDI. The basic voice for every idea is: CV A → VCO V/OCT, GATE A → EG 1 TRIG, VCO SAW → VCF IN → VCA 1 IN, and EG 1 OUT A → VCA 1 ENV. Add the cables and settings below. Section 11 shows the acid wiring the starter racks use, with RONIN's INT for slides.
+Each pattern sounds good on RONIN in the JIDAI RACK, or on any monophonic synth over MIDI. Every idea starts from RONIN's voice: VCO SAW → VCF IN → VCA 1 IN, VCA 1 OUT → OUTPUT WET, and EG 1 OUT A → VCA 1 ENV. Then BUSHIDO is patched in one of two ways:
 
-| Pattern | Add to the basic voice |
+- **Basic:** CV A → VCO V/OCT and GATE A → EG 1 TRIG.
+- **Acid** (the wiring of the starter racks, section 11.2): CV A → INT IN and INT OUT → VCO V/OCT, with the VCO at 16'. GATE A → EG 1 TRIG and EG 2 TRIG. CV C → VCF CUTOFF, together with EG 2 OUT +. INT TIME sets RONIN's slide.
+
+Add the cables and settings below.
+
+| Pattern | Wiring and settings |
 |---|---|
-| ACID CIRCUIT | VCO RANGE 16'. CV C → VCF CUTOFF for the accents. PEAK high, EG 1 short DECAY, low SUSTAIN. |
-| ACID GHOSTS | CV A → VCO **HZ/V** instead of V/OCT (8'). CV C → VCF CUTOFF. PEAK near self-oscillation, EG 1 fast ATTACK, short DECAY. RONIN's HZ/V input does not go silent at 0 V: on a rest step its VCO drops to its floor (about 6.5 Hz at 8'), and with no gate nothing sounds. |
-| ACID SLIDE | VCO 16'. EG 1 OUT A → VCF CUTOFF as well, with SUSTAIN up so the long gates hold. PEAK high, CUTOFF low. |
-| ACID SEVENS | VCO 16'. CV C → VCF CUTOFF. Resonant filter, snappy EG 1 (short DECAY, no SUSTAIN). |
-| ACID VOYAGE | VCO 16'. CV C → VCF CUTOFF. Resonant filter, EG 1 short DECAY, EG 1 OUT A → VCF CUTOFF. |
-| ACID SERPENT | VCO 16'. CV C → VCF CUTOFF. PEAK high, EG 1 short DECAY. |
-| ACID TUMBLE | VCO 16'. CV C → VCF CUTOFF. Resonant filter, snappy EG 1. |
-| GATED TRANCE | Medium PEAK, EG 1 fast DECAY with some SUSTAIN. |
-| SWING HOUSE | VCO 16'. Low PEAK, short DECAY, a round filter. |
-| TECHNO STABS | Medium PEAK, EG 1 very short DECAY, EG 1 OUT A → VCF CUTOFF with MOD up. |
-| PROG PLUCKS | A short pluck: EG 1 fast DECAY, no SUSTAIN, EG 1 OUT A → VCF CUTOFF with MOD up. Patch CV B and GATE B to a second voice for the answer. |
-| CALL ANSWER | RONIN plays the bass call. CV B and GATE B go to a second voice for the lead. |
-| HORIZON 24 | CV C → VCF CUTOFF. Long RELEASE, medium PEAK. |
-| FIVEFOLD ARP | Very short DECAY, a bright filter. |
-| ROLLING TEN | CV A → VCO **HZ/V**. Low PEAK, short DECAY. |
-| LINEAR LEAD | CV A → VCO **HZ/V**. Slow ATTACK, long RELEASE. For dynamics from row C: EG 1 OUT A → VCA 2 IN, CV C → VCA 2 CV, VCA 2 OUT → VCA 1 ENV (instead of EG 1 OUT A → VCA 1 ENV), VCA 2 INITIAL at 0. |
-| RATCHET ROLL | Very short DECAY so the rolls stay crisp. |
-| GLASS PLUCKS | CV C → VCF CUTOFF. Short DECAY, bright, a little PEAK. |
-| ANTHEM LEAD | Open filter, long RELEASE. Dynamics from row C through VCA 2, patched as for LINEAR LEAD. |
-| DEEP PULSE | VCO 16'. Low CUTOFF, medium PEAK, EG 1 OUT A → VCF CUTOFF. |
-| BROKEN ARP | Short DECAY, a resonant filter. |
+| ACID CIRCUIT | Acid. PEAK high, EG 1 short DECAY, low SUSTAIN. |
+| ACID GHOSTS | Acid, but INT OUT → VCO **HZ/V** (the linear input) instead of V/OCT, with the VCO at 8'. PEAK near self-oscillation, EG 1 fast ATTACK, short DECAY. RONIN's HZ/V input does not go silent at 0 V: on a rest step its VCO drops to its floor (about 6.5 Hz at 8'), and GATE A still fires. Over MIDI, a rest sends no note. |
+| ACID SLIDE | Acid. EG 1 SUSTAIN up so the long gates hold, PEAK high, CUTOFF low. |
+| ACID SEVENS | Acid. Resonant filter, snappy EG 1 (short DECAY, no SUSTAIN). |
+| ACID VOYAGE | Acid. Resonant filter, EG 1 short DECAY, short EG 2 RELEASE for a tight filter snap. |
+| ACID SERPENT | Acid. PEAK high, EG 1 short DECAY. |
+| ACID TUMBLE | Acid. Resonant filter, snappy EG 1. |
+| GATED TRANCE | Basic. Medium PEAK, EG 1 fast DECAY with some SUSTAIN. |
+| SWING HOUSE | Basic, VCO 16'. Low PEAK, short DECAY, a round filter. |
+| TECHNO STABS | Basic, plus EG 1 OUT A → VCF CUTOFF with MOD up. Medium PEAK, EG 1 very short DECAY. |
+| PROG PLUCKS | Basic, plus EG 1 OUT A → VCF CUTOFF with MOD up. A short pluck: EG 1 fast DECAY, no SUSTAIN. Patch CV B and GATE B to a second voice for the answer. |
+| CALL ANSWER | Basic: RONIN plays the bass call. CV B and GATE B go to a second voice for the lead. |
+| HORIZON 24 | Basic, plus CV C → VCF CUTOFF. Long RELEASE, medium PEAK. |
+| FIVEFOLD ARP | Basic. Very short DECAY, a bright filter. |
+| ROLLING TEN | Basic, but CV A → VCO **HZ/V**. Low PEAK, short DECAY. |
+| LINEAR LEAD | Basic, but CV A → VCO **HZ/V**. Slow ATTACK, long RELEASE. For dynamics from row C: EG 1 OUT A → VCA 2 IN, CV C → VCA 2 CV, VCA 2 OUT → VCA 1 ENV (instead of EG 1 OUT A → VCA 1 ENV), VCA 2 INITIAL at 0. |
+| RATCHET ROLL | Basic. Very short DECAY so the rolls stay crisp. |
+| GLASS PLUCKS | Basic, plus CV C → VCF CUTOFF. Short DECAY, bright, a little PEAK. |
+| ANTHEM LEAD | Basic. Open filter, long RELEASE. Dynamics from row C through VCA 2, patched as for LINEAR LEAD. |
+| DEEP PULSE | Basic, VCO 16', plus EG 1 OUT A → VCF CUTOFF with MOD up. Low CUTOFF, medium PEAK. |
+| BROKEN ARP | Basic. Short DECAY, a resonant filter. |
 
 Over MIDI, the velocity from FROM C does the job of the CV C accent cable.
 

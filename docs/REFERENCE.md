@@ -102,7 +102,7 @@ the settle in samples and the fixed transport rules; the MIDI tab the reference 
   FROM C (see the tab controls). CV A and CV B stay in volts on the jacks. The note comes from the jack's **target** volts (never the
   slewed CV, so PORTA cannot change it) under the row's PITCH LAW: V/OCT round(48 + 12 V), HZ/V LIN round(48 + 12 log2 V) with no note at
   or below 0 V, clamped to 0..127. Old patches' MIDI rises by 15 semitones under LIN (1 V was MIDI 33, now 48), so it matches
-  RONIN. Unless QUANT is SEMI, a step between semitones is rounded in MIDI but not on the jack. In the rack, MIDI goes to RACK I/O.
+  RONIN. Unless QUANT is SEMI, a step between semitones is rounded in MIDI but not on the jack. In the rack, no MIDI goes to the DAW: BUSHIDO plays devices through its jacks.
 - Buttons are not host-automatable; every knob and switch is.
 
 ## State format and migration

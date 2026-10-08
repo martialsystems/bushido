@@ -6,7 +6,7 @@ Every pattern is format 1 and sets every panel and tab parameter (0..1, the valu
 saved back from the panel equals its factory entry. Cables are [jack, jack, colour] with BUSHIDO jack ids, output first.
 Pitches are note names, stored as knob positions under the row's PITCH LAW (C3 = 130.81 Hz = MIDI 48 for both laws):
   V/OCT     0 V = C3, 1 V per octave:          knob = (note - 48) / 12 / RANGE
-  HZ/V LIN  1 V = C3, double the volts = +1 oct: knob = 2^((note - 48) / 12) / RANGE;  "-" = 0 V, a rest (no MIDI note, the VCO stops)
+  HZ/V LIN  1 V = C3, double the volts = +1 oct: knob = 2^((note - 48) / 12) / RANGE;  "-" = 0 V, a rest (no MIDI note; GATE A still opens, and a HZ/V VCO drops to its floor)
 Row C is 0..1: a CV of 0..5 V (velocity FROM C = round(1 + 126 C), accent CV for a filter), or in TIME mode the gate length 5..95 %.
 Tempo is stored as the TEMPO knob for a BPM at the pattern's DIV: TEMPO = log2(BPM x steps per beat / 60 / 0.5) / 6.
 Names: at most 12 characters (the screen shows "A001 " plus 12), in the screen's character set. All melodies are original."""
@@ -55,6 +55,12 @@ RESET=lambda n:(f"{n+1}:TRIG","INPUTS:RESET","yellow")      # TRIG N+1 -> RESET:
 SKIP=lambda n:(f"{n}:TRIG","INPUTS:STEP","white")           # TRIG N -> STEP: step N is skipped (it never reaches CV or GATE)
 TEMPOCV=("OUTPUTS:CV C","CLOCK:TEMPO CV","green")           # row C bends the internal clock: +1 V = twice as fast, per step
 ACC="Accents: VEL A = FROM C (C 1.0 = velocity 127, 0.5 = 64)."
+# RONIN acid wiring, as the JIDAI RACK starter racks patch it (make_starter_racks.py acid_voice): pitch through INT (the slide), the gate into
+# both EGs, the accent CV on VCF CUTOFF next to EG 2's filter snap. Voice: VCO SAW -> VCF -> VCA 1 -> OUTPUT WET, EG 1 OUT A -> VCA 1 ENV.
+ACID_GATE="GATE A -> EG 1:TRIG and EG 2:TRIG, CV C -> VCF:CUTOFF with EG 2:OUT + (INT:TIME sets the slide)"
+ACID=f"CV A -> INT:IN, INT:OUT -> VCO:V/OCT (16'), {ACID_GATE}"
+# Row C dynamics on RONIN: VCA 2 scales EG 1 before it opens VCA 1.
+VCA2="EG 1:OUT A -> VCA 2:IN, CV C -> VCA 2:CV, VCA 2:OUT -> VCA 1:ENV (VCA 2 INITIAL 0) for dynamics"
 
 # INIT: the engine defaults (BushidoModule's ParamInfo defaults), no cables. A fresh instance opens on it.
 INIT=dict(name="INIT",format=1,params={k:(0.5 if k[0] in "ABC" and k[1]==":" else 0.0) for k in PARAM_IDS},cables=[])
@@ -64,26 +70,26 @@ P=[
 # ---------------------------------------------------------------- ACID: 16ths at 124-135 BPM, slides (PORTA) and accents (row C)
 pat("ACID CIRCUIT",S("C3 C3 C4 C3 Eb3 C3 G3 Bb3 C3 F3 C4 Eb4"),C("1 .5 .5 .5 1 .5 .5 1 .5 .5 1 .5"),porta=(.09,0),bpm=126,vel=("FROM C","100"),
     desc="C minor 12-step acid line with octave jumps over a 16-step bar. Slides: PORTA A 0.09. "+ACC,
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF for the accents; PEAK high, EG 1 short DECAY, low SUSTAIN."),
+    ronin=ACID+"; PEAK high, EG 1 short DECAY, low SUSTAIN."),
 pat("ACID GHOSTS",S("A1 - A2 A1 - C2 A1 E2 A1 - G2 C3"),C("1 0 .5 .45 0 1 .45 .5 1 0 .45 1"),law=("LIN","VOCT"),rng=(1,5),porta=(.05,0),bpm=128,vel=("FROM C","100"),
-    desc="A minor bass for the linear input, with rests: a step at 0 V sends no MIDI note and stops a HZ/V VCO. RANGE 1 V spans the low octaves. Short PORTA 0.05 for small slides. "+ACC,
-    ronin="CV A -> VCO:HZ/V (8'), GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF; PEAK near self-oscillation, EG 1 fast ATTACK, short DECAY."),
+    desc="A minor bass for the linear input, with rests: a step at 0 V sends no MIDI note (on a HZ/V VCO it drops to the floor, about 6.5 Hz at 8'). RANGE 1 V spans the low octaves. Short PORTA 0.05 for small slides. "+ACC,
+    ronin="CV A -> INT:IN, INT:OUT -> VCO:HZ/V (8', the linear input), "+ACID_GATE+"; PEAK near self-oscillation, EG 1 fast ATTACK, short DECAY. GATE A still fires on a rest, with the VCO at its floor (about 6.5 Hz at 8')."),
 pat("ACID SLIDE",S("D3 D3 D4 F3 D3 A3 C4 D3 G3 F3 D4 A3"),C(".4 0 1 .4 0 1 .4 .4 1 .4 0 .4"),porta=(.11,0),cmode="TIME",bpm=124,
     desc="D minor line phrased with gate length (C MODE = TIME): C 1.0 holds the gate 95 % so the PORTA 0.11 glide sings into the next note, 0.4 is a normal note, 0 a 5 % blip.",
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG with SUSTAIN up so long gates hold; PEAK high, CUTOFF low, EG 1 -> filter MOD."),
+    ronin=ACID+"; EG 1 SUSTAIN up so long gates hold, PEAK high, CUTOFF low."),
 pat("ACID SEVENS",S("E3 E4 F3 E3 G3 E3 B3 E3 E3 E3 E3 E3"),C("1 .5 .5 1 .5 .45 1 .5 .5 .5 .5 .5"),quant=(0,1),porta=(.08,0),bpm=130,trig="PULSE",vel=("FROM C","100"),cables=[RESET(7)],
     desc="E phrygian 7-step loop (TRIG 8 -> RESET) that turns against the bar; TRIG jacks give 5 ms pulses. QUANT off (knobs sit exactly on the notes). PORTA 0.08. "+ACC,
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF; resonant filter, snappy EG 1 (short DECAY, no SUSTAIN)."),
+    ronin=ACID+"; resonant filter, snappy EG 1 (short DECAY, no SUSTAIN)."),
 pat("ACID VOYAGE",S("G3 G3 G4 Bb3 G3 F3 G3 D4 G3 Bb3 C4 G3"),C("1 .5 .5 .5 1 .5 .5 1 .5 1 .5 .5"),b=S("Eb3 Eb3 Eb4 G3 Eb3 F3 G3 Bb3 D3 D4 F3 A3"),mode="A+B",
     porta=(.07,0),bpm=128,clock="HOST",vel=("FROM C","100"),
     desc="G minor 24-step acid line (A+B: row A, then row B, on the A jacks), locked to the DAW grid in 1/16 (HOST). PORTA 0.07. "+ACC,
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF; resonant filter, short EG 1 DECAY into the filter."),
+    ronin=ACID+"; resonant filter, short EG 1 DECAY, short EG 2 RELEASE for a tight filter snap."),
 pat("ACID SERPENT",S("C3 Db3 C4 C3 Ab3 G3 C3 Db4 C3 Eb3 Bb3 C4"),C("1 .5 .5 .45 1 .5 .5 1 .5 .5 1 .5"),quant=(0,1),porta=(.1,0),bpm=135,settle="VINTAGE",vel=("FROM C","100"),
     desc="C phrygian line at 135 BPM, the flat second against octave jumps. SETTLE VINTAGE (0.6 ms), QUANT off, PORTA 0.10. "+ACC,
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF; PEAK high, EG 1 short DECAY, a little drive from the mixer."),
+    ronin=ACID+"; PEAK high, EG 1 short DECAY."),
 pat("ACID TUMBLE",S("F3 F4 Ab3 F3 F3 C4 F3 Eb4 F3 F3 Ab3 Bb3"),C("1 .5 .5 .5 1 .5 1 .5 .5 .5 1 .5"),porta=(.08,0),bpm=132,vel=("FROM C","100"),cables=[SKIP(4),SKIP(9)],
     desc="F minor line with steps 4 and 9 skipped (TRIG 4 and TRIG 9 -> STEP): a 10-step loop, so the accents tumble across the bar. PORTA 0.08. "+ACC,
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF; resonant filter, snappy EG 1."),
+    ronin=ACID+"; resonant filter, snappy EG 1."),
 # ---------------------------------------------------------------- EDM: arps, basslines, stabs, plucks, leads
 pat("GATED TRANCE",S("A3 C4 E4 A4 E4 C4 A3 C4 E4 A4 C5 E4"),C("1 .25 .6 .25 1 .25 .6 1 .25 .6 .25 .6"),cmode="TIME",bpm=138,
     desc="A minor arpeggio at 138 BPM, gated by row C (TIME): long and short gates make the trance stutter. 12 steps over a 16-step bar.",
@@ -93,11 +99,11 @@ pat("SWING HOUSE",S("F3 F4 F3 Ab3 F3 C4 Eb4 F3 Bb3 F3 Ab3 C4"),C("0 .141268 0 .1
     ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG; low PEAK, short DECAY, round filter."),
 pat("TECHNO STABS",S("D3 D3 F3 D3 A3 D3 C4 D3 D3 G3 F3 A3"),C(".12 .12 .3 .12 .12 .5 .12 .12 .3 .12 .12 .6"),cmode="TIME",bpm=130,div="1/8",
     desc="D minor stabs in eighth notes at 130 BPM (1/8): short TIME gates with a few longer ones.",
-    ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG; PEAK medium, EG 1 very short DECAY, EG 1 -> filter MOD."),
+    ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG, EG 1:OUT A -> VCF:CUTOFF (MOD up); PEAK medium, EG 1 very short DECAY."),
 pat("PROG PLUCKS",S("B3 D4 F#4 B3 E4 D4 B3 F#4 A4 F#4 D4 E4"),C(".5 .5 .5 .5 .5 .5 .5 .5 .5 .5 .5 .5"),b=S("B4 F#4 D5 B4 A4 F#4 E4 D4 F#4 A4 B4 C#5"),mode="ALT",
     bpm=124,div="1/8",clock="HOST",trig="PULSE",
     desc="B minor plucks in eighths, synced to the DAW (HOST, 1/8). ALT: row A on the A jacks (MIDI ch 1), then the answer an octave up on the B jacks (ch 2). TRIG PULSE.",
-    ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG; short pluck: EG 1 fast DECAY, no SUSTAIN, filter MOD up."),
+    ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG, EG 1:OUT A -> VCF:CUTOFF (MOD up); short pluck: EG 1 fast DECAY, no SUSTAIN. CV B and GATE B to a second voice for the answer."),
 pat("CALL ANSWER",S("C3 C3 G3 C3 Eb3 F3 C3 C3 Bb3 C4 G3 F3"),C(".5 .5 .5 .5 .5 .5 .5 .5 .5 .5 .5 .5"),b=S("G4 F4 Eb4 D4 C4 D4 F4 G4 A4 G4 Bb4 C5"),mode="ALT",
     rng=(1,5),quant=(1,0),porta=(0,.25),bpm=124,
     desc="C dorian call and response (ALT): a one-octave bass call on row A (RANGE 1 V, QUANT on, MIDI ch 1), a gliding lead answer on row B (RANGE 5 V, PORTA B 0.25, QUANT off, ch 2).",
@@ -114,7 +120,7 @@ pat("ROLLING TEN",S("E2 E3 E2 B2 G2 E2 D3 E2 B2 G2 E2 E2"),C(".5 .5 .5 .5 .5 .5 
     ronin="CV A -> VCO:HZ/V, GATE A -> EG 1:TRIG; low PEAK, short DECAY."),
 pat("LINEAR LEAD",S("A3 C4 E4 A4 G#4 B4 A4 E4 F4 D5 C5 B4"),C(".55 .6 .7 1 .6 .7 .8 .55 .6 1 .8 .7"),law=("LIN","VOCT"),porta=(.2,0),bpm=128,div="1/8",settle="VINTAGE",vel=("FROM C","100"),
     desc="A harmonic minor lead in eighths for the linear input (HZ/V LIN): PORTA 0.2 glides exponentially in pitch. SETTLE VINTAGE. Velocity FROM C for dynamics.",
-    ronin="CV A -> VCO:HZ/V, GATE A -> EG 1:TRIG, CV C -> VCA 2:CV for dynamics; slow ATTACK, long RELEASE."),
+    ronin="CV A -> VCO:HZ/V, GATE A -> EG 1:TRIG, "+VCA2+"; slow ATTACK, long RELEASE."),
 pat("RATCHET ROLL",S("G3 G4 Bb3 D4 D4 G3 F4 G3 D4 F4 G4 Bb4"),C("0 0 0 .2 .2 0 0 0 .4 .4 .4 .4"),bpm=128,cables=[TEMPOCV],
     desc="G minor line with ratchets from row C: CV C -> TEMPO CV doubles the clock on steps 4-5 (+1 V, a repeated note) and quadruples it on 9-12 (+2 V, a rising roll). The 12 steps fill 8 sixteenths.",
     ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG; very short DECAY so the rolls stay crisp."),
@@ -123,10 +129,10 @@ pat("GLASS PLUCKS",S("E3 G3 C4 G3 A3 E3 D3 G3 C3 A3 G3 D3"),C(".3 .5 .7 .5 .4 .6
     ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG, CV C -> VCF:CUTOFF; short DECAY, bright, a little PEAK."),
 pat("ANTHEM LEAD",S("C5 C5 A4 F4 G4 A4 Bb4 A4 G4 F4 G4 C4"),C(".8 .6 .7 .6 .75 .65 1 .7 .7 .6 .75 .9"),porta=(.15,0),bpm=128,vel=("FROM C","100"),
     desc="F major festival lead with PORTA 0.15 glide and velocity FROM C for phrasing.",
-    ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG, CV C -> VCA 2:CV; open filter, long RELEASE."),
+    ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG, "+VCA2+"; open filter, long RELEASE."),
 pat("DEEP PULSE",S("E3 E3 B3 E3 D4 E3 G3 E3 E3 B3 A3 G3"),C(".9 .1 .3 .1 .6 .1 .3 .1 .9 .1 .45 .2"),cmode="TIME",bpm=120,settle="VINTAGE",
     desc="E minor deep-house pulse at 120 BPM: long and short TIME gates, SETTLE VINTAGE.",
-    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG; low CUTOFF, medium PEAK, EG 1 -> filter MOD."),
+    ronin="CV A -> VCO:V/OCT (16'), GATE A -> EG 1:TRIG, EG 1:OUT A -> VCF:CUTOFF (MOD up); low CUTOFF, medium PEAK."),
 pat("BROKEN ARP",S("G3 B3 G3 D4 F4 G4 G3 B4 D5 B4 G3 F4"),C(".5 .5 .5 .5 .5 .5 .5 .5 .5 .5 .5 .5"),bpm=133,trig="PULSE",cables=[SKIP(3),SKIP(7),SKIP(11)],
     desc="G mixolydian arp with steps 3, 7 and 11 skipped (TRIG -> STEP): a 9-step loop at 133 BPM that breaks across the bar. TRIG PULSE.",
     ronin="CV A -> VCO:V/OCT, GATE A -> EG 1:TRIG; short DECAY, resonant filter."),

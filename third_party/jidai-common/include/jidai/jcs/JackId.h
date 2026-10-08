@@ -146,7 +146,7 @@ inline std::string formatJackId (std::string_view prefix, int number, std::strin
 // canonical jack. A unit declares its renames and their conversions in one place, its AliasTable.
 //   Identity      V' = V
 //   Lin55ToVoct   V' = log2(V) - 1.25  (old linear 1 V = 55 Hz input -> V/OCT, e.g. SHOGUN LEAD/BASS:HZ/V -> :NOTE);
-//                 V <= 0 -> -5 V (the rail), exactly pitch::lin55ToVoct
+//                 V floored at 1 mV (log2(max(V, 1e-3)) - 1.25 = -11.216 V at 0 V), exactly pitch::lin55ToVoct
 //   HzvLinToVoct  V' = log2(V)         (HZ/V LIN, 1 V = C3 -> V/OCT, 0 V = C3); V <= 0 -> -5 V
 //   VoctToHzvLin  V' = 2^V             (V/OCT -> HZ/V LIN)
 //   Scale         V' = scale * V + offset

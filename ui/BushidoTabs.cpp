@@ -353,7 +353,7 @@ void TabPage::paintMidi(juce::Graphics& g)
     lcd(g, { 640, 124, 320, 34 }, "V/OCT 0V  LIN 1V", 19);
     text(g, "fixed by the Jidai pitch standard", 800, 184, 10, kDim, false, 0.5f);
     text(g, "the 55 Hz / MIDI 33 reference is retired", 800, 200, 10, kDim, false, 0.5f);
-    text(g, "in the rack, MIDI goes to RACK I/O", 800, 250, 10, kDim, false, 0.5f);
+    text(g, "in the rack, no MIDI goes to the DAW: patch the jacks", 800, 250, 10, kDim, false, 0.5f);
 
     // monitor: what each jack pair is sending now (from the panel lamps and knobs, so it costs the audio thread nothing)
     block(g, { 30, 298, 1540, 106 }, "MIDI MONITOR");

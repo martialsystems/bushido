@@ -1,6 +1,7 @@
-Vendored copy of jidai-common 1.1.1 (Jidai Cable Standard v1.1, header-only C++17): include/jidai/ and README.md, unmodified.
+Vendored copy of jidai-common 1.1.2 (Jidai Cable Standard v1.1, header-only C++17): the whole jidai-common folder, unmodified
+(git archive 8a4b5ae jidai-common). BUSHIDO builds against include/ only; CMakeLists.txt and tests/ are jidai-common's own.
 source: /workspace/jidai-collection/jidai-common
 branch: redesign/jidai
-commit: 24ee62135a824e09e81f823b1eb277d9e0cc87b7   (jidai-common 1.1.1, "SHOGUN + RONIN fix batch"; local, not yet pushed)
-previous: 9d6e382843ec998016d37ab5a76af3150a92e9c7   (1.1.0 + jidai/dsp/; 1.1.1 makes kC3Hz the exact 130.8127826502993 Hz)
+commit: 8a4b5aecf3d6c2ac8900cc2e88db8feecf8440a8   (jidai-common 1.1.2, "AMT 0 transparent, group delay API, lin55 floor")
+previous: 24ee62135a824e09e81f823b1eb277d9e0cc87b7   (1.1.1: kC3Hz is the exact 130.8127826502993 Hz)
 license: jidai-common has no LICENSE file of its own; its headers carry "Copyright (c) 2026 Martial Systems LLC".

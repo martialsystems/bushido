@@ -10,21 +10,29 @@
 //     g = 1 + K_i*a,  K = (4, 2, 2)
 //     theta(x) = (pi/2)*g*(x + b)
 //     s(x) = sin theta(x) - sin theta(0)              static bias removed: s(0) = 0
-//     y = (1 - a)*x + a*s(x)                          a = 0 -> y = x exactly
+//     y = (1 - a)*x + a*s(x)                          a = 0 -> y = x exactly, for ANY b
 //   First-order ADAA per stage, in double, with the CURRENT sample's (a, b) for both terms:
 //     F(x) = (1 - a)*x^2/2 + a*( -(2/(pi*g))*cos theta(x) - x*sin theta(0) )
 //     y[n] = (F(x[n]) - F(x[n-1])) / (x[n] - x[n-1]);   |dx| < 1e-6 -> f((x[n] + x[n-1])/2)
-//   A stage is skipped (a true wire, no ADAA half-sample delay; its x[n-1] still updates) only when a = 0 and b = 0
-//   for the WHOLE block: the caller plans each block with TripleShaper::planBlock (controls, steady, vcLive). A stage
-//   whose a and b merely pass through 0 on some samples (modulation, a live VC, a smoothing ramp) keeps its ADAA, so
-//   the half-sample delay never toggles mid-stream. Without a plan no stage is skipped.
+//   A stage is skipped (a true wire, no ADAA half-sample delay; its x[n-1] still updates) when a = 0 for the WHOLE
+//   block, whatever its symmetry b (1.1.2: at a = 0 the stage law is y = x, so AMT 0 is transparent; before 1.1.2 a
+//   stage also needed b = 0 and otherwise ran ADAA on a straight line, which is a two-sample average: half a sample
+//   late and -6 dB at 10 kHz for three such stages at 48 kHz). The caller plans each block with
+//   TripleShaper::planBlock (controls, steady, vcLive). A stage whose a merely passes through 0 on some samples
+//   (modulation, a live VC with AMT depth, a smoothing ramp on an amount control) keeps its ADAA, so the half-sample
+//   delay never toggles mid-stream. Without a plan no stage is skipped.
+//   Group delay: every stage that runs (not a wire) adds the ADAA's half sample at the rate it runs at (0.5, 1.0 or
+//   1.5 samples for 1, 2 or 3 stages; a quarter sample per stage at the base rate when it runs at 2x).
+//   TripleShaper::groupDelay() gives it for the current plan. It depends on WAVE and is fractional, so it is NOT
+//   latency to report to a host (reporting it would change the host latency while a knob turns); a wet/dry mix
+//   that wants exact alignment must treat it as part of the wet path's tone.
 //   Macro m in [0,1] (front WAVE knob), staggered:
 //     c1 = clamp(2m), c2 = clamp(2m - 0.5), c3 = clamp(2m - 1)
 //     a_i = clamp(c_i + trim_i + mod_i + vc*vcToAmt_i, 0, 1)
 //     b_i = clamp(sym_i + modSym_i + vc*vcToSym_i, -1, 1)
 //   vc is the audio-rate VC in shaper units (volts/5): read per sample, never smoothed (FOLD VC / ORIGAMI VC 1-3).
-//   WAVE 0 with all trims and SYM at 0 (and no VC depth on a live source) is a true bypass: isBypass() tells the
-//   caller to skip the stages and LEVEL COMP so the output is bit-identical to the input.
+//   WAVE 0 with all amount trims at 0 (and no VC > AMT depth on a live source) is a true bypass, whatever the SYM
+//   settings (1.1.2): isBypass() tells the caller to skip the stages and LEVEL COMP so the output is bit-identical.
 //
 // ---- API ---------------------------------------------------------------------------------------------------
 //   namespace jidai::dsp
@@ -33,7 +41,8 @@
 //   macroAmounts (m, c[3])
 //   ShaperControls       { macro, trim[3], sym[3], vcToAmt[3], vcToSym[3] } (+ modAmt[3], modSym[3] for SHOGUN's matrix)
 //   ShaperControls::isBypass (vcLive)   true -> skip everything (bit-exact bypass)
-//   TripleShaper         three AdaaStages in series:  planBlock (ctl, steady, vcLive) once per block, then
+//   TripleShaper         three AdaaStages in series:  planBlock (ctl, steady, vcLive) once per block (groupDelay(),
+//                        runningStages() for the plan), then
 //                        double process (x, const ShaperControls&, double vc)
 //                        (one VC for every stage, SHOGUN) or process (x, ctl, const double vc[3]) (one VC per
 //                        stage, ORIGAMI); processStages (x, a[3], b[3]); stageParams (...); setAdaa (bool); reset()
@@ -82,7 +91,8 @@ class AdaaStage
 {
 public:
     bool adaa = true;
-    // Set per block by TripleShaper::planBlock: a and b are 0 on every sample of this block, so the stage is a wire.
+    // Set per block by TripleShaper::planBlock: a is 0 on every sample of this block, so the stage is a wire (y = x for
+    // any b).
     bool wire = false;
 
     void reset() noexcept { xPrev_ = 0.0; cacheValid_ = false; }
@@ -91,7 +101,7 @@ public:
     {
         if (wire)
         {
-            if (same (a, 0.0) && same (b, 0.0))
+            if (same (a, 0.0))
             {
                 xPrev_ = x;          // a true wire; keep the history so ADAA restarts cleanly
                 cacheValid_ = false;
@@ -149,14 +159,15 @@ struct ShaperControls
     double modAmt[3] { 0, 0, 0 };     // control-rate matrix sums (SHOGUN), 0 for ORIGAMI
     double modSym[3] { 0, 0, 0 };
 
-    // vcLive: a VC source is connected (jack patched or an internal source selected).
+    // vcLive: a VC source is connected (jack patched or an internal source selected). Symmetry (sym, modSym, vcToSym)
+    // does not count: with every amount at 0 each stage is y = x (1.1.2).
     bool isBypass (bool vcLive) const noexcept
     {
         if (! same (macro, 0.0)) return false;
         for (int i = 0; i < 3; ++i)
         {
-            if (! same (trim[i], 0.0) || ! same (sym[i], 0.0) || ! same (modAmt[i], 0.0) || ! same (modSym[i], 0.0)) return false;
-            if (vcLive && (! same (vcToAmt[i], 0.0) || ! same (vcToSym[i], 0.0))) return false;
+            if (! same (trim[i], 0.0) || ! same (modAmt[i], 0.0)) return false;
+            if (vcLive && ! same (vcToAmt[i], 0.0)) return false;
         }
         return true;
     }
@@ -168,10 +179,11 @@ public:
     void reset() noexcept { for (auto& s : st_) { s.reset(); s.wire = false; } }
     void setAdaa (bool on) noexcept { for (auto& s : st_) s.adaa = on; }
 
-    // Once per block, before its first sample (SHOGUN spec 4.6: a stage is skipped when it is 0 for the whole block).
-    // c: the block's controls without VC. steady: c does not change during the block (no smoothing ramp, no
-    // per-sample modulation). vcLive[i]: a VC source drives stage i. Stage i is a wire for the block when steady,
-    // its a and b are exactly 0, and no live VC has depth on it.
+    // Once per block, before its first sample (a stage is skipped when its amount is 0 for the whole block).
+    // c: the block's controls without VC. steady: the amount inputs (macro, trim, modAmt) do not change during the
+    // block (no smoothing ramp, no per-sample modulation); symmetry may move, it has no effect at a = 0.
+    // vcLive[i]: a VC source drives stage i. Stage i is a wire for the block when steady, its a is exactly 0, and no
+    // live VC has AMT depth on it (VC > SYM depth alone keeps the wire).
     void planBlock (const ShaperControls& c, bool steady, const bool vcLive[3]) noexcept
     {
         double m[3];
@@ -179,9 +191,8 @@ public:
         for (int i = 0; i < 3; ++i)
         {
             const double a = clamp01 (m[i] + c.trim[i] + c.modAmt[i]);
-            const double b = clampSym (c.sym[i] + c.modSym[i]);
-            const bool vcDrives = vcLive[i] && (! same (c.vcToAmt[i], 0.0) || ! same (c.vcToSym[i], 0.0));
-            st_[i].wire = steady && same (a, 0.0) && same (b, 0.0) && ! vcDrives;
+            const bool vcDrives = vcLive[i] && ! same (c.vcToAmt[i], 0.0);
+            st_[i].wire = steady && same (a, 0.0) && ! vcDrives;
         }
     }
     void planBlock (const ShaperControls& c, bool steady, bool vcLive) noexcept
@@ -190,6 +201,10 @@ public:
         planBlock (c, steady, live);
     }
     bool stageIsWire (int i) const noexcept { return i >= 0 && i < 3 && st_[i].wire; }
+    // Stages that run ADAA under the current plan, and their group delay in samples at the rate the shaper runs at
+    // (0.5 per stage). Not host latency: see the header comment.
+    int runningStages() const noexcept { return (st_[0].wire ? 0 : 1) + (st_[1].wire ? 0 : 1) + (st_[2].wire ? 0 : 1); }
+    double groupDelay() const noexcept { return 0.5 * (double) runningStages(); }
 
     static void stageParams (const ShaperControls& c, double vc, double a[3], double b[3]) noexcept
     {

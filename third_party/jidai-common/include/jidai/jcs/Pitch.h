@@ -105,9 +105,13 @@ inline double roninHzvLinHz (double volts) { return kC3Hz * (volts > kRoninLinFl
 
 // Migration (SHOGUN v2.0/2.1 HZ/V, old BUSHIDO MIDI law): linear 1 V = 55 Hz -> V/OCT.
 // V' = log2(V * 55 / C3) = log2(V) - 1.25 exactly (55 / C3 = 2^(-15/12)); no rounded constant enters.
+// 1.1.2: V is floored at kLin55Floor = 1 mV first (SHOGUN spec 12.3, log2(max(V, 1e-3)) - 1.25): 0 V, negative and NaN
+// inputs give log2(1e-3) - 1.25 = -11.216 V (was -5 V for V <= 0, and unbounded below 1 mV). Both are far below the
+// lowest playable note; receivers clamp pitch to the rail as usual.
+inline constexpr double kLin55Floor = 1.0e-3;
 inline double lin55ToVoct (double oldVolts)
 {
-    return oldVolts > 0.0 ? std::log2 (oldVolts) - kLin55Octaves : -kRail;
+    return std::log2 (oldVolts > kLin55Floor ? oldVolts : kLin55Floor) - kLin55Octaves;
 }
 
 // JCS R4.4: pitch outputs stop hard at +-5 V and raise the over-range flag.
