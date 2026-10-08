@@ -8,9 +8,9 @@
 //    one sample, older feedback cables stay zero-delay (their destinations run a second time);
 //  - S-15: a Gate source (logic, not strigVolts) into a non-Gate RONIN input gives 0 V while high and +5 V while low.
 // BUSHIDO inputs take plain volts (high above 1 V), so a RONIN logic gate reaches them as 0/5 V instead.
-// A device is named by its kind and number, as in JIDAI RACK: "SQ-10#1" is BUSHIDO 1, "MS-50#2" is RONIN 2. Jack ids are
-// SECTION:LABEL behind the device: "SQ-10#1/OUTPUTS:CV A", "MS-50#1/VCO:HZ/V".
-// Plain script: needs the globals SQ10 and MS50, defines RACK. Runs in an AudioWorklet, a ScriptProcessor or Node.
+// A device is named by its kind and number, as in JIDAI RACK: "BUSHIDO#1" is BUSHIDO 1, "RONIN#2" is RONIN 2. Jack ids are
+// SECTION:LABEL behind the device: "BUSHIDO#1/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V".
+// Plain script: needs the globals BUSHIDO_DSP and RONIN_DSP, defines RACK. Runs in an AudioWorklet, a ScriptProcessor or Node.
 var RACK = (function () {
   const ALLOWED = [[true, true, false], [true, true, false], [true, true, true]];
   const ti = t => (t === "Audio" ? 0 : t === "CV" ? 1 : 2);
@@ -42,21 +42,21 @@ var RACK = (function () {
     };
   }
 
-  const isB = key => key.startsWith("SQ-10#");
+  const isB = key => key.startsWith("BUSHIDO#");
 
   function create(sampleRate) {
     const sr = sampleRate;
-    const sqParam = {}; SQ10.create(sr).PARAMS.forEach(p => { sqParam[p.id] = p.def });
+    const sqParam = {}; BUSHIDO_DSP.create(sr).PARAMS.forEach(p => { sqParam[p.id] = p.def });
 
     // ---- devices, in rack order. Each one owns a run of modules in the graph: a BUSHIDO one, a RONIN sixteen. ----
     const devs = {};                     // key -> device
     let rackOrder = [], mods = [], desc = [], kindR = [], owner = [], n = 0;
     function makeDevice(key) {
       if (isB(key)) {
-        const sq = SQ10.create(sr); sq.sampleRate = sr; if (sq.prepare) sq.prepare(sr);
+        const sq = BUSHIDO_DSP.create(sr); sq.sampleRate = sr; if (sq.prepare) sq.prepare(sr);
         return { key, b: true, sq, modules: [sq], P: Object.assign({}, sqParam), bypass: false, voices: [Voice(sr), Voice(sr)] };
       }
-      const rack = MS50.createRack(sr);
+      const rack = RONIN_DSP.createRack(sr);
       rack.modules.forEach(m => { m.sampleRate = sr; if (m.prepare) m.prepare(sr) });
       return { key, b: false, rack, modules: rack.modules };
     }
@@ -78,7 +78,7 @@ var RACK = (function () {
     function resolve(id) {
       const slash = id.indexOf("/"); if (slash < 0) return null;
       const d = devs[id.slice(0, slash)], jack = id.slice(slash + 1); if (!d) return null;
-      if (d.b) { const p = SQ10.JACKS.indexOf(jack); return p < 0 ? null : { module: d.base, port: p } }
+      if (d.b) { const p = BUSHIDO_DSP.JACKS.indexOf(jack); return p < 0 ? null : { module: d.base, port: p } }
       const j = d.rack.jacks[jack]; return j ? { module: d.base + j.module, port: j.port } : null;
     }
     // Which way a cable between two jacks runs, and whether the graph takes it (same checks as attemptConnect).
@@ -144,7 +144,7 @@ var RACK = (function () {
         pv[c.dp] += v;
       }
     }
-    function run(mi) { mods[mi].processSample(); const d = owner[mi]; if (d.b && d.bypass) { d.sq.portValue[SQ10.GATE_A] = 0; d.sq.portValue[SQ10.GATE_B] = 0 } }
+    function run(mi) { mods[mi].processSample(); const d = owner[mi]; if (d.b && d.bypass) { d.sq.portValue[BUSHIDO_DSP.GATE_A] = 0; d.sq.portValue[BUSHIDO_DSP.GATE_B] = 0 } }
     function processGraph() {
       for (let mi = 0; mi < n; mi++) clearInputs(mi);
       for (let k = 0; k < order.length; k++) { const mi = order[k]; contribute(mi, false); run(mi) }
@@ -184,8 +184,8 @@ var RACK = (function () {
         if (!d.b) continue;
         const v = d.voices, pv = d.sq.portValue;
         if (monitor === "off" || d.bypass) { v[0](false, 0, 1000, 1); v[1](false, 0, 1000, 1); continue }
-        const time = d.P["CH:C MODE"] > 0.5, cut = time ? 900 : 250 + pv[SQ10.CV_C] / 5 * 5000;
-        sum += v[0](pv[SQ10.GATE_A] > 1, pv[SQ10.CV_A], cut, om[0]) + v[1](pv[SQ10.GATE_B] > 1, pv[SQ10.CV_B], cut, om[1]);
+        const time = d.P["CH:C MODE"] > 0.5, cut = time ? 900 : 250 + pv[BUSHIDO_DSP.CV_C] / 5 * 5000;
+        sum += v[0](pv[BUSHIDO_DSP.GATE_A] > 1, pv[BUSHIDO_DSP.CV_A], cut, om[0]) + v[1](pv[BUSHIDO_DSP.GATE_B] > 1, pv[BUSHIDO_DSP.CV_B], cut, om[1]);
       }
       return sum;
     }
@@ -217,8 +217,8 @@ var RACK = (function () {
   // Port types for the page (no audio): which jacks are inputs or outputs and what they carry, by jack id without
   // the device ("OUTPUTS:CV A", "VCO:HZ/V"), for each kind.
   function describe(sampleRate) {
-    const sq = SQ10.create(sampleRate || 48000), rack = MS50.createRack(sampleRate || 48000), B = {}, R = {};
-    SQ10.JACKS.forEach((id, p) => { B[id] = sq.port(p) });
+    const sq = BUSHIDO_DSP.create(sampleRate || 48000), rack = RONIN_DSP.createRack(sampleRate || 48000), B = {}, R = {};
+    BUSHIDO_DSP.JACKS.forEach((id, p) => { B[id] = sq.port(p) });
     for (const id in rack.jacks) { const j = rack.jacks[id]; R[id] = j ? rack.modules[j.module].port(j.port) : null }
     return { B, R, rack, port(id) { const k = id.indexOf("/"), dev = id.slice(0, k), jack = id.slice(k + 1); return (isB(dev) ? B : R)[jack] || null } };
   }

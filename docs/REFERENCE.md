@@ -1,8 +1,8 @@
 # BUSHIDO: how it behaves
 
-Source: `engine/Sq10Module.cpp`. Tests: `tests/test_engine.cpp`. Everything here is pinned by a test unless marked otherwise.
+Source: `engine/BushidoModule.cpp`. Tests: `tests/test_engine.cpp`. Everything here is pinned by a test unless marked otherwise.
 
-> The panel and the engine change together: edit `panel/build_panel.py` and `engine/Sq10Module.cpp` as a pair.
+> The panel and the engine change together: edit `panel/build_panel.py` and `engine/BushidoModule.cpp` as a pair.
 
 ## Signals
 Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 1 V and low again below 0.5 V.
@@ -49,7 +49,7 @@ Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 
 ## Plugin I/O (`plugin/PluginProcessor.cpp`)
 - The mixer is an audio utility only. Nothing is normalled through it from CV A or CV B.
 - Host audio input L/R is normalled to `MIXER:IN 1` / `IN 2` (1.0 full scale = 5 V); patching a cable into those jacks replaces it.
-  These normals belong to this plugin's processor (`PatchGraph::setNormal`), not to `Sq10Module`, so if the module is ever added to
+  These normals belong to this plugin's processor (`PatchGraph::setNormal`), not to `BushidoModule`, so if the module is ever added to
   another graph they are off unless that host sets them.
 - Main output = `MIXER:OUT` (5 V = 1.0), on both channels.
 - MIDI out is a **convenience, not the patch**: GATE A -> MIDI channel 1, GATE B -> channel 2 (so A+B plays all 24 steps on channel 1), velocity 100, note taken when the gate

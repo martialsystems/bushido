@@ -18,7 +18,7 @@ struct IndicatorInfo { std::string id; };                  // LEDs and meters, v
 class Module {
 public:
     virtual ~Module() = default;
-    virtual const char* name() const = 0;                  // rack name, e.g. "SQ-10" (BUSHIDO's rack id, kept for saved patches); global jack id = name + "/" + jack id
+    virtual const char* name() const = 0;                  // rack name, e.g. "BUSHIDO" (the rack id in saved patches); global jack id = name + "/" + jack id
     virtual const std::vector<JackInfo>& jacks() const = 0;
     virtual const std::vector<ParamInfo>& params() const = 0;
     virtual const std::vector<IndicatorInfo>& indicators() const { static const std::vector<IndicatorInfo> none; return none; }

@@ -1,10 +1,10 @@
-#include "Sq10Module.h"
+#include "BushidoModule.h"
 #include <cmath>
 #include <algorithm>
 
 using namespace rack;
 
-Sq10Module::Sq10Module() : ind(15)
+BushidoModule::BushidoModule() : ind(15)
 {
     jackList = { {"CLOCK:CLOCK", Dir::In}, {"CLOCK:TEMPO CV", Dir::In}, {"INPUTS:START/STOP", Dir::In}, {"INPUTS:STEP", Dir::In},
                  {"INPUTS:RESET", Dir::In}, {"MIXER:IN 1", Dir::In}, {"MIXER:IN 2", Dir::In},
@@ -26,9 +26,9 @@ Sq10Module::Sq10Module() : ind(15)
     indList.push_back({ "MODE:RUN" });                            // red lamp under START/STOP, lit while running
 }
 
-void Sq10Module::prepare(double sampleRate, int) { sr = sampleRate; settle = std::max(1.0, sr * 0.0006); }
+void BushidoModule::prepare(double sampleRate, int) { sr = sampleRate; settle = std::max(1.0, sr * 0.0006); }
 
-void Sq10Module::setParam(int i, float v)
+void BushidoModule::setParam(int i, float v)
 {
     if (paramList[(size_t) i].positions == -1) {                 // momentary: count presses on the rising edge
         if (v > 0.5f && values[(size_t) i].load() <= 0.5f) presses[(size_t) (i - BTN_START)].fetch_add(1);
@@ -39,7 +39,7 @@ void Sq10Module::setParam(int i, float v)
     values[(size_t) i].store(std::clamp(v, 0.0f, 1.0f));
 }
 
-bool Sq10Module::edge(int which, float v)                         // rising edge with hysteresis: high > 1 V, low < 0.5 V
+bool BushidoModule::edge(int which, float v)                         // rising edge with hysteresis: high > 1 V, low < 0.5 V
 {
     bool& h = high[(size_t) which];
     if (! h && v > 1.0f) { h = true; return true; }
@@ -47,18 +47,18 @@ bool Sq10Module::edge(int which, float v)                         // rising edge
     return false;
 }
 
-void Sq10Module::fire()                                           // start of a step on the current channel
+void BushidoModule::fire()                                           // start of a step on the current channel
 {
     samplesInStep = 0.0; gateOn = true;           // gate (and CV) start after the settle time, see process()
 }
 
-void Sq10Module::start()                                          // every start, including after a stop, begins at A step 1
+void BushidoModule::start()                                          // every start, including after a stop, begins at A step 1
 {
     running = true; pos = 0; chan = 0;
     phase = 0.0; fire();
 }
 
-void Sq10Module::reset()                                          // A step 1, keeps running (or stays stopped)
+void BushidoModule::reset()                                          // A step 1, keeps running (or stays stopped)
 {
     pos = 0; chan = 0;
     if (running) { phase = 0.0; fire(); } else gateOn = false;     // A1 gets a full clock period
@@ -68,7 +68,7 @@ void Sq10Module::reset()                                          // A step 1, k
 //   A    (0): row A, 12 steps, on the A jacks. The B jacks hold.
 //   A+B  (1): one 24-step sequence on the A jacks: steps 1-12 = row A, 13-24 = row B, then A1. The B jacks hold.
 //   ALT  (2): one row per pass, each on its own jacks: row A on the A jacks, then row B on the B jacks, and so on.
-void Sq10Module::tick()
+void BushidoModule::tick()
 {
     if (pos >= 0) lastPeriod = std::clamp(sinceTick, 0.005, 4.0);   // gate length for EXT and STEP: time since the last tick
     sinceTick = 0.0;
@@ -79,7 +79,7 @@ void Sq10Module::tick()
     fire();
 }
 
-void Sq10Module::process(const float* const* in, float* const* out, int n)
+void BushidoModule::process(const float* const* in, float* const* out, int n)
 {
     int pressNow[3];
     for (int b = 0; b < 3; ++b) { const int c = presses[(size_t) b].load(); pressNow[b] = c - pressesSeen[(size_t) b]; pressesSeen[(size_t) b] = c; }

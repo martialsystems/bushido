@@ -3,13 +3,13 @@
 #include "../rack/HzPerVolt.h"
 #include "BinaryData.h"
 
-juce::String Sq10Processor::paramIdFor(const std::string& id)
+juce::String BushidoProcessor::paramIdFor(const std::string& id)
 {
     juce::String s(id); juce::String out; for (auto ch : s) out << (juce::CharacterFunctions::isLetterOrDigit(ch) ? juce::String::charToString(ch) : juce::String("_"));
     return out;
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout Sq10Processor::makeLayout(const Sq10Module& m)
+juce::AudioProcessorValueTreeState::ParameterLayout BushidoProcessor::makeLayout(const BushidoModule& m)
 {
     juce::AudioProcessorValueTreeState::ParameterLayout l;
     for (auto& p : m.params()) {
@@ -21,16 +21,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout Sq10Processor::makeLayout(co
     return l;
 }
 
-Sq10Processor::Sq10Processor()
+BushidoProcessor::BushidoProcessor()
     : AudioProcessor(BusesProperties().withInput("Input", juce::AudioChannelSet::stereo(), true).withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-      apvts(*this, nullptr, "SQ10", makeLayout(sq))
+      apvts(*this, nullptr, "BUSHIDO", makeLayout(sq))
 {
     sqIndex = graph.addModule(&sq);
     for (auto& p : sq.params()) raw.push_back(p.positions == -1 ? nullptr : apvts.getRawParameterValue(paramIdFor(p.id)));
     lastSent.assign(raw.size(), -1.0f);
     bypass = dynamic_cast<juce::AudioParameterBool*>(apvts.getParameter("TOP_BYPASS"));
 
-    const auto d = juce::JSON::parse(juce::String::fromUTF8(BinaryData::sq10_patterns_json, BinaryData::sq10_patterns_jsonSize));
+    const auto d = juce::JSON::parse(juce::String::fromUTF8(BinaryData::bushido_patterns_json, BinaryData::bushido_patterns_jsonSize));
     if (auto* list = d["patterns"].getArray()) for (auto& pv : *list) banks[0].push_back(patternFromVar(pv));
     factoryCount = (int) banks[0].size();
     const auto u = juce::JSON::parse(userPatternFile());                 // patterns saved earlier, from any instance
@@ -41,17 +41,17 @@ Sq10Processor::Sq10Processor()
 
 static const char* kColourNames[] = { "red", "white", "yellow", "green" };
 
-Sq10Processor::Pattern Sq10Processor::patternFromVar(const juce::var& pv)
+BushidoProcessor::Pattern BushidoProcessor::patternFromVar(const juce::var& pv)
 {
     Pattern pat; pat.name = pv["name"].toString();
     if (auto* o = pv["params"].getDynamicObject()) for (auto& kv : o->getProperties()) pat.params.push_back({ kv.name.toString(), (float) kv.value });
     if (auto* cl = pv["cables"].getArray())
         for (auto& c : *cl) { int col = 0; for (int k = 0; k < 4; ++k) if (c[2].toString() == kColourNames[k]) col = k;
-            pat.cables.push_back({ "SQ-10/" + c[0].toString(), "SQ-10/" + c[1].toString(), col, (int) pat.cables.size() }); }
+            pat.cables.push_back({ "BUSHIDO/" + c[0].toString(), "BUSHIDO/" + c[1].toString(), col, (int) pat.cables.size() }); }
     return pat;
 }
 
-juce::var Sq10Processor::patternToVar(const Pattern& pat)
+juce::var BushidoProcessor::patternToVar(const Pattern& pat)
 {
     auto* o = new juce::DynamicObject(); o->setProperty("name", pat.name);
     auto* params = new juce::DynamicObject(); for (auto& [id, v] : pat.params) params->setProperty(id, v);
@@ -62,12 +62,12 @@ juce::var Sq10Processor::patternToVar(const Pattern& pat)
     return juce::var(o);
 }
 
-juce::File Sq10Processor::userPatternFile()
+juce::File BushidoProcessor::userPatternFile()
 {
     return juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("BUSHIDO").getChildFile("user_patterns.json");
 }
 
-void Sq10Processor::writeUserFile() const                                // bank A's factory patterns are not written
+void BushidoProcessor::writeUserFile() const                                // bank A's factory patterns are not written
 {
     auto* o = new juce::DynamicObject();
     for (int b = 0; b < 2; ++b) { juce::Array<juce::var> l; for (size_t i = b == 0 ? (size_t) factoryCount : 0; i < banks[b].size(); ++i) l.add(patternToVar(banks[b][i])); o->setProperty(b == 0 ? "A" : "B", l); }
@@ -75,14 +75,14 @@ void Sq10Processor::writeUserFile() const                                // bank
     f.replaceWithText(juce::JSON::toString(juce::var(o)));
 }
 
-juce::StringArray Sq10Processor::patternNames(int b) const
+juce::StringArray BushidoProcessor::patternNames(int b) const
 {
     const juce::ScopedLock sl(bankLock); juce::StringArray n;
     if (b == 0 || b == 1) for (auto& p : banks[b]) n.add(p.name);
     return n;
 }
 
-void Sq10Processor::loadPattern(int b, int i)
+void BushidoProcessor::loadPattern(int b, int i)
 {
     Pattern pat;
     { const juce::ScopedLock sl(bankLock); if ((b != 0 && b != 1) || ! juce::isPositiveAndBelow(i, (int) banks[b].size())) return; pat = banks[b][(size_t) i]; }
@@ -92,7 +92,7 @@ void Sq10Processor::loadPattern(int b, int i)
     if (onStateLoaded) onStateLoaded();
 }
 
-int Sq10Processor::savePattern(int b, const juce::String& name)
+int BushidoProcessor::savePattern(int b, const juce::String& name)
 {
     if (b != 0 && b != 1) return -1;
     Pattern pat; pat.name = name.trim().isEmpty() ? juce::String("PATTERN") : name.trim();
@@ -104,49 +104,49 @@ int Sq10Processor::savePattern(int b, const juce::String& name)
     return index;
 }
 
-int Sq10Processor::getNumPrograms() { const juce::ScopedLock sl(bankLock); return juce::jmax(1, (int) (banks[0].size() + banks[1].size())); }
-int Sq10Processor::getCurrentProgram() { const juce::ScopedLock sl(bankLock); return (curBank.load() == 1 ? (int) banks[0].size() : 0) + curPattern.load(); }
-void Sq10Processor::setCurrentProgram(int i)
+int BushidoProcessor::getNumPrograms() { const juce::ScopedLock sl(bankLock); return juce::jmax(1, (int) (banks[0].size() + banks[1].size())); }
+int BushidoProcessor::getCurrentProgram() { const juce::ScopedLock sl(bankLock); return (curBank.load() == 1 ? (int) banks[0].size() : 0) + curPattern.load(); }
+void BushidoProcessor::setCurrentProgram(int i)
 {
     int b = 0; { const juce::ScopedLock sl(bankLock); if (i >= (int) banks[0].size()) { b = 1; i -= (int) banks[0].size(); } }
     loadPattern(b, i);
 }
-const juce::String Sq10Processor::getProgramName(int i)
+const juce::String BushidoProcessor::getProgramName(int i)
 {
     const juce::ScopedLock sl(bankLock); const int b = i >= (int) banks[0].size() ? 1 : 0; if (b) i -= (int) banks[0].size();
     if (! juce::isPositiveAndBelow(i, (int) banks[b].size())) return {};
     return juce::String(b ? "B" : "A") + juce::String(i + 1).paddedLeft('0', 3) + " " + banks[b][(size_t) i].name;
 }
 
-bool Sq10Processor::isBusesLayoutSupported(const BusesLayout& l) const
+bool BushidoProcessor::isBusesLayoutSupported(const BusesLayout& l) const
 {
     const auto out = l.getMainOutputChannelSet(), in = l.getMainInputChannelSet();
     return (out == juce::AudioChannelSet::stereo() || out == juce::AudioChannelSet::mono()) && (in.isDisabled() || in == juce::AudioChannelSet::stereo() || in == juce::AudioChannelSet::mono());
 }
 
-void Sq10Processor::prepareToPlay(double sr, int block)
+void BushidoProcessor::prepareToPlay(double sr, int block)
 {
     maxBlock = juce::jmax(16, block);
     graph.prepare(sr, maxBlock);
     hostL.assign((size_t) maxBlock, 0.0f); hostR.assign((size_t) maxBlock, 0.0f);
-    graph.setNormal(sqIndex, Sq10Module::MIX_IN1, hostL.data()); graph.setNormal(sqIndex, Sq10Module::MIX_IN2, hostR.data());
+    graph.setNormal(sqIndex, BushidoModule::MIX_IN1, hostL.data()); graph.setNormal(sqIndex, BushidoModule::MIX_IN2, hostR.data());
     std::fill(lastSent.begin(), lastSent.end(), -1.0f);
     applyCables();
 }
 
-juce::RangedAudioParameter* Sq10Processor::parameter(const juce::String& id) const { return apvts.getParameter(paramIdFor(id.toStdString())); }
+juce::RangedAudioParameter* BushidoProcessor::parameter(const juce::String& id) const { return apvts.getParameter(paramIdFor(id.toStdString())); }
 
-void Sq10Processor::pressButton(const juce::String& id, bool down) { const int i = rack::findParam(sq, id.toStdString()); if (i >= 0) sq.setParam(i, down ? 1.0f : 0.0f); }
+void BushidoProcessor::pressButton(const juce::String& id, bool down) { const int i = rack::findParam(sq, id.toStdString()); if (i >= 0) sq.setParam(i, down ? 1.0f : 0.0f); }
 
-float Sq10Processor::indicator(const juce::String& id) const
+float BushidoProcessor::indicator(const juce::String& id) const
 {
     const auto& ind = sq.indicators(); for (size_t i = 0; i < ind.size(); ++i) if (ind[i].id == id.toStdString()) return sq.indicator((int) i);
     return 0.0f;
 }
 
-void Sq10Processor::setCables(const std::vector<CableSpec>& c) { cables = c; applyCables(); }
+void BushidoProcessor::setCables(const std::vector<CableSpec>& c) { cables = c; applyCables(); }
 
-void Sq10Processor::applyCables()
+void BushidoProcessor::applyCables()
 {
     std::vector<rack::Cable> out;
     auto resolve = [this](const juce::String& gid, int& mod, int& jack) {
@@ -161,7 +161,7 @@ void Sq10Processor::applyCables()
     graph.setCables(out);
 }
 
-void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
+void BushidoProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
     midi.clear();
@@ -179,14 +179,14 @@ void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
             for (int ch = 0; ch < 2; ++ch) { if (midiNote[ch] >= 0) midi.addEvent(juce::MidiMessage::noteOff(ch + 1, midiNote[ch]), o); midiNote[ch] = -1; gatePrev[ch] = false; }
             continue;
         }
-        const float* mix = graph.output(sqIndex, Sq10Module::MIX_OUT);
+        const float* mix = graph.output(sqIndex, BushidoModule::MIX_OUT);
         for (int c = 0; c < outCh; ++c) for (int i = 0; i < n; ++i) buffer.setSample(c, o + i, mix[i] * 0.2f);
         // MIDI out is a convenience, not the patch: channel A gates -> MIDI channel 1, B -> channel 2.
         // The note is the CV read as Hz/V, the Hz/V law (1 V = 55 Hz = A1, double the volts = one octave up).
         // 0 V and below is silent on a Hz/V VCO, so no note is sent for it.
         for (int ch = 0; ch < 2; ++ch) {
-            const float* g = graph.output(sqIndex, ch == 0 ? Sq10Module::GATE_A : Sq10Module::GATE_B);
-            const float* cv = graph.output(sqIndex, ch == 0 ? Sq10Module::CV_A : Sq10Module::CV_B);
+            const float* g = graph.output(sqIndex, ch == 0 ? BushidoModule::GATE_A : BushidoModule::GATE_B);
+            const float* cv = graph.output(sqIndex, ch == 0 ? BushidoModule::CV_A : BushidoModule::CV_B);
             for (int i = 0; i < n; ++i) {
                 const bool gh = g[i] > 1.0f;
                 if (gh && ! gatePrev[ch]) {
@@ -200,7 +200,7 @@ void Sq10Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuf
     }
 }
 
-void Sq10Processor::getStateInformation(juce::MemoryBlock& dest)
+void BushidoProcessor::getStateInformation(juce::MemoryBlock& dest)
 {
     auto state = apvts.copyState();
     juce::ValueTree cv("CABLES");
@@ -210,7 +210,7 @@ void Sq10Processor::getStateInformation(juce::MemoryBlock& dest)
     if (auto xml = state.createXml()) copyXmlToBinary(*xml, dest);
 }
 
-void Sq10Processor::setStateInformation(const void* data, int size)
+void BushidoProcessor::setStateInformation(const void* data, int size)
 {
     auto xml = getXmlFromBinary(data, size); if (! xml) return;
     auto state = juce::ValueTree::fromXml(*xml); if (! state.hasType(apvts.state.getType())) return;
@@ -224,4 +224,4 @@ void Sq10Processor::setStateInformation(const void* data, int size)
     if (onStateLoaded) onStateLoaded();
 }
 
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new Sq10Processor(); }
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new BushidoProcessor(); }

@@ -6,10 +6,10 @@
 #include <cmath>
 #include <algorithm>
 
-class Sq10Module : public rack::Module {
+class BushidoModule : public rack::Module {
 public:
-    Sq10Module();
-    const char* name() const override { return "SQ-10"; }
+    BushidoModule();
+    const char* name() const override { return "BUSHIDO"; }
     const std::vector<rack::JackInfo>& jacks() const override { return jackList; }
     const std::vector<rack::ParamInfo>& params() const override { return paramList; }
     const std::vector<rack::IndicatorInfo>& indicators() const override { return indList; }

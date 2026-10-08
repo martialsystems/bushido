@@ -7,17 +7,17 @@ set(JUCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../JUCE" CACHE PATH "Path to a JUCE 8 
 add_subdirectory(${JUCE_DIR} JUCE)
 
 # Framework-free core (no JUCE, no other synth types): module contract, patch graph, cable model, BUSHIDO engine
-add_library(rack_core STATIC rack/PatchGraph.cpp rack/CableModel.cpp engine/Sq10Module.cpp)
+add_library(rack_core STATIC rack/PatchGraph.cpp rack/CableModel.cpp engine/BushidoModule.cpp)
 target_include_directories(rack_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 set_target_properties(rack_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-juce_add_binary_data(BushidoAssets SOURCES assets/sq10_panel_bg.svg assets/sq10_layout.json assets/sq10_patterns.json)
+juce_add_binary_data(BushidoAssets SOURCES assets/bushido_panel_bg.svg assets/bushido_layout.json assets/bushido_patterns.json)
 
 juce_add_plugin(BUSHIDO
     COMPANY_NAME "Martial Systems"
     BUNDLE_ID com.martialsystems.bushido
-    PLUGIN_MANUFACTURER_CODE Sqcl
-    PLUGIN_CODE Sq10
+    PLUGIN_MANUFACTURER_CODE Mrsy
+    PLUGIN_CODE Bshd
     FORMATS VST3 AU Standalone
     PRODUCT_NAME "BUSHIDO"
     IS_SYNTH FALSE
