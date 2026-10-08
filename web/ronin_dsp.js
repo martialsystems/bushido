@@ -1,15 +1,15 @@
-// MS-50 (RONIN) modules for the web page: a line-for-line port of ms50modular Source/Modular/*.cpp plus the
-// host glue of Source/PluginProcessor.cpp, run one sample at a time. Plain script: defines the global MS50.
+// RONIN modules for the web page: a line-for-line port of RONIN Source/Modular/*.cpp plus the
+// host glue of Source/PluginProcessor.cpp, run one sample at a time. Plain script: defines the global RONIN_DSP.
 // Float32 math is reproduced with Math.fround wherever the C++ uses float (so results match the plugin to the
 // last bit or close to it); double math stays double. portValue is a Float32Array so a graph that sums cables
 // into it rounds exactly like the C++ `float portValue[8]`.
 //
 // Graph contract (PatchGraph.cpp is not ported): each sample the graph sets every input of every module like
-// clearModuleInputs (inputConnected = patched; unpatched Audio/CV input = MS50.restFor(desc), unpatched Gate
+// clearModuleInputs (inputConnected = patched; unpatched Audio/CV input = RONIN_DSP.restFor(desc), unpatched Gate
 // input left untouched; patched input = 0), then per module in dependency order adds every cable landing on it
-// (through MS50.graphRules.promote) into portValue and calls processSample(). The newest cable that closes a
+// (through RONIN_DSP.graphRules.promote) into portValue and calls processSample(). The newest cable that closes a
 // cycle reads its source value from the previous sample.
-var MS50 = (function () {
+var RONIN_DSP = (function () {
   "use strict";
   const F = Math.fround;
   const PI = 3.14159265358979323846;
@@ -699,7 +699,7 @@ var MS50 = (function () {
   function restFor(desc) { return desc.type === "Gate" ? undefined : desc.rest; }
 
   // ---------- panel maps ----------
-  // addModule order of MS50ModularAudioProcessor
+  // addModule order of RoninAudioProcessor
   const MOD = { Ext: 0, Output: 1, Noise: 2, Vcf: 3, Vca1: 4, Vca2: 5, Eg1: 6, Mg: 7, Vco: 8, Eg2: 9, Ring: 10, Divider: 11,
     Inverter: 12, Integrator: 13, Mixer: 14, SampleHold: 15 };
   // FaceKnobs.h bindings: [id, module, module knob, default travel]. host: knobs the processor applies itself.
@@ -857,7 +857,7 @@ var MS50 = (function () {
       beforeGraph(inL, inR) { ext.setHostSample(inL, inR); },
       // per sample, after graph.process(): left = output.hostLeft(), right = output.hostRight()
       afterGraph() { return [out.hostLeft(), out.hostRight()]; },
-      // MS50ModularAudioProcessor::setCurrentProgram. Resets every module (graph.prepare). The caller replaces
+      // RoninAudioProcessor::setCurrentProgram. Resets every module (graph.prepare). The caller replaces
       // its cable list with the returned cables (and should clear any delayed-cable memory).
       applyPreset(i) {
         if (i < 0 || i >= presets.length) return null;
@@ -894,4 +894,4 @@ var MS50 = (function () {
     MOD, presets, defaultPreset: kDefaultFactoryPreset,
   };
 })();
-if (typeof module !== "undefined") module.exports = MS50;
+if (typeof module !== "undefined") module.exports = RONIN_DSP;

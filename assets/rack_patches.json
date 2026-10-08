@@ -49,40 +49,40 @@
     },
     "cables": [
      [
-      "MS-50/VCO:SAW",
-      "MS-50/VCF:IN"
+      "RONIN/VCO:SAW",
+      "RONIN/VCF:IN"
      ],
      [
-      "MS-50/VCF:OUT",
-      "MS-50/VCA 1:IN"
+      "RONIN/VCF:OUT",
+      "RONIN/VCA 1:IN"
      ],
      [
-      "MS-50/VCA 1:OUT",
-      "MS-50/VCA 2:IN"
+      "RONIN/VCA 1:OUT",
+      "RONIN/VCA 2:IN"
      ],
      [
-      "MS-50/VCA 2:OUT",
-      "MS-50/OUTPUT:WET"
+      "RONIN/VCA 2:OUT",
+      "RONIN/OUTPUT:WET"
      ],
      [
-      "MS-50/VCF:OUT",
-      "MS-50/VCF:CUTOFF"
+      "RONIN/VCF:OUT",
+      "RONIN/VCF:CUTOFF"
      ],
      [
-      "SQ-10/OUTPUTS:CV A",
-      "MS-50/VCO:HZ/V"
+      "BUSHIDO/OUTPUTS:CV A",
+      "RONIN/VCO:HZ/V"
      ],
      [
-      "SQ-10/OUTPUTS:CV C",
-      "MS-50/VCF:CUTOFF"
+      "BUSHIDO/OUTPUTS:CV C",
+      "RONIN/VCF:CUTOFF"
      ],
      [
-      "SQ-10/OUTPUTS:GATE A",
-      "MS-50/EG 1:TRIG"
+      "BUSHIDO/OUTPUTS:GATE A",
+      "RONIN/EG 1:TRIG"
      ],
      [
-      "MS-50/EG 1:OUT A",
-      "MS-50/VCA 2:CV"
+      "RONIN/EG 1:OUT A",
+      "RONIN/VCA 2:CV"
      ]
     ],
     "power": true,
@@ -136,44 +136,44 @@
     },
     "cables": [
      [
-      "MS-50/VCO:SAW",
-      "MS-50/RING:A"
+      "RONIN/VCO:SAW",
+      "RONIN/RING:A"
      ],
      [
-      "MS-50/RING:OUT",
-      "MS-50/RING:B"
+      "RONIN/RING:OUT",
+      "RONIN/RING:B"
      ],
      [
-      "MS-50/RING:OUT",
-      "MS-50/VCF:IN"
+      "RONIN/RING:OUT",
+      "RONIN/VCF:IN"
      ],
      [
-      "MS-50/VCF:OUT",
-      "MS-50/VCA 1:IN"
+      "RONIN/VCF:OUT",
+      "RONIN/VCA 1:IN"
      ],
      [
-      "MS-50/VCA 1:OUT",
-      "MS-50/VCA 2:IN"
+      "RONIN/VCA 1:OUT",
+      "RONIN/VCA 2:IN"
      ],
      [
-      "MS-50/VCA 2:OUT",
-      "MS-50/OUTPUT:WET"
+      "RONIN/VCA 2:OUT",
+      "RONIN/OUTPUT:WET"
      ],
      [
-      "SQ-10/OUTPUTS:CV A",
-      "MS-50/VCO:HZ/V"
+      "BUSHIDO/OUTPUTS:CV A",
+      "RONIN/VCO:HZ/V"
      ],
      [
-      "SQ-10/OUTPUTS:CV C",
-      "MS-50/RING:B"
+      "BUSHIDO/OUTPUTS:CV C",
+      "RONIN/RING:B"
      ],
      [
-      "SQ-10/OUTPUTS:GATE A",
-      "MS-50/EG 1:TRIG"
+      "BUSHIDO/OUTPUTS:GATE A",
+      "RONIN/EG 1:TRIG"
      ],
      [
-      "MS-50/EG 1:OUT A",
-      "MS-50/VCA 2:CV"
+      "RONIN/EG 1:OUT A",
+      "RONIN/VCA 2:CV"
      ]
     ],
     "power": true,

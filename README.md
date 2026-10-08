@@ -23,7 +23,7 @@ VST3, AU and Standalone, built from one CMake project. Version 0.1 is a beta: it
 
 ## Try it in your browser
 
-`web/sq10.html` is a playable BUSHIDO, and `web/rack.html` patches BUSHIDO straight into RONIN, its Jidai Collection partner synth. Both open from disk in any modern browser.
+`web/bushido.html` is a playable BUSHIDO, and `web/rack.html` patches BUSHIDO straight into RONIN, its Jidai Collection partner synth. Both open from disk in any modern browser.
 
 ## Quick start
 
@@ -60,4 +60,4 @@ The Jidai Collection is Martial Systems' line of patchable instruments. Its piec
 
 Copyright © 2026 Martial Systems LLC. All rights reserved. See `LICENSE`.
 
-BUSHIDO is inspired by the Korg SQ-10. Korg and SQ-10 are trademarks of their respective owners. Martial Systems is not affiliated with or endorsed by Korg.
+BUSHIDO is inspired by classic Korg gear. Korg is a trademark of its owner. Martial Systems is not affiliated with or endorsed by Korg.

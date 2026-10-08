@@ -1,4 +1,4 @@
-"""Writes assets/sq10_patterns.json: the 10 factory patterns shown on the PATTERN screen (plugin and web page).
+"""Writes assets/bushido_patterns.json: the 10 factory patterns shown on the PATTERN screen (plugin and web page).
 Each pattern sets every panel parameter (0..1, the same values the plugin's parameters hold) and its cables.
 Pitches are written as note names and stored as knob positions for the Hz/V law at the 5 V range:
 1 V = A1 (MIDI 33), double the volts = one octave up, so knob = 2^((note-33)/12) / 5. The 5 V range tops out near C4."""
@@ -81,6 +81,6 @@ P=[
  pat("DUB TECHNO","A",S("D2 - - D2 - - D2 - F2 - D2 -"),S("A2 - - A2 - - A2 - C3 - A2 -"),
      [.5,.2,.15,.6,.2,.15,.7,.2,.55,.2,.4,.2],BPM(120),porta=(0.08,0)),
 ]
-out=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets","sq10_patterns.json")
+out=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets","bushido_patterns.json")
 json.dump(dict(note="Factory patterns for the PATTERN screen. Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.",patterns=P),open(out,"w"),indent=1)
 print(len(P),"patterns ->",out)

@@ -1,12 +1,12 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
-#include "../engine/Sq10Module.h"
+#include "../engine/BushidoModule.h"
 #include "../rack/PatchGraph.h"
 #include "../ui/CableLayer.h"
 
-class Sq10Processor : public juce::AudioProcessor {
+class BushidoProcessor : public juce::AudioProcessor {
 public:
-    Sq10Processor();
+    BushidoProcessor();
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout&) const override;
@@ -18,7 +18,7 @@ public:
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return true; }
     double getTailLengthSeconds() const override { return 0.0; }
-    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory patterns (assets/sq10_patterns.json);
+    // Patterns live in two banks, A and B, of up to 999 each. Bank A starts with the factory patterns (assets/bushido_patterns.json);
     // SAVE appends the panel as the next number of a bank. Saved patterns go to a user file shared by every instance.
     // The host sees bank A then bank B as one program list.
     int getNumPrograms() override;
@@ -48,7 +48,7 @@ public:
     static juce::File userPatternFile();
     bool isBypassed() const { return bypass != nullptr && bypass->get(); }
 
-    Sq10Module sq;                               // must come before apvts: the parameter layout is built from it
+    BushidoModule sq;                               // must come before apvts: the parameter layout is built from it
     rack::PatchGraph graph;
     juce::AudioProcessorValueTreeState apvts;
 
@@ -69,5 +69,5 @@ private:
     static juce::var patternToVar(const Pattern&);
     void writeUserFile() const;
     void applyCables();
-    static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout(const Sq10Module&);
+    static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout(const BushidoModule&);
 };

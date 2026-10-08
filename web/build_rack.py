@@ -1,19 +1,19 @@
 """Builds web/rack.html: the Jidai rack on one page. A device browser, and a rack of any number of BUSHIDOs and RONINs in one
 patch graph with one cable layer. Each device keeps its own layout (y from 0); the page stacks them.
-RONIN's panel art and layout come from the RONIN repo, martialsystems/Ronin (default: a clone named ronin next to this repo, or --ms50 DIR).
-Usage: python web/build_rack.py [--ms50 DIR] [--fragment OUT]"""
+RONIN's panel art and layout come from the RONIN repo, martialsystems/Ronin (default: a clone named ronin next to this repo, or --ronin DIR).
+Usage: python web/build_rack.py [--ronin DIR] [--fragment OUT]"""
 import base64,json,os,re,sys
 d=os.path.dirname(os.path.abspath(__file__)); a=os.path.join(d,"..","assets")
 arg=lambda k,dv:sys.argv[sys.argv.index(k)+1] if k in sys.argv else dv
-ms=arg("--ms50",os.path.join(d,"..","..","ronin"))
+ms=arg("--ronin",os.path.join(d,"..","..","ronin"))
 t=open(os.path.join(d,"rack_template.html")).read()
 b64=lambda p:"data:image/svg+xml;base64,"+base64.b64encode(open(p,"rb").read()).decode()
-lay=json.load(open(os.path.join(a,"sq10_layout.json")))
-pats=json.load(open(os.path.join(a,"sq10_patterns.json")))
+lay=json.load(open(os.path.join(a,"bushido_layout.json")))
+pats=json.load(open(os.path.join(a,"bushido_patterns.json")))
 rack=json.load(open(os.path.join(a,"rack_patches.json")))["patches"]   # bank B on both screens
 # RONIN's screen row has no bank lamps or SAVE key. Copy BUSHIDO's (sockets, A and B, the + key, SAVE) from its art:
 # both screens sit at the same x and y on their own panel. Elements are found by their spot on the panel.
-bg=open(os.path.join(a,"sq10_panel_bg.svg")).read()
+bg=open(os.path.join(a,"bushido_panel_bg.svg")).read()
 def bbox(el):
     m=re.search(r'\bcx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"',el)
     if m: x,y,r=map(float,m.groups()); return x-r,y-r,x+r,y+r
@@ -35,9 +35,9 @@ assert len(art)==9, len(art)
 rl=json.load(open(os.path.join(ms,"panel","assets","layout.json")))
 assert lay["canvas"][0]==rl["canvas"][0]==1600, "both panels are 1600 wide"
 for k in ("columns","bands"): rl.pop(k,None)
-dsp="\n".join(open(os.path.join(d,f)).read() for f in ("sq10_dsp.js","ms50_dsp.js","rack_engine.js"))
+dsp="\n".join(open(os.path.join(d,f)).read() for f in ("bushido_dsp.js","ronin_dsp.js","rack_engine.js"))
 assert "</script" not in dsp
-rep={"__PANEL__":b64(os.path.join(a,"sq10_panel_bg.svg")),"__RPANEL__":b64(os.path.join(ms,"panel","assets","panel_bg.svg")),
+rep={"__PANEL__":b64(os.path.join(a,"bushido_panel_bg.svg")),"__RPANEL__":b64(os.path.join(ms,"panel","assets","panel_bg.svg")),
      "__LAYOUT__":json.dumps(lay,separators=(",",":")),"__RLAYOUT__":json.dumps(rl,separators=(",",":")),
      "__PATTERNS__":json.dumps(pats,separators=(",",":")),"__RACKP__":json.dumps(rack,separators=(",",":")),"__BANKART__":json.dumps("".join(art)),"__DSP__":dsp}
 body=t

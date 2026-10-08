@@ -1,7 +1,7 @@
-// BUSHIDO engine for the web page: a line-for-line port of engine/Sq10Module.cpp, run one sample at a time
-// so it can share one patch graph with the RONIN modules. Plain script: defines the global SQ10.
+// BUSHIDO engine for the web page: a line-for-line port of engine/BushidoModule.cpp, run one sample at a time
+// so it can share one patch graph with the RONIN modules. Plain script: defines the global BUSHIDO_DSP.
 // Same module contract as the RONIN modules: numPorts(), port(i), processSample(), portValue[], inputConnected[].
-var SQ10 = (function () {
+var BUSHIDO_DSP = (function () {
   const JACKS = ["CLOCK:CLOCK", "CLOCK:TEMPO CV", "INPUTS:START/STOP", "INPUTS:STEP", "INPUTS:RESET", "MIXER:IN 1", "MIXER:IN 2",
     "OUTPUTS:CV A", "OUTPUTS:GATE A", "OUTPUTS:CV B", "OUTPUTS:GATE B", "OUTPUTS:CV C", "MIXER:OUT"];
   for (let i = 1; i <= 12; i++) JACKS.push(i + ":TRIG");
@@ -30,7 +30,7 @@ var SQ10 = (function () {
   const stepsPerSecond = t => 0.5 * Math.pow(2, t * 6);
 
   function create(sampleRate) {
-    const m = { name: "SQ-10", JACKS, PARAMS, portValue: new Float64Array(JACKS.length), inputConnected: new Array(JACKS.length).fill(false) };
+    const m = { name: "BUSHIDO", JACKS, PARAMS, portValue: new Float64Array(JACKS.length), inputConnected: new Array(JACKS.length).fill(false) };
     const values = PARAMS.map(p => p.def), presses = [0, 0, 0];
     let sr = sampleRate, settle = Math.max(1, sr * 0.0006);
     let running = false, pos = -1, chan = 0, phase = 0, rate = 4, samplesInStep = 0, lastPeriod = 0.25, sinceTick = 0;
@@ -54,7 +54,7 @@ var SQ10 = (function () {
     m.port = desc;
     m.prepare = r => { sr = r; settle = Math.max(1, sr * 0.0006) };
     m.paramIndex = id => PARAMS.findIndex(q => q.id === id);
-    m.setParam = (id, v) => {                                   // same snapping as Sq10Module::setParam
+    m.setParam = (id, v) => {                                   // same snapping as BushidoModule::setParam
       const i = m.paramIndex(id); if (i < 0) return;
       const q = PARAMS[i];
       if (q.positions === -1) { if (v > 0.5 && values[i] <= 0.5) presses[i - BTN_START]++; }
@@ -106,4 +106,4 @@ var SQ10 = (function () {
   }
   return { create, JACKS, stepsPerSecond, CV_A, CV_B, CV_C, GATE_A, GATE_B };
 })();
-if (typeof module !== "undefined") module.exports = SQ10;
+if (typeof module !== "undefined") module.exports = BUSHIDO_DSP;

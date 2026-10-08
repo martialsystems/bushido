@@ -1,8 +1,8 @@
 """BUSHIDO panel generator.
 Writes vector art in the Jidai Collection style, so the panel scales cleanly at any editor size:
-  assets/sq10_panel.svg     every part at its default (preview)
-  assets/sq10_panel_bg.svg  no live parts (knobs, switches, keys, lamps), for UIs that draw those on top
-  assets/sq10_layout.json   geometry for the plugin editor and the web version
+  assets/bushido_panel.svg     every part at its default (preview)
+  assets/bushido_panel_bg.svg  no live parts (knobs, switches, keys, lamps), for UIs that draw those on top
+  assets/bushido_layout.json   geometry for the plugin editor and the web version
 Labels are converted to outlines, so the SVGs need no font. Needs Python 3 with fonttools and pillow, and Liberation Sans Bold."""
 import math,json,random,os,re
 from PIL import ImageFont
@@ -222,7 +222,7 @@ def wear_svg():                     # vector wear: edge wear, scratches, dust, p
     return "".join(o)
 o=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","assets")+"/"; os.makedirs(o,exist_ok=True)
 full=text_to_paths(svg.replace("</svg>",wear_svg()+"</svg>"))
-open(o+"sq10_panel.svg","w").write(full)                                              # every part at its default
-open(o+"sq10_panel_bg.svg","w").write(re.sub(r'<g class="live">.*?</g>',"",full))     # no live parts: the editor and web page draw those on top
-json.dump(dict(rack="SQ-10",canvas=[W,H],provisional=True,frame=[M,FR_T,AVAIL,round(FR_B-FR_T,1)],lane=[M,round(FR_B,1),AVAIL,round(H-FR_B,1)],screen=dict(bezel=SCR_BEZEL,lcd=SCR_LCD,button=SCR_KEY,save=SAVE_KEY,banks=BANKS,chars=17,listRows=10,bankSize=999),name=NAME,
-  columns=cols,controls=controls,leds=leds,jacks=jacks,labels=[dict(text=t[4],rect=[round(t[0],1),round(t[1],1),round(t[2]-t[0],1),round(t[3]-t[1],1)]) for t in texts]),open(o+"sq10_layout.json","w"),indent=1)
+open(o+"bushido_panel.svg","w").write(full)                                              # every part at its default
+open(o+"bushido_panel_bg.svg","w").write(re.sub(r'<g class="live">.*?</g>',"",full))     # no live parts: the editor and web page draw those on top
+json.dump(dict(rack="BUSHIDO",canvas=[W,H],provisional=True,frame=[M,FR_T,AVAIL,round(FR_B-FR_T,1)],lane=[M,round(FR_B,1),AVAIL,round(H-FR_B,1)],screen=dict(bezel=SCR_BEZEL,lcd=SCR_LCD,button=SCR_KEY,save=SAVE_KEY,banks=BANKS,chars=17,listRows=10,bankSize=999),name=NAME,
+  columns=cols,controls=controls,leds=leds,jacks=jacks,labels=[dict(text=t[4],rect=[round(t[0],1),round(t[1],1),round(t[2]-t[0],1),round(t[3]-t[1],1)]) for t in texts]),open(o+"bushido_layout.json","w"),indent=1)
