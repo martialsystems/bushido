@@ -48,14 +48,560 @@ p.legal{font-size:.8rem;margin-top:16px}
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
   <div class="cell"><span class="k">CV B · Gate B</span><span class="v" id="r-b">0.00 V</span></div>
   <div class="cell"><span class="k">CV C</span><span class="v" id="r-c">0.00 V</span></div>
-  <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
+  <div class="cell"><span class="k">MIDI out</span><span class="v" id="r-midi">–</span></div>
 </div>
-<p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with the factory bank, INIT only for now. <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
+<p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with the factory bank: INIT, then acid lines, basslines, arps, plucks, stabs and leads. <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
 <b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> the green readout next to TEMPO is the same control in BPM; drag its digits (Shift = 0.1 BPM) or scroll. DIV sets the steps per beat (1/8, 1/16, 1/32): at 120 BPM and 1/16 the clock runs 8 steps per second. TEMPO CV still bends around it, and with SOURCE on EXT the readout shows EXT. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
-<b>Sound:</b> two Hz/V VCOs listen to CV A / GATE A and CV B / GATE B (1 V = 55 Hz × the octave setting above). In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
-<p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is inspired by classic Korg gear. Korg is a trademark of its owner; Martial Systems is not affiliated with or endorsed by Korg.</p>
+<b>Sound:</b> two VCOs listen to CV A / GATE A and CV B / GATE B under each row's PITCH LAW, by default the rack pitch standard, V/OCT with 0 V = C3 = 130.81 Hz (MIDI 48), at the footage set above (8' = C3). The sequencer is the plugin's engine, sample for sample. In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
+<p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is an original Martial Systems design inspired by classic Korg gear. Korg is a trademark of its owner. Martial Systems LLC is not affiliated with or endorsed by Korg.</p>
 </div>
+<script id="dsp">
+// BUSHIDO engine for the web page: a line-for-line port of engine/BushidoModule.cpp (with rack/PitchLaw.h, engine/MidiOut.h and
+// engine/BushidoState.h), run one sample at a time so it can share one patch graph with the RONIN modules. Plain script: defines
+// the global BUSHIDO_DSP. Same module contract as the RONIN modules: numPorts(), port(i), processSample(), portValue[], inputConnected[].
+// Clock, transport and pitch follow the Jidai Cable Standard v1.1 (JCS R4, R5); see docs/REFERENCE.md.
+// Parity: the C++ keeps parameters, CV and outputs in float and the clock in double. This port rounds to float (Math.fround) at
+// the same places, so for the same inputs it gives the same outputs sample for sample (tests: web/test_bushido_redesign.js).
+// Denormals (B11): the plugin runs under ScopedNoDenormals (FTZ/DAZ). Here the float CV state is flushed to 0 below the float
+// subnormal threshold (|x| < 1.17549435e-38), which is the same result as the plugin, not a new snap.
+var BUSHIDO_DSP = (function () {
+  const JACKS = ["CLOCK:CLOCK", "CLOCK:TEMPO CV", "INPUTS:START/STOP", "INPUTS:STEP", "INPUTS:RESET", "MIXER:IN 1", "MIXER:IN 2",
+    "OUTPUTS:CV A", "OUTPUTS:GATE A", "OUTPUTS:CV B", "OUTPUTS:GATE B", "OUTPUTS:CV C", "MIXER:OUT"];
+  for (let i = 1; i <= 12; i++) JACKS.push(i + ":TRIG");
+  const CLOCK_IN = 0, TEMPO_CV = 1, START_IN = 2, STEP_IN = 3, RESET_IN = 4, MIX_IN1 = 5, MIX_IN2 = 6,
+        CV_A = 7, GATE_A = 8, CV_B = 9, GATE_B = 10, CV_C = 11, MIX_OUT = 12, TRIG1 = 13;
+  // Port types for the shared graph. Inputs take raw volts (high above 1 V, low below 0.5 V), so they are CV.
+  // GATE and TRIG are V-trig logic (0/5 V): typed Gate, so RONIN's own gate law (S-15) turns them into S-trig volts
+  // when they feed a RONIN CV or audio input. Into BUSHIDO inputs they stay raw (a TRIG into RESET still works).
+  function desc(i) {
+    const name = JACKS[i], dir = i < CV_A ? "In" : "Out";
+    let type = "CV";
+    if (i === MIX_IN1 || i === MIX_IN2 || i === MIX_OUT) type = "Audio";
+    if (i === GATE_A || i === GATE_B || i >= TRIG1) type = "Gate";
+    return { name, type, dir, rest: 0, strigVolts: false };
+  }
+  const f32 = Math.fround;
+  // Indices 0..DIV are the v1 front panel and never move. Everything after DIV lives on a tab (CLOCK, STEPS, MIDI).
+  const PARAMS = [];
+  for (const r of "ABC") for (let i = 1; i <= 12; i++) PARAMS.push({ id: r + ":" + i, def: 0.5, positions: 0 });
+  PARAMS.push({ id: "CH:PORTA A", def: 0, positions: 0 }, { id: "CH:PORTA B", def: 0, positions: 0 }, { id: "CH:RANGE A", def: 1, positions: 2 },
+    { id: "CH:RANGE B", def: 1, positions: 2 }, { id: "CH:C MODE", def: 0, positions: 2 }, { id: "CLOCK:TEMPO", def: 0.5, positions: 0 },
+    { id: "CLOCK:SOURCE", def: 0, positions: 2 }, { id: "MODE:MODE", def: 0.5, positions: 3 }, { id: "MODE:START/STOP", def: 0, positions: -1 },
+    { id: "MODE:STEP", def: 0, positions: -1 }, { id: "MODE:RESET", def: 0, positions: -1 }, { id: "MIXER:LEVEL 1", def: 0.7, positions: 0 },
+    { id: "MIXER:LEVEL 2", def: 0.7, positions: 0 }, { id: "CLOCK:DIV", def: 0.5, positions: 3 });
+  PARAMS.push(                                                    // tab controls (the front panel is unchanged)
+    { id: "CLOCK:EXT SOURCE", def: 0, positions: 2 },             // JACK / HOST, used when the front SOURCE switch is at EXT
+    { id: "CLOCK:SETTLE", def: 0, positions: 2 },                 // TIGHT (2 samples, new patches) / VINTAGE (0.6 ms, migrated patches)
+    { id: "CLOCK:TRIG MODE", def: 0, positions: 2 },              // STEP (whole step, default) / PULSE (5 ms)
+    { id: "STEPS:LAW A", def: 0, positions: 2 }, { id: "STEPS:LAW B", def: 0, positions: 2 },       // V/OCT (default) / HZ/V LIN
+    { id: "STEPS:QUANT A", def: 0, positions: 2 }, { id: "STEPS:QUANT B", def: 0, positions: 2 },   // OFF / SEMI
+    { id: "MIDI:CH A", def: 0, positions: 16 }, { id: "MIDI:CH B", def: f32(1 / 15), positions: 16 }, // channel 1..16 (A on 1, B on 2)
+    { id: "MIDI:VEL A", def: 0, positions: 2 }, { id: "MIDI:VEL B", def: 0, positions: 2 });        // 100 / FROM C
+  const STEPS = 0, PORTA_A = 36, PORTA_B = 37, RANGE_A = 38, RANGE_B = 39, C_MODE = 40, TEMPO = 41, SOURCE = 42, MODE = 43,
+        BTN_START = 44, BTN_STEP = 45, BTN_RESET = 46, LEVEL1 = 47, LEVEL2 = 48, DIV = 49,
+        EXT_SOURCE = 50, SETTLE = 51, TRIG_MODE = 52, LAW_A = 53, LAW_B = 54, QUANT_A = 55, QUANT_B = 56,
+        MIDI_CH_A = 57, MIDI_CH_B = 58, VEL_A = 59, VEL_B = 60, NUM_PARAMS = 61, NUM_V1_PARAMS = DIV + 1;
+  const P = { STEPS, PORTA_A, PORTA_B, RANGE_A, RANGE_B, C_MODE, TEMPO, SOURCE, MODE, BTN_START, BTN_STEP, BTN_RESET, LEVEL1, LEVEL2, DIV,
+              EXT_SOURCE, SETTLE, TRIG_MODE, LAW_A, LAW_B, QUANT_A, QUANT_B, MIDI_CH_A, MIDI_CH_B, VEL_A, VEL_B, NUM_PARAMS, NUM_V1_PARAMS };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const lround = x => (x < 0 ? -Math.round(-x) : Math.round(x));  // C++ std::round / std::lround: halves away from zero
+  const FLT_MIN = 1.17549435e-38;
+  const ftz = x => (Math.abs(x) < FLT_MIN ? 0 : x);               // float op under FTZ/DAZ: a subnormal result is 0
+  const f32z = x => ftz(f32(x));
+
+  // Tempo in two units (BushidoModule.h). TEMPO is the internal clock in steps per second; DIV (1/8, 1/16, 1/32) only sets the
+  // BPM readout's unit (2, 4 or 8 steps per beat) and the HOST step size. It never changes the INT clock.
+  const stepsPerSecond = t => 0.5 * Math.pow(2, t * 6);           // 0.5..32 steps/s
+  const stepsPerBeat = d => 2 << lround(f32(clamp(d, 0, 1) * 2));
+  const bpm = (t, d) => stepsPerSecond(t) * 60 / stepsPerBeat(d);
+  const tempoForBpm = (b, d) => f32(clamp(Math.log2(Math.max(1e-6, b * stepsPerBeat(d) / 60 / 0.5)) / 6, 0, 1));
+
+  // ---- rack/PitchLaw.h (JCS R4). 0 V = C3 = 130.8127826502993 Hz (jidai-common kC3Hz, exactly 440 x 2^(-21/12)) = MIDI 48. The old 55 Hz / MIDI 33 reference is retired. ----
+  const pitch = (function () {
+    const Law = { VOct: 0, HzvLin: 1 }, kC3Hz = 130.8127826502993, kRefNote = 48, kRail = 5, kLinFloor = 1 / 32;
+    const note = (law, v) => (law === Law.VOct ? kRefNote + 12 * v : v > 0 ? kRefNote + 12 * Math.log2(v) : NaN);
+    const hz = (law, v) => (law === Law.VOct ? kC3Hz * Math.pow(2, v) : v > 0 ? kC3Hz * v : 0);
+    function midiNote(law, v) { const n = note(law, v); if (Number.isNaN(n)) return -1; const r = lround(n); return r < 0 ? 0 : r > 127 ? 127 : r }
+    function quantize(law, v) {                                   // QUANT SEMI, never past the +-5 V rail
+      if (law === Law.VOct) { let s = lround(12 * v); if (s / 12 > kRail) s -= 1; if (s / 12 < -kRail) s += 1; return s / 12 }
+      if (v < kLinFloor) return 0;
+      let s = lround(12 * Math.log2(v)); if (Math.pow(2, s / 12) > kRail) s -= 1;
+      return Math.pow(2, s / 12);
+    }
+    const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const noteName = n => (n < 0 ? "--" : NAMES[n % 12] + (Math.floor(n / 12) - 1));   // 48 = "C3"
+    return { Law, kC3Hz, kRefNote, kRail, kLinFloor, note, hz, midiNote, quantize, noteName };
+  })();
+
+  // ---- engine/MidiOut.h: the MIDI convenience out, from the gate events (note from the TARGET volts under the row's law). ----
+  function createMidiOut() {
+    const note = [-1, -1], chan = [1, 2];
+    const channel = (m, j) => 1 + lround(f32(m.getParam(j === 0 ? MIDI_CH_A : MIDI_CH_B) * 15));
+    function velocity(m, j, cvC) {
+      const fromC = m.getParam(j === 0 ? VEL_A : VEL_B) > 0.5 && m.getParam(C_MODE) < 0.5;
+      if (!fromC) return 100;
+      const v = lround(1 + 126 * cvC / 5); return v < 1 ? 1 : v > 127 ? 127 : v;
+    }
+    function handle(m, ev, emit) {                                // emit({sample, channel, note, velocity, on}) in order
+      for (const g of ev) {
+        const j = g.jack;
+        if (g.on) {
+          if (note[j] >= 0) emit({ sample: g.sample, channel: chan[j], note: note[j], velocity: 0, on: false });
+          note[j] = pitch.midiNote(m.law(j), g.target); chan[j] = channel(m, j);
+          if (note[j] >= 0) emit({ sample: g.sample, channel: chan[j], note: note[j], velocity: velocity(m, j, g.cvC), on: true });
+        } else if (note[j] >= 0) { emit({ sample: g.sample, channel: chan[j], note: note[j], velocity: 0, on: false }); note[j] = -1 }
+      }
+    }
+    function allOff(sample, emit) { for (let j = 0; j < 2; j++) if (note[j] >= 0) { emit({ sample, channel: chan[j], note: note[j], velocity: 0, on: false }); note[j] = -1 } }
+    return { handle, allOff, channel, velocity };
+  }
+
+  // ---- engine/BushidoState.h: state format and migration (JCS R6, R7). A pattern without `format` is v1 (format 0). ----
+  const FORMAT = 1;
+  // Jack ids are read exactly as stored (JCS R6): no prefix aliases, so an unknown prefix simply binds to nothing.
+  function splitJack(gid) {                                       // "BUSHIDO#1/OUTPUTS:CV A" -> ["BUSHIDO", "OUTPUTS:CV A"]
+    const colon = gid.indexOf(":"), slash = gid.indexOf("/");     // the prefix ends at the first "/" before the first ":"
+    if (slash < 0 || (colon >= 0 && slash > colon)) return ["", gid];   // bare, e.g. "INPUTS:START/STOP"
+    let dev = gid.slice(0, slash); const hash = dev.indexOf("#"); if (hash >= 0) dev = dev.slice(0, hash);
+    return [dev, gid.slice(slash + 1)];
+  }
+  // params: {id: value}, changed in place. cables: [[jackId, jackId], ...] (a third entry, the colour, is ignored).
+  // self: this instance's rack key ("BUSHIDO#1"), or "" when the file is this unit's own (bare ids).
+  function migrate(fromFormat, params, cables, self) {
+    self = self || "";
+    const r = { fromFormat, readOnly: false, lines: [], law: [0, 0], lawMismatch: [false, false] };
+    if (fromFormat > FORMAT) { r.readOnly = true; r.lines.push("Saved by a newer BUSHIDO (format " + fromFormat + "): loaded read-only"); return r }
+    if (fromFormat >= FORMAT) return r;
+    // 0 -> 1. Patterns, knob volts, PORTA and SOURCE are untouched, so every cable carries exactly the same volts.
+    params["CLOCK:SETTLE"] = 1; r.lines.push("SETTLE = VINTAGE (0.6 ms, as before)");
+    params["CLOCK:TRIG MODE"] = 0; r.lines.push("TRIG MODE = STEP");
+    params["CLOCK:EXT SOURCE"] = 0;                               // SOURCE stays as stored; never flipped to HOST
+    const cvJack = ["OUTPUTS:CV A", "OUTPUTS:CV B"];
+    const mine = (end, raw) => {
+      if (!end[0]) return true;                                   // bare id: this unit's own file
+      if (end[0] !== "BUSHIDO") return false;
+      if (!self) return true;                                     // outside the rack: every BUSHIDO end is this one
+      return raw.startsWith(self + "/") || (self === "BUSHIDO#1" && raw.startsWith("BUSHIDO/"));
+    };
+    for (let row = 0; row < 2; row++) {
+      let toLin = false, toVoct = false;
+      for (const cab of cables || []) {
+        const a = cab[0], b = cab[1], ea = splitJack(a), eb = splitJack(b);
+        for (let side = 0; side < 2; side++) {
+          const src = side === 0 ? ea : eb, dst = side === 0 ? eb : ea, srcRaw = side === 0 ? a : b;
+          if (src[1] !== cvJack[row] || !mine(src, srcRaw)) continue;
+          if (dst[0] === "RONIN" && dst[1] === "VCO:HZ/V") toLin = true;
+          else if ((dst[0] === "RONIN" && dst[1] === "VCO:V/OCT") || (dst[0] === "SHOGUN" && dst[1].includes(":NOTE"))) toVoct = true;
+        }
+      }
+      r.law[row] = toLin ? 1 : 0; r.lawMismatch[row] = toLin && toVoct;
+      params[row === 0 ? "STEPS:LAW A" : "STEPS:LAW B"] = toLin ? 1 : 0;
+      r.lines.push("Row " + (row === 0 ? "A" : "B") + " PITCH LAW = " + (toLin ? "HZ/V LIN (cabled to RONIN VCO:HZ/V)" : "V/OCT")
+                   + (r.lawMismatch[row] ? "; its V/OCT cable shows the mismatch badge" : ""));
+    }
+    return r;
+  }
+
+  const MAX_EVENTS = 128;
+
+  function create(sampleRate) {
+    const m = { name: "BUSHIDO", JACKS, PARAMS, portValue: new Float64Array(JACKS.length), inputConnected: new Array(JACKS.length).fill(false) };
+    const values = PARAMS.map(q => f32(q.def)), presses = [0, 0, 0];
+    let sr = sampleRate || 48000;
+    let running = false, pos = -1, chan = 0, phase = 0, rate = 4;  // internal clock, steps per second
+    let samplesInStep = 0, sinceTick = 0, settle = 2;
+    let cvA = 0, cvB = 0, cvC = 0, tgtA = 0, tgtB = 0, gateOn = false;   // float-valued, like the C++
+    // EXT period (JCS R5.2): measured between ticks, restarted at START
+    let havePeriod = false, haveAnyPeriod = false, extPeriod = 0.25;
+    let sampleCount = 0, absorbUntil = -1000;                     // START absorbs an EXT edge on its sample and the next 2
+    let lastTempoCv = 1e30, lastTempoRate = -1;                  // INT clock: exp2 only when TEMPO CV moves
+    let transport = { valid: false, playing: false, bpm: 120, ppq: 0, samplePos: 0 }, hostOffset = 0, hostPlayingPrev = false, hostStep = 0;
+    let lvl1 = 0, lvl2 = 0, kMix = 1, levelsPrimed = false;       // mixer LEVEL smoothing, 10 ms
+    let events = [];                                              // gate events for MIDI
+    const gatePrev = [false, false], high = [false, false, false, false, false];
+    let lastNote = null;                                          // the last note-on, for the page's readout
+    const p = i => values[i], mode = () => lround(f32(p(MODE) * 2)), outJacks = () => (mode() === 2 ? chan : 0);
+    const law = j => (p(j === 0 ? LAW_A : LAW_B) > 0.5 ? pitch.Law.HzvLin : pitch.Law.VOct);
+    function edge(w, v) { if (!high[w] && v > 1) { high[w] = true; return true } if (high[w] && v < 0.5) high[w] = false; return false }   // JCS R3
+    function fire() { samplesInStep = 0; gateOn = true }          // gate (and CV) start after the settle time
+    function start(n) {                                           // JCS R5.2: every start plays A step 1 now
+      running = true; pos = 0; chan = 0; phase = 0; fire();
+      sinceTick = 0; havePeriod = false;                          // the stopped time is not a clock period
+      absorbUntil = n + 2;                                        // an EXT edge on this sample or the next 2 is step 1's own clock
+    }
+    function stop() { running = false; gateOn = false }           // JCS R5.4: gates and TRIGs go low now; lamps and CV hold
+    function reset() { pos = 0; chan = 0; if (running) { phase = 0; fire() } else gateOn = false }
+    function tick() {
+      if (havePeriod) { extPeriod = clamp(sinceTick, 0.005, 4); haveAnyPeriod = true }   // gate length for EXT and STEP
+      havePeriod = true; sinceTick = 0;
+      if (pos < 0) { pos = 0; chan = 0; fire(); return }
+      if (++pos < 12) { fire(); return }
+      pos = 0; chan = mode() === 0 ? 0 : 1 - chan; fire();
+    }
+    // PORTA law, kept bit-exact from v1 (user decision): tau = PORTA^2 x 2 s, k in double, the update in float.
+    const slew = porta => { const tau = porta * porta * 2; return tau < 1e-4 ? 1 : f32(1 - Math.exp(-1 / (tau * sr))) };
+
+    m.numPorts = () => JACKS.length;
+    m.port = desc;
+    m.prepare = r => {
+      sr = r; kMix = -Math.expm1(-1 / (0.010 * sr)); levelsPrimed = false;
+      sampleCount = 0; absorbUntil = -1000; events = []; lastTempoCv = 1e30; lastTempoRate = -1;
+    };
+    m.paramIndex = id => (typeof id === "number" ? id : PARAMS.findIndex(q => q.id === id));
+    m.setParam = (id, v) => {                                     // same snapping as BushidoModule::setParam; id or index
+      const i = m.paramIndex(id); if (i < 0 || i >= NUM_PARAMS) return;
+      const q = PARAMS[i]; v = f32(v);
+      if (q.positions === -1) { if (v > 0.5 && values[i] <= 0.5) presses[i - BTN_START]++ }
+      else if (q.positions >= 2) { const n = q.positions - 1; v = f32(lround(f32(clamp(v, 0, 1) * n)) / n) }
+      values[i] = clamp(v, 0, 1);
+    };
+    m.getParam = id => values[m.paramIndex(id)];
+    m.press = id => { m.setParam(id, 1); m.setParam(id, 0) };
+    m.law = law;
+    m.setTransport = t => { transport = Object.assign({ valid: false, playing: false, bpm: 120, ppq: 0, samplePos: 0 }, t); hostOffset = 0 };
+    // HOST is the default clock only for a NEW instance created in the rack while the transport plays.
+    m.applyNewInstanceDefaults = (inRack, playing) => { if (inRack && playing) { m.setParam(SOURCE, 1); m.setParam(EXT_SOURCE, 1) } };
+    // Gate rises and falls on the CV/GATE pairs: {sample, jack, on, target, cvC}. The page has no MIDI port; this is the hook.
+    m.takeGateEvents = () => { const e = events; events = []; return e };
+    m.samplesProcessed = () => sampleCount;
+    m.measuredExtPeriod = () => (haveAnyPeriod ? extPeriod : 0);
+    m.settleSamples = () => Math.ceil(settle);
+    m.currentStep = () => pos;
+    m.isRunning = () => running;
+
+    m.processSample = () => {
+      const pv = m.portValue;
+      const rangeA = p(RANGE_A) > 0.5 ? 5 : 1, rangeB = p(RANGE_B) > 0.5 ? 5 : 1;
+      const cIsTime = p(C_MODE) > 0.5, external = p(SOURCE) > 0.5;
+      const host = external && p(EXT_SOURCE) > 0.5, jackClock = external && !host;
+      const tempoRate = stepsPerSecond(p(TEMPO));
+      const kA = slew(p(PORTA_A)), kB = slew(p(PORTA_B));
+      settle = p(SETTLE) > 0.5 ? Math.max(1, sr * 0.0006) : 2;   // VINTAGE keeps v1's exact 0.6 ms; TIGHT is 2 samples (JCS R5.5)
+      const pulse = p(TRIG_MODE) > 0.5, pulseLen = Math.max(1, lround(0.005 * sr));
+      const lawA = law(0), lawB = law(1), quantA = p(QUANT_A) > 0.5, quantB = p(QUANT_B) > 0.5;
+      const l1 = p(LEVEL1), l2 = p(LEVEL2);
+      if (!levelsPrimed) { lvl1 = l1; lvl2 = l2; levelsPrimed = true }
+      const q = stepsPerBeat(p(DIV));                             // HOST: steps per quarter, 2 / 4 / 8
+      const hostValid = host && transport.valid && transport.bpm > 0;
+      if (!host) hostPlayingPrev = false;
+
+      const pressNow = presses.slice(); presses[0] = presses[1] = presses[2] = 0;
+      const doReset = edge(3, pv[RESET_IN]) || pressNow[2] > 0;
+      const doStart = edge(1, pv[START_IN]) || pressNow[0] > 0;
+      const doStep = edge(2, pv[STEP_IN]) || pressNow[1] > 0;
+      const extClk = edge(0, pv[CLOCK_IN]);
+
+      // HOST (JCS R5.7): the step index is floor(ppq x q); a change of index is a tick. Transport start and stop apply START and STOP.
+      let hostTick = false;
+      if (hostValid) {
+        const ppq = transport.ppq + hostOffset * transport.bpm / (60 * sr);
+        const k = Math.floor(ppq * q + 1e-9), playing = !!transport.playing;
+        if (playing && !hostPlayingPrev) { if (!running) start(sampleCount); hostStep = k }
+        else if (!playing && hostPlayingPrev) { if (running) stop() }
+        else if (playing && running && k !== hostStep) { hostStep = k; hostTick = true }
+        hostPlayingPrev = playing;
+      }
+      ++hostOffset;
+
+      if (doStart) { if (running) stop(); else start(sampleCount) }
+      if (doReset) reset();
+      else {
+        let t = doStep;
+        if (running && !external) {                               // TEMPO and TEMPO CV bend the internal clock only; EXT ignores both
+          const v = f32(pv[TEMPO_CV]);
+          if (Math.abs(v - lastTempoCv) > 1e-6 || tempoRate !== lastTempoRate) {
+            lastTempoCv = v; lastTempoRate = tempoRate;
+            rate = clamp(tempoRate * Math.pow(2, v), 0.05, 200);
+          }
+          phase += rate / sr;
+          if (phase >= 1) { phase -= 1; t = true }
+        }
+        if (running && jackClock && extClk && sampleCount > absorbUntil) t = true;
+        if (hostTick) t = true;
+        if (t) tick();
+      }
+      sinceTick += 1 / sr; samplesInStep += 1;
+
+      if (mode() === 0) chan = 0;                                 // switched to A mid-row B: carry on in row A
+      const jk = outJacks(), settled = samplesInStep >= settle;
+      if (pos >= 0 && settled) {
+        const knob = p(STEPS + 12 * chan + pos);                  // range, law and portamento belong to the jacks
+        if (jk === 0) { const v = f32(knob * rangeA); tgtA = quantA ? f32(pitch.quantize(lawA, v)) : v }
+        else { const v = f32(knob * rangeB); tgtB = quantB ? f32(pitch.quantize(lawB, v)) : v }
+        cvC = f32(p(STEPS + 24 + pos) * 5);
+      }
+      if (cIsTime) cvC = 0;                                       // TIME: row C sets gate length only
+      cvA = f32z(cvA + f32z(f32z(tgtA - cvA) * kA)); cvB = f32z(cvB + f32z(f32z(tgtB - cvB) * kB));
+
+      const period = host && running ? (hostValid ? 60 / (transport.bpm * q) : 1 / tempoRate)
+                   : (running && !external) ? 1 / rate
+                   : haveAnyPeriod ? extPeriod : 1 / tempoRate;  // EXT before a period is known: the INT tempo period
+      const frac = (cIsTime && pos >= 0) ? 0.05 + 0.9 * p(STEPS + 24 + pos) : 0.5;
+      const g = gateOn && pos >= 0 && settled && samplesInStep < settle + frac * period * sr;
+
+      lvl1 += (l1 - lvl1) * kMix; lvl2 += (l2 - lvl2) * kMix;
+      if (Math.abs(l1 - lvl1) < 1e-9) lvl1 = l1;                  // land exactly, so the smoother never decays into denormals
+      if (Math.abs(l2 - lvl2) < 1e-9) lvl2 = l2;
+
+      pv[CV_A] = cvA; pv[CV_B] = cvB; pv[CV_C] = cvC;
+      const gA = g && jk === 0, gB = g && jk === 1;
+      pv[GATE_A] = gA ? 5 : 0; pv[GATE_B] = gB ? 5 : 0;
+      pv[MIX_OUT] = f32(f32(pv[MIX_IN1]) * lvl1 + f32(pv[MIX_IN2]) * lvl2);
+      const trigOn = running && (!pulse || samplesInStep <= pulseLen);   // JCS R5.4: TRIG low while stopped
+      for (let s = 0; s < 12; s++) pv[TRIG1 + s] = (trigOn && pos === s) ? 5 : 0;
+
+      const gNow = [gA, gB];
+      for (let j = 0; j < 2; j++) if (gNow[j] !== gatePrev[j]) {
+        gatePrev[j] = gNow[j];
+        const target = j === 0 ? tgtA : tgtB;
+        if (events.length < MAX_EVENTS) events.push({ sample: sampleCount, jack: j, on: gNow[j], target, cvC });
+        if (gNow[j]) lastNote = { jk: j, volts: target, law: law(j), note: pitch.midiNote(law(j), target), sample: sampleCount };
+      }
+      ++sampleCount;
+    };
+    m.state = () => ({ running, pos, chan, jk: outJacks(), cv: [cvA, cvB, cvC], tgt: [tgtA, tgtB], law: [law(0), law(1)],
+                       gate: [m.portValue[GATE_A] > 1, m.portValue[GATE_B] > 1], mode: mode(), note: lastNote,
+                       extPeriod: haveAnyPeriod ? extPeriod : 0, settle: Math.ceil(settle) });
+    m.prepare(sr);
+    return m;
+  }
+  return { create, JACKS, PARAMS, P, stepsPerSecond, stepsPerBeat, bpm, tempoForBpm, pitch, createMidiOut, FORMAT, migrate, splitJack,
+           MAX_EVENTS, CLOCK_IN, TEMPO_CV, START_IN, STEP_IN, RESET_IN, MIX_IN1, MIX_IN2, CV_A, CV_B, CV_C, GATE_A, GATE_B, MIX_OUT, TRIG1 };
+})();
+if (typeof module !== "undefined") module.exports = BUSHIDO_DSP;
+
+// One patch graph for the page's rack: any number of BUSHIDOs and RONINs, in rack order, run sample by sample in the
+// same graph (publish/fillOrder/process, as in RONIN's PatchGraph), with the Jidai Cable Standard feedback rule (JCS R9,
+// BUSHIDO rack/PatchGraph.cpp):
+//  - a cable runs Out -> In; Audio or CV into a Gate input is refused ("that jack does not take this cable");
+//  - unpatched non-gate inputs sit at their rest volts, unpatched gate inputs keep their last value, patched inputs are summed
+//    (outputs fan out, inputs sum);
+//  - walking cables oldest to newest, a cable that closes a loop over the cables kept so far (or a self-patch) is feedback;
+//    EVERY feedback cable is delayed exactly one sample, all other cables are zero-delay, and no module runs twice a sample
+//    (JCS R9; for a patch with one loop this is the same as the old newest-cable rule);
+//  - S-15: a Gate source (logic, not strigVolts) into a non-Gate RONIN input gives 0 V while high and +5 V while low.
+// BUSHIDO inputs take plain volts (high above 1 V), so a RONIN logic gate reaches them as 0/5 V instead.
+// A device is named by its kind and number, as in JIDAI RACK: "BUSHIDO#1" is BUSHIDO 1, "RONIN#2" is RONIN 2. Jack ids are
+// SECTION:LABEL behind the device: "BUSHIDO#1/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V".
+// Plain script: needs the globals BUSHIDO_DSP and RONIN_DSP, defines RACK. Runs in an AudioWorklet, a ScriptProcessor or Node.
+var RACK = (function () {
+  const ALLOWED = [[true, true, false], [true, true, false], [true, true, true]];
+  const ti = t => (t === "Audio" ? 0 : t === "CV" ? 1 : 2);
+  const typesAllowed = (a, b) => ALLOWED[ti(a)][ti(b)];
+
+  // Monitor voice: BUSHIDO's own preview sound (two VCOs on the A and B jacks), saw + detuned square into a resonant
+  // low-pass with a per-note filter sweep. It listens to the jacks, so it plays exactly what the jacks carry, under each
+  // row's PITCH LAW (JCS R4): V/OCT 0 V = C3 = 130.8127826502993 Hz, HZ/V LIN 1 V = C3 (no note at or below 0 V), times the
+  // footage multiplier (8' = 1). The old 1 V = 55 Hz reference is retired.
+  function Voice(sr) {
+    let ph1 = 0, ph2 = 0, s1 = 0, s2 = 0, amp = 0, fc = 1000, fcT = 1000, prev = false, t = 0;
+    const blep = (p, dt) => { if (p < dt) { p /= dt; return p + p - p * p - 1 } if (p > 1 - dt) { p = (p - 1) / dt; return p * p + p + p + 1 } return 0 };
+    const kAtk = 1 / (0.004 * sr), cDec = 1 - Math.exp(-1 / (0.08 * sr)), cRel = 1 - Math.exp(-1 / (0.004 * sr)), cF = 1 - Math.exp(-1 / (0.07 * sr));
+    return function (gate, volts, cut, octMul, law) {
+      if (gate && !prev) { fc = cut * 3.2; fcT = cut * 0.7; t = 0 }
+      prev = gate;
+      const f = BUSHIDO_DSP.pitch.hz(law || 0, volts) * octMul, peak = f > 0 ? 0.7 : 0;
+      if (gate) { if (t < 0.004 * sr) amp = Math.min(peak, amp + peak * kAtk); else amp += (peak * 0.55 - amp) * cDec; t++ }
+      else amp += (0 - amp) * cRel;
+      if (t > 0.005 * sr) fc += (fcT - fc) * cF;
+      if (amp < 1e-5 || f <= 0) return 0;
+      const dt1 = Math.min(0.45, f / sr), dt2 = Math.min(0.45, f * 1.00347 / sr);   // second oscillator +6 cents
+      ph1 += dt1; if (ph1 >= 1) ph1 -= 1; ph2 += dt2; if (ph2 >= 1) ph2 -= 1;
+      const saw = 2 * ph1 - 1 - blep(ph1, dt1);
+      let sq = ph2 < 0.5 ? 1 : -1; sq += blep(ph2, dt2); sq -= blep((ph2 + 0.5) % 1, dt2);
+      const x = saw + 0.35 * sq;
+      const g = Math.tan(Math.PI * Math.min(fc, sr * 0.45) / sr), k = 1 / 9, a1 = 1 / (1 + g * (g + k));   // TPT state-variable low-pass, Q 9
+      const v1 = a1 * s1 + g * a1 * (x - s2), v2 = s2 + g * v1;
+      s1 = 2 * v1 - s1; s2 = 2 * v2 - s2;
+      return v2 * amp * 0.5;
+    };
+  }
+
+  const isB = key => key.startsWith("BUSHIDO#");
+
+  function create(sampleRate) {
+    const sr = sampleRate;
+    const sqParam = {}; BUSHIDO_DSP.create(sr).PARAMS.forEach(p => { sqParam[p.id] = p.def });
+
+    // ---- devices, in rack order. Each one owns a run of modules in the graph: a BUSHIDO one, a RONIN sixteen. ----
+    const devs = {};                     // key -> device
+    let rackOrder = [], mods = [], desc = [], kindR = [], owner = [], n = 0;
+    function makeDevice(key) {
+      if (isB(key)) {
+        const sq = BUSHIDO_DSP.create(sr); sq.sampleRate = sr; if (sq.prepare) sq.prepare(sr);
+        return { key, b: true, sq, modules: [sq], P: Object.assign({}, sqParam), bypass: false, voices: [Voice(sr), Voice(sr)] };
+      }
+      const rack = RONIN_DSP.createRack(sr);
+      rack.modules.forEach(m => { m.sampleRate = sr; if (m.prepare) m.prepare(sr) });
+      return { key, b: false, rack, modules: rack.modules };
+    }
+    function setDevices(keys) {          // keys in rack order; new ones are made, missing ones dropped
+      const next = {};
+      for (const k of keys) next[k] = devs[k] || makeDevice(k);
+      for (const k in devs) delete devs[k];
+      Object.assign(devs, next);
+      rackOrder = keys.filter((k, i) => keys.indexOf(k) === i).map(k => devs[k]);
+      mods = []; desc = []; kindR = []; owner = [];
+      for (const d of rackOrder) {
+        d.base = mods.length;
+        for (const m of d.modules) { const a = []; for (let i = 0; i < m.numPorts(); i++) a.push(m.port(i)); mods.push(m); desc.push(a); kindR.push(!d.b); owner.push(d) }
+      }
+      n = mods.length;
+      setCables(cableList);
+    }
+
+    function resolve(id) {
+      const slash = id.indexOf("/"); if (slash < 0) return null;
+      const d = devs[id.slice(0, slash)], jack = id.slice(slash + 1); if (!d) return null;
+      if (d.b) { const p = BUSHIDO_DSP.JACKS.indexOf(jack); return p < 0 ? null : { module: d.base, port: p } }
+      const j = d.rack.jacks[jack]; return j ? { module: d.base + j.module, port: j.port } : null;
+    }
+    // Which way a cable between two jacks runs, and whether the graph takes it (same checks as attemptConnect).
+    function check(a, b) {
+      const A = resolve(a), B = resolve(b);
+      if (!A || !B) return { ok: false, reason: "unwired" };
+      const da = desc[A.module][A.port], db = desc[B.module][B.port];
+      let s, d, sd, dd;
+      if (da.dir === "Out" && db.dir === "In") { s = A; d = B; sd = da; dd = db; s.id = a; d.id = b }
+      else if (da.dir === "In" && db.dir === "Out") { s = B; d = A; sd = db; dd = da; s.id = b; d.id = a }
+      else return { ok: false, reason: da.dir === "Out" ? "two outputs" : "two inputs" };
+      if (!typesAllowed(sd.type, dd.type)) return { ok: false, reason: "type", src: s, dst: d };
+      return { ok: true, src: s, dst: d };
+    }
+
+    // ---- snapshot (publish + fillOrder) ----
+    let cableList = [], cables = [], feedback = [], delayed = [], held = [], order = [], patched = [];
+    function keptReaches(from, target, kept) {
+      const seen = new Array(n).fill(false), q = [from]; seen[from] = true;
+      while (q.length) { const m = q.shift(); for (let i = 0; i < cables.length; i++) { if (!kept[i] || cables[i].sm !== m) continue; const nx = cables[i].dm; if (nx === target) return true; if (!seen[nx]) { seen[nx] = true; q.push(nx) } } }
+      return false;
+    }
+    function setCables(list) {          // list: [[jackId, jackId], ...] oldest first; illegal ones and ones to missing devices are skipped
+      cableList = list;
+      const prev = cables.map((c, i) => ({ c, d: delayed[i], h: held[i] }));
+      cables = [];
+      for (const [a, b] of list) { const r = check(a, b); if (!r.ok) continue; if (r.src.module === r.dst.module && r.src.port === r.dst.port) continue; cables.push({ sm: r.src.module, sp: r.src.port, dm: r.dst.module, dp: r.dst.port, s: r.src.id, d: r.dst.id }) }
+      const kept = []; feedback = []; delayed = []; held = [];
+      for (let i = 0; i < cables.length; i++) {      // JCS R9: every cable that closes a loop is delayed one sample
+        const c = cables[i], closes = c.sm === c.dm || keptReaches(c.dm, c.sm, kept);
+        feedback[i] = closes; delayed[i] = closes; kept[i] = !closes;
+      }
+      for (let i = 0; i < cables.length; i++) {      // a delayed cable that was delayed before keeps its held sample
+        held[i] = 0; if (!delayed[i]) continue; const c = cables[i];
+        const o = prev.find(p => p.d && p.c.s === c.s && p.c.d === c.d); if (o) held[i] = o.h;
+      }
+      // fillOrder: Kahn's algorithm over the non-feedback edges, then any module left unplaced
+      const adj = mods.map(() => []), indeg = new Array(n).fill(0);
+      cables.forEach((c, i) => { if (feedback[i] || c.sm === c.dm || adj[c.sm].includes(c.dm)) return; adj[c.sm].push(c.dm); indeg[c.dm]++ });
+      const q = []; for (let m = 0; m < n; m++) if (!indeg[m]) q.push(m);
+      order = []; while (q.length) { const m = q.shift(); order.push(m); for (const d of adj[m]) if (--indeg[d] === 0) q.push(d) }
+      if (order.length < n) for (let m = 0; m < n; m++) if (!order.includes(m)) order.push(m);
+      patched = mods.map(m => new Array(m.numPorts()).fill(false)); cables.forEach(c => { patched[c.dm][c.dp] = true });
+      // a module's inputConnected only changes here
+      mods.forEach((m, mi) => { for (let p = 0; p < m.inputConnected.length; p++) m.inputConnected[p] = false; desc[mi].forEach((d, p) => { if (d.dir === "In") m.inputConnected[p] = patched[mi][p] }) });
+      return cables.length;
+    }
+    function clearInputs(mi) {
+      const m = mods[mi], pv = m.portValue, ds = desc[mi], pt = patched[mi];
+      for (let p = 0; p < ds.length; p++) { const d = ds[p]; if (d.dir !== "In") continue; if (!pt[p]) { if (d.type !== "Gate") pv[p] = d.rest; continue } pv[p] = 0 }
+    }
+    function contribute(mi) {
+      const pv = mods[mi].portValue;
+      for (let i = 0; i < cables.length; i++) {
+        const c = cables[i]; if (c.dm !== mi) continue;
+        let v = delayed[i] ? held[i] : mods[c.sm].portValue[c.sp];
+        const sd = desc[c.sm][c.sp], dd = desc[mi][c.dp];
+        if (kindR[mi]) { if (sd.type === "Gate" && dd.type !== "Gate" && !sd.strigVolts) v = v >= 0.5 ? 0 : 5 }   // S-15
+        else if (kindR[c.sm] && sd.type === "Gate") v = sd.strigVolts ? (v < 1.5 ? 5 : 0) : (v >= 0.5 ? 5 : 0);   // RONIN gate into BUSHIDO: 0/5 V
+        pv[c.dp] += v;
+      }
+    }
+    function run(mi) { mods[mi].processSample(); const d = owner[mi]; if (d.b && d.bypass) { d.sq.portValue[BUSHIDO_DSP.GATE_A] = 0; d.sq.portValue[BUSHIDO_DSP.GATE_B] = 0 } }
+    function processGraph() {
+      for (let mi = 0; mi < n; mi++) clearInputs(mi);
+      for (let k = 0; k < order.length; k++) { const mi = order[k]; contribute(mi); run(mi) }   // each module runs exactly once (R9)
+      for (let i = 0; i < cables.length; i++) if (delayed[i]) { const c = cables[i]; held[i] = mods[c.sm].portValue[c.sp] }
+    }
+
+    // ---- host: knobs, buttons, monitor, volume ----
+    let monitor = "ext", oct = [2, 1], volume = 0.6, vol = 0.6;   // oct: footage index 0..4 = 32' 16' 8' 4' 2' (8' = x1)
+    function msg(m) {
+      if (m.t === "devices") { setDevices(m.list); return }
+      if (m.t === "cables") { setCables(m.list); return }
+      if (m.t === "monitor") { if (m.mode) monitor = m.mode; if (m.oct) oct = m.oct; return }
+      if (m.t === "volume") { volume = m.v; return }
+      // Host transport hook (JCS R5.7): {playing, bpm, ppq, samplePos} for every BUSHIDO (HOST sync when SOURCE = EXT and
+      // EXT SOURCE = HOST). The page has no DAW transport, so nothing sends it today.
+      if (m.t === "transport") { for (const k in devs) if (devs[k].b) devs[k].sq.setTransport(Object.assign({ valid: true }, m.tr)); return }
+      const d = devs[m.d]; if (!d) return;
+      if (d.b) {
+        if (m.t === "param") { d.sq.setParam(m.id, m.v); d.P[m.id] = m.v }
+        else if (m.t === "press") d.sq.press(m.id);
+        else if (m.t === "bypass") d.bypass = !!m.on;
+        return;
+      }
+      const rack = d.rack;
+      if (m.t === "knob") rack.setKnob(m.id, m.v);     // host-level knobs (OUTPUT MIX / LEVEL) are applied by the rack glue
+      else if (m.t === "knobs") for (const id in m.v) rack.setKnob(id, m.v[id]);
+      else if (m.t === "hold") rack.setHold(!!m.on);
+      else if (m.t === "power") rack.setPower(!!m.on);
+      else if (m.t === "preset") { if (rack.applyPreset) rack.applyPreset(m.i) }
+      else if (m.t === "meter") rack.setMeterSource(m.id);
+    }
+    let tick = 0, mon = 0, om = [1, 0.5];
+    const every = Math.round(sr / 30);
+    // Each BUSHIDO's own two VCOs. Together they play into the first RONIN's EXT IN (as a track's audio feeds the first
+    // RONIN in JIDAI RACK), straight out, or not at all. With no RONIN on the rack, "into EXT IN" plays them straight out.
+    function voicesNow() {
+      let sum = 0;
+      for (const d of rackOrder) {
+        if (!d.b) continue;
+        const v = d.voices, pv = d.sq.portValue;
+        if (monitor === "off" || d.bypass) { v[0](false, 0, 1000, 1); v[1](false, 0, 1000, 1); continue }
+        const time = d.P["CH:C MODE"] > 0.5, cut = time ? 900 : 250 + pv[BUSHIDO_DSP.CV_C] / 5 * 5000;
+        sum += v[0](pv[BUSHIDO_DSP.GATE_A] > 1, pv[BUSHIDO_DSP.CV_A], cut, om[0], d.sq.law(0)) + v[1](pv[BUSHIDO_DSP.GATE_B] > 1, pv[BUSHIDO_DSP.CV_B], cut, om[1], d.sq.law(1));
+      }
+      return sum;
+    }
+    function render(L, R, frames) {
+      om = [Math.pow(2, oct[0] - 2), Math.pow(2, oct[1] - 2)];
+      const ronins = rackOrder.filter(d => !d.b), toExt = monitor === "ext" && ronins.length > 0, dry = monitor === "out" || (monitor === "ext" && !ronins.length);
+      for (let s = 0; s < frames; s++) {
+        const m = mon;                                   // last sample's voices: they follow the jacks one sample late
+        ronins.forEach((d, k) => d.rack.beforeGraph(toExt && k === 0 ? m : 0, toExt && k === 0 ? m : 0));
+        processGraph();
+        mon = voicesNow();
+        let l = 0, r = 0;
+        for (const d of ronins) { const out = d.rack.afterGraph(); l += out[0]; r += out[1] }
+        if (dry) { l += m * 0.4; r += m * 0.4 }          // about as loud as through RONIN
+        vol += (volume - vol) * 0.001;
+        L[s] = Math.max(-1, Math.min(1, l * vol)); R[s] = Math.max(-1, Math.min(1, r * vol));
+        if (++tick >= every) { tick = 0; if (api.post) api.post(snapshot()) }
+      }
+    }
+    function snapshot() {
+      const devices = {};
+      for (const d of rackOrder) devices[d.key] = d.b ? { sq: d.sq.state() } : { meter: d.rack.meterNeedle(), power: d.rack.power() };
+      return { t: "state", devices, delayed: cables.filter((c, i) => delayed[i]).length };
+    }
+    const api = { msg, render, check, setCables, setDevices, snapshot, post: null, resolve, processGraph, devices: devs, get mods() { return mods } };
+    return api;
+  }
+
+  // Port types for the page (no audio): which jacks are inputs or outputs and what they carry, by jack id without
+  // the device ("OUTPUTS:CV A", "VCO:HZ/V"), for each kind.
+  function describe(sampleRate) {
+    const sq = BUSHIDO_DSP.create(sampleRate || 48000), rack = RONIN_DSP.createRack(sampleRate || 48000), B = {}, R = {};
+    BUSHIDO_DSP.JACKS.forEach((id, p) => { B[id] = sq.port(p) });
+    for (const id in rack.jacks) { const j = rack.jacks[id]; R[id] = j ? rack.modules[j.module].port(j.port) : null }
+    return { B, R, rack, port(id) { const k = id.indexOf("/"), dev = id.slice(0, k), jack = id.slice(k + 1); return (isB(dev) ? B : R)[jack] || null } };
+  }
+  return { create, describe, typesAllowed };
+})();
+if (typeof module !== "undefined") module.exports = RACK;
+
+</script>
 <script>
 const L={"rack":"BUSHIDO","canvas":[1600,434],"provisional":true,"frame":[14,44,1572,364.2],"lane":[14,408.2,1572,25.8],"screen":{"bezel":[680,13,240,28],"lcd":[684,17,232,20],"button":[926,15,26,24],"save":[1032,15,26,24],"banks":[{"id":"A","cx":968,"cy":27,"r":4.5,"hit":[958,15,30,24]},{"id":"B","cx":1000,"cy":27,"r":4.5,"hit":[990,15,30,24]}],"chars":17,"listRows":10,"bankSize":999},"name":"BUSHIDO","columns":[{"title":"CH","x":14,"w":164},{"title":"1","x":178,"w":72.3},{"title":"2","x":250.3,"w":72.3},{"title":"3","x":322.7,"w":72.3},{"title":"4","x":395.0,"w":72.3},{"title":"5","x":467.3,"w":72.3},{"title":"6","x":539.7,"w":72.3},{"title":"7","x":612.0,"w":72.3},{"title":"8","x":684.3,"w":72.3},{"title":"9","x":756.7,"w":72.3},{"title":"10","x":829.0,"w":72.3},{"title":"11","x":901.3,"w":72.3},{"title":"12","x":973.7,"w":72.3},{"title":"CLOCK","x":1046.0,"w":156},{"title":"MODE","x":1202.0,"w":96},{"title":"INPUTS","x":1298.0,"w":96},{"title":"OUTPUTS","x":1394.0,"w":96},{"title":"MIXER","x":1490.0,"w":96}],"controls":[{"id":"CH:PORTA A","kind":"knob","cx":78,"cy":130,"r":14,"default":0.0,"angles":[-135,135],"hit":[57,109,42,42]},{"id":"CH:RANGE A","kind":"switch","style":"rocker","cx":138,"cy":130,"r":17.0,"default":1.0,"positions":2,"angles":[-50,50],"marks":["1V","5V"],"rect":[121.0,121.0,34,18],"hit":[117,115,42,30]},{"id":"CH:PORTA B","kind":"knob","cx":78,"cy":204,"r":14,"default":0.0,"angles":[-135,135],"hit":[57,183,42,42]},{"id":"CH:RANGE B","kind":"switch","style":"rocker","cx":138,"cy":204,"r":17.0,"default":1.0,"positions":2,"angles":[-50,50],"marks":["1V","5V"],"rect":[121.0,195.0,34,18],"hit":[117,189,42,30]},{"id":"CH:C MODE","kind":"switch","style":"toggle","cx":134,"cy":278,"r":11,"default":0.0,"positions":2,"angles":[-50,50],"marks":["CV","TIME"],"hit":[112,256,44,44]},{"id":"A:1","kind":"knob","cx":214.2,"cy":130,"r":14,"default":0.42,"angles":[-135,135],"hit":[193.2,109,42,42]},{"id":"B:1","kind":"knob","cx":214.2,"cy":204,"r":14,"default":0.3,"angles":[-135,135],"hit":[193.2,183,42,42]},{"id":"C:1","kind":"knob","cx":214.2,"cy":278,"r":14,"default":0.62,"angles":[-135,135],"hit":[193.2,257,42,42]},{"id":"A:2","kind":"knob","cx":286.5,"cy":130,"r":14,"default":0.58,"angles":[-135,135],"hit":[265.5,109,42,42]},{"id":"B:2","kind":"knob","cx":286.5,"cy":204,"r":14,"default":0.72,"angles":[-135,135],"hit":[265.5,183,42,42]},{"id":"C:2","kind":"knob","cx":286.5,"cy":278,"r":14,"default":0.5,"angles":[-135,135],"hit":[265.5,257,42,42]},{"id":"A:3","kind":"knob","cx":358.8,"cy":130,"r":14,"default":0.35,"angles":[-135,135],"hit":[337.8,109,42,42]},{"id":"B:3","kind":"knob","cx":358.8,"cy":204,"r":14,"default":0.45,"angles":[-135,135],"hit":[337.8,183,42,42]},{"id":"C:3","kind":"knob","cx":358.8,"cy":278,"r":14,"default":0.42,"angles":[-135,135],"hit":[337.8,257,42,42]},{"id":"A:4","kind":"knob","cx":431.2,"cy":130,"r":14,"default":0.66,"angles":[-135,135],"hit":[410.2,109,42,42]},{"id":"B:4","kind":"knob","cx":431.2,"cy":204,"r":14,"default":0.55,"angles":[-135,135],"hit":[410.2,183,42,42]},{"id":"C:4","kind":"knob","cx":431.2,"cy":278,"r":14,"default":0.58,"angles":[-135,135],"hit":[410.2,257,42,42]},{"id":"A:5","kind":"knob","cx":503.5,"cy":130,"r":14,"default":0.5,"angles":[-135,135],"hit":[482.5,109,42,42]},{"id":"B:5","kind":"knob","cx":503.5,"cy":204,"r":14,"default":0.38,"angles":[-135,135],"hit":[482.5,183,42,42]},{"id":"C:5","kind":"knob","cx":503.5,"cy":278,"r":14,"default":0.35,"angles":[-135,135],"hit":[482.5,257,42,42]},{"id":"A:6","kind":"knob","cx":575.8,"cy":130,"r":14,"default":0.3,"angles":[-135,135],"hit":[554.8,109,42,42]},{"id":"B:6","kind":"knob","cx":575.8,"cy":204,"r":14,"default":0.62,"angles":[-135,135],"hit":[554.8,183,42,42]},{"id":"C:6","kind":"knob","cx":575.8,"cy":278,"r":14,"default":0.66,"angles":[-135,135],"hit":[554.8,257,42,42]},{"id":"A:7","kind":"knob","cx":648.2,"cy":130,"r":14,"default":0.72,"angles":[-135,135],"hit":[627.2,109,42,42]},{"id":"B:7","kind":"knob","cx":648.2,"cy":204,"r":14,"default":0.5,"angles":[-135,135],"hit":[627.2,183,42,42]},{"id":"C:7","kind":"knob","cx":648.2,"cy":278,"r":14,"default":0.5,"angles":[-135,135],"hit":[627.2,257,42,42]},{"id":"A:8","kind":"knob","cx":720.5,"cy":130,"r":14,"default":0.45,"angles":[-135,135],"hit":[699.5,109,42,42]},{"id":"B:8","kind":"knob","cx":720.5,"cy":204,"r":14,"default":0.42,"angles":[-135,135],"hit":[699.5,183,42,42]},{"id":"C:8","kind":"knob","cx":720.5,"cy":278,"r":14,"default":0.3,"angles":[-135,135],"hit":[699.5,257,42,42]},{"id":"A:9","kind":"knob","cx":792.8,"cy":130,"r":14,"default":0.55,"angles":[-135,135],"hit":[771.8,109,42,42]},{"id":"B:9","kind":"knob","cx":792.8,"cy":204,"r":14,"default":0.58,"angles":[-135,135],"hit":[771.8,183,42,42]},{"id":"C:9","kind":"knob","cx":792.8,"cy":278,"r":14,"default":0.72,"angles":[-135,135],"hit":[771.8,257,42,42]},{"id":"A:10","kind":"knob","cx":865.2,"cy":130,"r":14,"default":0.38,"angles":[-135,135],"hit":[844.2,109,42,42]},{"id":"B:10","kind":"knob","cx":865.2,"cy":204,"r":14,"default":0.35,"angles":[-135,135],"hit":[844.2,183,42,42]},{"id":"C:10","kind":"knob","cx":865.2,"cy":278,"r":14,"default":0.45,"angles":[-135,135],"hit":[844.2,257,42,42]},{"id":"A:11","kind":"knob","cx":937.5,"cy":130,"r":14,"default":0.62,"angles":[-135,135],"hit":[916.5,109,42,42]},{"id":"B:11","kind":"knob","cx":937.5,"cy":204,"r":14,"default":0.66,"angles":[-135,135],"hit":[916.5,183,42,42]},{"id":"C:11","kind":"knob","cx":937.5,"cy":278,"r":14,"default":0.55,"angles":[-135,135],"hit":[916.5,257,42,42]},{"id":"A:12","kind":"knob","cx":1009.8,"cy":130,"r":14,"default":0.5,"angles":[-135,135],"hit":[988.8,109,42,42]},{"id":"B:12","kind":"knob","cx":1009.8,"cy":204,"r":14,"default":0.5,"angles":[-135,135],"hit":[988.8,183,42,42]},{"id":"C:12","kind":"knob","cx":1009.8,"cy":278,"r":14,"default":0.38,"angles":[-135,135],"hit":[988.8,257,42,42]},{"id":"CLOCK:TEMPO","kind":"knob","cx":1086.0,"cy":130,"r":14,"default":0.5,"angles":[-135,135],"hit":[1065.0,109,42,42]},{"id":"CLOCK:BPM","kind":"readout","param":"CLOCK:TEMPO","div":"CLOCK:DIV","cx":1157.0,"cy":130,"r":12,"default":0,"rect":[1122.0,118,70,24],"lcd":[1125.0,121,64,18],"chars":5,"hit":[1122.0,118,70,24]},{"id":"CLOCK:SOURCE","kind":"switch","cx":1086.0,"cy":204,"r":11,"default":0.0,"positions":2,"angles":[-50,50],"marks":["INT","EXT"],"hit":[1064.0,182,44,44]},{"id":"CLOCK:DIV","kind":"switch","cx":1162.0,"cy":204,"r":11,"default":0.5,"positions":3,"angles":[-60,0,60],"marks":["1/8","1/16","1/32"],"hit":[1140.0,182,44,44]},{"id":"MODE:MODE","kind":"switch","cx":1250.0,"cy":130,"r":11,"default":0.5,"positions":3,"angles":[-60,0,60],"marks":["A","A+B","ALT"],"hit":[1228.0,108,44,44]},{"id":"MODE:START/STOP","kind":"button","style":"cream","cx":1250.0,"cy":222,"r":13,"default":0,"hit":[1233.0,205,34,34]},{"id":"MODE:STEP","kind":"button","style":"black","cx":1250.0,"cy":292,"r":13,"default":0,"hit":[1233.0,275,34,34]},{"id":"MODE:RESET","kind":"button","style":"black","cx":1250.0,"cy":346,"r":13,"default":0,"hit":[1233.0,329,34,34]},{"id":"MIXER:LEVEL 1","kind":"knob","cx":1538.0,"cy":130,"r":14,"default":0.7,"angles":[-135,135],"hit":[1517.0,109,42,42]},{"id":"MIXER:LEVEL 2","kind":"knob","cx":1538.0,"cy":204,"r":14,"default":0.7,"angles":[-135,135],"hit":[1517.0,183,42,42]},{"id":"TOP:BYPASS","kind":"switch","style":"rocker","tone":"dark","cx":238.0,"cy":27.0,"r":20.0,"default":0.0,"positions":2,"angles":[-50,50],"marks":["OFF","ON"],"rect":[218,17,40,20],"hit":[216,13,44,28]}],"leds":[{"id":"CH:A","cx":34,"cy":152,"r":4.5},{"id":"CH:B","cx":34,"cy":226,"r":4.5},{"id":"STEP:1","cx":214.2,"cy":90,"r":5.5},{"id":"STEP:2","cx":286.5,"cy":90,"r":5.5},{"id":"STEP:3","cx":358.8,"cy":90,"r":5.5},{"id":"STEP:4","cx":431.2,"cy":90,"r":5.5},{"id":"STEP:5","cx":503.5,"cy":90,"r":5.5},{"id":"STEP:6","cx":575.8,"cy":90,"r":5.5},{"id":"STEP:7","cx":648.2,"cy":90,"r":5.5},{"id":"STEP:8","cx":720.5,"cy":90,"r":5.5},{"id":"STEP:9","cx":792.8,"cy":90,"r":5.5},{"id":"STEP:10","cx":865.2,"cy":90,"r":5.5},{"id":"STEP:11","cx":937.5,"cy":90,"r":5.5},{"id":"STEP:12","cx":1009.8,"cy":90,"r":5.5},{"id":"MODE:RUN","cx":1250.0,"cy":248,"r":3.5}],"jacks":[{"id":"1:TRIG","section":"1","label":"TRIG","dir":"out","x":214.2,"y":372,"radius":9,"hit":[203.2,361,22,22]},{"id":"2:TRIG","section":"2","label":"TRIG","dir":"out","x":286.5,"y":372,"radius":9,"hit":[275.5,361,22,22]},{"id":"3:TRIG","section":"3","label":"TRIG","dir":"out","x":358.8,"y":372,"radius":9,"hit":[347.8,361,22,22]},{"id":"4:TRIG","section":"4","label":"TRIG","dir":"out","x":431.2,"y":372,"radius":9,"hit":[420.2,361,22,22]},{"id":"5:TRIG","section":"5","label":"TRIG","dir":"out","x":503.5,"y":372,"radius":9,"hit":[492.5,361,22,22]},{"id":"6:TRIG","section":"6","label":"TRIG","dir":"out","x":575.8,"y":372,"radius":9,"hit":[564.8,361,22,22]},{"id":"7:TRIG","section":"7","label":"TRIG","dir":"out","x":648.2,"y":372,"radius":9,"hit":[637.2,361,22,22]},{"id":"8:TRIG","section":"8","label":"TRIG","dir":"out","x":720.5,"y":372,"radius":9,"hit":[709.5,361,22,22]},{"id":"9:TRIG","section":"9","label":"TRIG","dir":"out","x":792.8,"y":372,"radius":9,"hit":[781.8,361,22,22]},{"id":"10:TRIG","section":"10","label":"TRIG","dir":"out","x":865.2,"y":372,"radius":9,"hit":[854.2,361,22,22]},{"id":"11:TRIG","section":"11","label":"TRIG","dir":"out","x":937.5,"y":372,"radius":9,"hit":[926.5,361,22,22]},{"id":"12:TRIG","section":"12","label":"TRIG","dir":"out","x":1009.8,"y":372,"radius":9,"hit":[998.8,361,22,22]},{"id":"CLOCK:CLOCK","section":"CLOCK","label":"CLOCK","dir":"in","x":1086.0,"y":282,"radius":9,"hit":[1075.0,271,22,22]},{"id":"CLOCK:TEMPO CV","section":"CLOCK","label":"TEMPO CV","dir":"in","x":1162.0,"y":282,"radius":9,"hit":[1151.0,271,22,22]},{"id":"INPUTS:START/STOP","section":"INPUTS","label":"START/STOP","dir":"in","x":1346.0,"y":88.5,"radius":9,"hit":[1335.0,77.5,22,22]},{"id":"INPUTS:STEP","section":"INPUTS","label":"STEP","dir":"in","x":1346.0,"y":148.5,"radius":9,"hit":[1335.0,137.5,22,22]},{"id":"INPUTS:RESET","section":"INPUTS","label":"RESET","dir":"in","x":1346.0,"y":208.5,"radius":9,"hit":[1335.0,197.5,22,22]},{"id":"OUTPUTS:CV A","section":"OUTPUTS","label":"CV A","dir":"out","x":1442.0,"y":88.5,"radius":9,"hit":[1431.0,77.5,22,22]},{"id":"OUTPUTS:GATE A","section":"OUTPUTS","label":"GATE A","dir":"out","x":1442.0,"y":148.5,"radius":9,"hit":[1431.0,137.5,22,22]},{"id":"OUTPUTS:CV B","section":"OUTPUTS","label":"CV B","dir":"out","x":1442.0,"y":208.5,"radius":9,"hit":[1431.0,197.5,22,22]},{"id":"OUTPUTS:GATE B","section":"OUTPUTS","label":"GATE B","dir":"out","x":1442.0,"y":268.5,"radius":9,"hit":[1431.0,257.5,22,22]},{"id":"OUTPUTS:CV C","section":"OUTPUTS","label":"CV C","dir":"out","x":1442.0,"y":328.5,"radius":9,"hit":[1431.0,317.5,22,22]},{"id":"MIXER:IN 1","section":"MIXER","label":"IN 1","dir":"in","x":1538.0,"y":272,"radius":9,"hit":[1527.0,261,22,22]},{"id":"MIXER:IN 2","section":"MIXER","label":"IN 2","dir":"in","x":1538.0,"y":322,"radius":9,"hit":[1527.0,311,22,22]},{"id":"MIXER:OUT","section":"MIXER","label":"OUT","dir":"out","x":1538.0,"y":372,"radius":9,"hit":[1527.0,361,22,22]}],"labels":[{"text":"CH","rect":[86.9,56.1,18.1,11.3]},{"text":"A","rect":[29.7,126.1,8.7,11.3]},{"text":"PORTA","rect":[58.4,149.9,39.3,10.3]},{"text":"1V","rect":[122.6,103.9,13.9,10.3]},{"text":"5V","rect":[139.6,103.9,13.9,10.3]},{"text":"RANGE","rect":[117.3,147.9,41.3,10.3]},{"text":"B","rect":[29.7,200.1,8.7,11.3]},{"text":"PORTA","rect":[58.4,223.9,39.3,10.3]},{"text":"1V","rect":[122.6,177.9,13.9,10.3]},{"text":"5V","rect":[139.6,177.9,13.9,10.3]},{"text":"RANGE","rect":[117.3,221.9,41.3,10.3]},{"text":"C","rect":[29.7,274.1,8.7,11.3]},{"text":"CV","rect":[108.2,252.9,15.7,10.3]},{"text":"TIME","rect":[138.3,252.9,27.5,10.3]},{"text":"C MODE","rect":[111.0,297.9,46.0,10.3]},{"text":"1","rect":[210.8,56.1,6.7,11.3]},{"text":"TRIG","rect":[200.4,385.9,27.5,10.3]},{"text":"2","rect":[283.2,56.1,6.7,11.3]},{"text":"TRIG","rect":[272.8,385.9,27.5,10.3]},{"text":"3","rect":[355.5,56.1,6.7,11.3]},{"text":"TRIG","rect":[345.1,385.9,27.5,10.3]},{"text":"4","rect":[427.8,56.1,6.7,11.3]},{"text":"TRIG","rect":[417.4,385.9,27.5,10.3]},{"text":"5","rect":[500.2,56.1,6.7,11.3]},{"text":"TRIG","rect":[489.8,385.9,27.5,10.3]},{"text":"6","rect":[572.5,56.1,6.7,11.3]},{"text":"TRIG","rect":[562.1,385.9,27.5,10.3]},{"text":"7","rect":[644.8,56.1,6.7,11.3]},{"text":"TRIG","rect":[634.4,385.9,27.5,10.3]},{"text":"8","rect":[717.2,56.1,6.7,11.3]},{"text":"TRIG","rect":[706.8,385.9,27.5,10.3]},{"text":"9","rect":[789.5,56.1,6.7,11.3]},{"text":"TRIG","rect":[779.1,385.9,27.5,10.3]},{"text":"10","rect":[858.1,56.1,14.1,11.3]},{"text":"TRIG","rect":[851.4,385.9,27.5,10.3]},{"text":"11","rect":[930.8,56.1,13.5,11.3]},{"text":"TRIG","rect":[923.8,385.9,27.5,10.3]},{"text":"12","rect":[1002.8,56.1,14.1,11.3]},{"text":"TRIG","rect":[996.1,385.9,27.5,10.3]},{"text":"CLOCK","rect":[1101.1,56.1,45.9,11.3]},{"text":"TEMPO","rect":[1065.6,149.9,40.7,10.3]},{"text":"BPM","rect":[1144.4,149.9,25.2,10.3]},{"text":"INT","rect":[1055.3,181.9,18.5,10.3]},{"text":"EXT","rect":[1096.4,181.9,22.2,10.3]},{"text":"SOURCE","rect":[1061.5,223.9,49.1,10.3]},{"text":"1/8","rect":[1129.7,185.9,16.1,10.3]},{"text":"1/16","rect":[1150.7,171.9,22.6,10.3]},{"text":"1/32","rect":[1174.9,185.9,22.6,10.3]},{"text":"DIV","rect":[1152.4,223.9,19.1,10.3]},{"text":"CLOCK","rect":[1065.6,295.9,40.7,10.3]},{"text":"TEMPO CV","rect":[1131.9,295.9,60.3,10.3]},{"text":"MODE","rect":[1230.8,56.1,38.4,11.3]},{"text":"A","rect":[1220.0,110.9,7.9,10.3]},{"text":"A+B","rect":[1238.4,95.9,23.1,10.3]},{"text":"ALT","rect":[1265.3,110.9,21.4,10.3]},{"text":"MODE","rect":[1232.9,149.9,34.2,10.3]},{"text":"A \u00b7 LOOP 12","rect":[1222.0,165.3,56.0,8.5]},{"text":"A+B \u00b7 LOOP 24","rect":[1215.5,176.3,68.9,8.5]},{"text":"ALT \u00b7 SWAP A/B","rect":[1213.0,187.3,74.0,8.5]},{"text":"START/STOP","rect":[1213.9,257.9,72.3,10.3]},{"text":"STEP","rect":[1235.0,314.9,29.9,10.3]},{"text":"RESET","rect":[1230.9,368.9,38.3,10.3]},{"text":"INPUTS","rect":[1322.0,56.1,48.0,11.3]},{"text":"START/STOP","rect":[1309.9,102.4,72.3,10.3]},{"text":"STEP","rect":[1331.0,162.4,29.9,10.3]},{"text":"RESET","rect":[1326.9,222.4,38.3,10.3]},{"text":"OUTPUTS","rect":[1410.9,56.1,62.1,11.3]},{"text":"CV A","rect":[1428.5,102.4,27.1,10.3]},{"text":"GATE A","rect":[1420.8,162.4,42.3,10.3]},{"text":"CV B","rect":[1428.3,222.4,27.5,10.3]},{"text":"GATE B","rect":[1420.6,282.4,42.7,10.3]},{"text":"CV C","rect":[1428.3,342.4,27.5,10.3]},{"text":"MIXER","rect":[1517.4,56.1,41.2,11.3]},{"text":"LEVEL 1","rect":[1514.6,149.9,46.8,10.3]},{"text":"LEVEL 2","rect":[1514.6,223.9,46.8,10.3]},{"text":"IN 1","rect":[1527.3,285.9,21.4,10.3]},{"text":"IN 2","rect":[1527.3,335.9,21.4,10.3]},{"text":"OUT","rect":[1526.0,385.9,24.0,10.3]}]},J=L.jacks,LABELS=L.labels.map(l=>l.rect),VW=L.canvas[0],VH=L.canvas[1],NS="http://www.w3.org/2000/svg";
 const $=id=>document.getElementById(id),sv=$("sv"),cab=$("cab"),ring=$("ring"),info=$("info"),menu=$("menu"),stage=$("stage");
@@ -71,7 +617,7 @@ $("df").innerHTML=Object.entries(COL).map(([n,[b,k,l]])=>`<radialGradient id="g_
 
 // ================= controls =================
 const C=L.controls.map(c=>Object.assign({},c)),P={};C.forEach(c=>P[c.id]=c.default);
-const PATTERNS={"note":"Factory bank for the PATTERN screen (INIT only for now). Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.","patterns":[{"name":"INIT","params":{"MODE:MODE":0.5,"CH:C MODE":0.0,"CLOCK:TEMPO":0.5,"CLOCK:SOURCE":0.0,"CLOCK:DIV":0.5,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:PORTA A":0.0,"CH:PORTA B":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"A:1":0.5,"B:1":0.5,"C:1":0.5,"A:2":0.5,"B:2":0.5,"C:2":0.5,"A:3":0.5,"B:3":0.5,"C:3":0.5,"A:4":0.5,"B:4":0.5,"C:4":0.5,"A:5":0.5,"B:5":0.5,"C:5":0.5,"A:6":0.5,"B:6":0.5,"C:6":0.5,"A:7":0.5,"B:7":0.5,"C:7":0.5,"A:8":0.5,"B:8":0.5,"C:8":0.5,"A:9":0.5,"B:9":0.5,"C:9":0.5,"A:10":0.5,"B:10":0.5,"C:10":0.5,"A:11":0.5,"B:11":0.5,"C:11":0.5,"A:12":0.5,"B:12":0.5,"C:12":0.5},"cables":[]}]}.patterns;
+const PATTERNS={"note":"Factory bank for the PATTERN screen, written by panel/build_patterns.py. Every pattern is format 1 and sets every parameter. Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.","patterns":[{"name":"INIT","format":1,"params":{"A:1":0.5,"A:2":0.5,"A:3":0.5,"A:4":0.5,"A:5":0.5,"A:6":0.5,"A:7":0.5,"A:8":0.5,"A:9":0.5,"A:10":0.5,"A:11":0.5,"A:12":0.5,"B:1":0.5,"B:2":0.5,"B:3":0.5,"B:4":0.5,"B:5":0.5,"B:6":0.5,"B:7":0.5,"B:8":0.5,"B:9":0.5,"B:10":0.5,"B:11":0.5,"B:12":0.5,"C:1":0.5,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":0.5,"C:6":0.5,"C:7":0.5,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0.0,"CH:PORTA B":0.0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.5,"CLOCK:SOURCE":0.0,"MODE:MODE":0.5,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":0.0,"STEPS:QUANT B":0.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ACID CIRCUIT","format":1,"params":{"A:1":0.0,"A:2":0.0,"A:3":0.2,"A:4":0.0,"A:5":0.05,"A:6":0.0,"A:7":0.116667,"A:8":0.166667,"A:9":0.0,"A:10":0.083333,"A:11":0.2,"A:12":0.25,"B:1":0.0,"B:2":0.0,"B:3":0.2,"B:4":0.0,"B:5":0.05,"B:6":0.0,"B:7":0.116667,"B:8":0.166667,"B:9":0.0,"B:10":0.083333,"B:11":0.2,"B:12":0.25,"C:1":1.0,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":1.0,"C:6":0.5,"C:7":0.5,"C:8":1.0,"C:9":0.5,"C:10":0.5,"C:11":1.0,"C:12":0.5,"CH:PORTA A":0.09,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.678398,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ACID GHOSTS","format":1,"params":{"A:1":0.420448,"A:2":0.0,"A:3":0.840896,"A:4":0.420448,"A:5":0.0,"A:6":0.5,"A:7":0.420448,"A:8":0.629961,"A:9":0.420448,"A:10":0.0,"A:11":0.749154,"A:12":1.0,"B:1":0.420448,"B:2":0.0,"B:3":0.840896,"B:4":0.420448,"B:5":0.0,"B:6":0.5,"B:7":0.420448,"B:8":0.629961,"B:9":0.420448,"B:10":0.0,"B:11":0.749154,"B:12":1.0,"C:1":1.0,"C:2":0.0,"C:3":0.5,"C:4":0.45,"C:5":0.0,"C:6":1.0,"C:7":0.45,"C:8":0.5,"C:9":1.0,"C:10":0.0,"C:11":0.45,"C:12":1.0,"CH:PORTA A":0.05,"CH:PORTA B":0,"CH:RANGE A":0.0,"CH:RANGE B":0.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.682185,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":1.0,"STEPS:LAW B":1.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ACID SLIDE","format":1,"params":{"A:1":0.033333,"A:2":0.033333,"A:3":0.233333,"A:4":0.083333,"A:5":0.033333,"A:6":0.15,"A:7":0.2,"A:8":0.033333,"A:9":0.116667,"A:10":0.083333,"A:11":0.233333,"A:12":0.15,"B:1":0.033333,"B:2":0.033333,"B:3":0.233333,"B:4":0.083333,"B:5":0.033333,"B:6":0.15,"B:7":0.2,"B:8":0.033333,"B:9":0.116667,"B:10":0.083333,"B:11":0.233333,"B:12":0.15,"C:1":0.4,"C:2":0.0,"C:3":1.0,"C:4":0.4,"C:5":0.0,"C:6":1.0,"C:7":0.4,"C:8":0.4,"C:9":1.0,"C:10":0.4,"C:11":0.0,"C:12":0.4,"CH:PORTA A":0.11,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":1.0,"CLOCK:TEMPO":0.674551,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ACID SEVENS","format":1,"params":{"A:1":0.066667,"A:2":0.266667,"A:3":0.083333,"A:4":0.066667,"A:5":0.116667,"A:6":0.066667,"A:7":0.183333,"A:8":0.066667,"A:9":0.066667,"A:10":0.066667,"A:11":0.066667,"A:12":0.066667,"B:1":0.066667,"B:2":0.266667,"B:3":0.083333,"B:4":0.066667,"B:5":0.116667,"B:6":0.066667,"B:7":0.183333,"B:8":0.066667,"B:9":0.066667,"B:10":0.066667,"B:11":0.066667,"B:12":0.066667,"C:1":1.0,"C:2":0.5,"C:3":0.5,"C:4":1.0,"C:5":0.5,"C:6":0.45,"C:7":1.0,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0.08,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.685913,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":1.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":0.0,"STEPS:QUANT B":0.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[["8:TRIG","INPUTS:RESET","yellow"]]},{"name":"ACID VOYAGE","format":1,"params":{"A:1":0.116667,"A:2":0.116667,"A:3":0.316667,"A:4":0.166667,"A:5":0.116667,"A:6":0.083333,"A:7":0.116667,"A:8":0.233333,"A:9":0.116667,"A:10":0.166667,"A:11":0.2,"A:12":0.116667,"B:1":0.05,"B:2":0.05,"B:3":0.25,"B:4":0.116667,"B:5":0.05,"B:6":0.083333,"B:7":0.116667,"B:8":0.166667,"B:9":0.033333,"B:10":0.233333,"B:11":0.083333,"B:12":0.15,"C:1":1.0,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":1.0,"C:6":0.5,"C:7":0.5,"C:8":1.0,"C:9":0.5,"C:10":1.0,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0.07,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.682185,"CLOCK:SOURCE":1.0,"MODE:MODE":0.5,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":1.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ACID SERPENT","format":1,"params":{"A:1":0.0,"A:2":0.016667,"A:3":0.2,"A:4":0.0,"A:5":0.133333,"A:6":0.116667,"A:7":0.0,"A:8":0.216667,"A:9":0.0,"A:10":0.05,"A:11":0.166667,"A:12":0.2,"B:1":0.0,"B:2":0.016667,"B:3":0.2,"B:4":0.0,"B:5":0.133333,"B:6":0.116667,"B:7":0.0,"B:8":0.216667,"B:9":0.0,"B:10":0.05,"B:11":0.166667,"B:12":0.2,"C:1":1.0,"C:2":0.5,"C:3":0.5,"C:4":0.45,"C:5":1.0,"C:6":0.5,"C:7":0.5,"C:8":1.0,"C:9":0.5,"C:10":0.5,"C:11":1.0,"C:12":0.5,"CH:PORTA A":0.1,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.694988,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":1.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":0.0,"STEPS:QUANT B":0.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ACID TUMBLE","format":1,"params":{"A:1":0.083333,"A:2":0.283333,"A:3":0.133333,"A:4":0.083333,"A:5":0.083333,"A:6":0.2,"A:7":0.083333,"A:8":0.25,"A:9":0.083333,"A:10":0.083333,"A:11":0.133333,"A:12":0.166667,"B:1":0.083333,"B:2":0.283333,"B:3":0.133333,"B:4":0.083333,"B:5":0.083333,"B:6":0.2,"B:7":0.083333,"B:8":0.25,"B:9":0.083333,"B:10":0.083333,"B:11":0.133333,"B:12":0.166667,"C:1":1.0,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":1.0,"C:6":0.5,"C:7":1.0,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":1.0,"C:12":0.5,"CH:PORTA A":0.08,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.689584,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[["4:TRIG","INPUTS:STEP","white"],["9:TRIG","INPUTS:STEP","white"]]},{"name":"GATED TRANCE","format":1,"params":{"A:1":0.15,"A:2":0.2,"A:3":0.266667,"A:4":0.35,"A:5":0.266667,"A:6":0.2,"A:7":0.15,"A:8":0.2,"A:9":0.266667,"A:10":0.35,"A:11":0.4,"A:12":0.266667,"B:1":0.15,"B:2":0.2,"B:3":0.266667,"B:4":0.35,"B:5":0.266667,"B:6":0.2,"B:7":0.15,"B:8":0.2,"B:9":0.266667,"B:10":0.35,"B:11":0.4,"B:12":0.266667,"C:1":1.0,"C:2":0.25,"C:3":0.6,"C:4":0.25,"C:5":1.0,"C:6":0.25,"C:7":0.6,"C:8":1.0,"C:9":0.25,"C:10":0.6,"C:11":0.25,"C:12":0.6,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":1.0,"CLOCK:TEMPO":0.700272,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"SWING HOUSE","format":1,"params":{"A:1":0.083333,"A:2":0.283333,"A:3":0.083333,"A:4":0.133333,"A:5":0.083333,"A:6":0.2,"A:7":0.25,"A:8":0.083333,"A:9":0.166667,"A:10":0.083333,"A:11":0.133333,"A:12":0.2,"B:1":0.083333,"B:2":0.283333,"B:3":0.083333,"B:4":0.133333,"B:5":0.083333,"B:6":0.2,"B:7":0.25,"B:8":0.083333,"B:9":0.166667,"B:10":0.083333,"B:11":0.133333,"B:12":0.2,"C:1":0.0,"C:2":0.141268,"C:3":0.0,"C:4":0.141268,"C:5":0.0,"C:6":0.141268,"C:7":0.0,"C:8":0.141268,"C:9":0.0,"C:10":0.141268,"C:11":0.0,"C:12":0.141268,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.618949,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[["OUTPUTS:CV C","CLOCK:TEMPO CV","green"]]},{"name":"TECHNO STABS","format":1,"params":{"A:1":0.033333,"A:2":0.033333,"A:3":0.083333,"A:4":0.033333,"A:5":0.15,"A:6":0.033333,"A:7":0.2,"A:8":0.033333,"A:9":0.033333,"A:10":0.116667,"A:11":0.083333,"A:12":0.15,"B:1":0.033333,"B:2":0.033333,"B:3":0.083333,"B:4":0.033333,"B:5":0.15,"B:6":0.033333,"B:7":0.2,"B:8":0.033333,"B:9":0.033333,"B:10":0.116667,"B:11":0.083333,"B:12":0.15,"C:1":0.12,"C:2":0.12,"C:3":0.3,"C:4":0.12,"C:5":0.12,"C:6":0.5,"C:7":0.12,"C:8":0.12,"C:9":0.3,"C:10":0.12,"C:11":0.12,"C:12":0.6,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":1.0,"CLOCK:TEMPO":0.519246,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.0,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"PROG PLUCKS","format":1,"params":{"A:1":0.183333,"A:2":0.233333,"A:3":0.3,"A:4":0.183333,"A:5":0.266667,"A:6":0.233333,"A:7":0.183333,"A:8":0.3,"A:9":0.35,"A:10":0.3,"A:11":0.233333,"A:12":0.266667,"B:1":0.383333,"B:2":0.3,"B:3":0.433333,"B:4":0.383333,"B:5":0.35,"B:6":0.3,"B:7":0.266667,"B:8":0.233333,"B:9":0.3,"B:10":0.35,"B:11":0.383333,"B:12":0.416667,"C:1":0.5,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":0.5,"C:6":0.5,"C:7":0.5,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.507884,"CLOCK:SOURCE":1.0,"MODE:MODE":1.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.0,"CLOCK:EXT SOURCE":1.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":1.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"CALL ANSWER","format":1,"params":{"A:1":0.0,"A:2":0.0,"A:3":0.583333,"A:4":0.0,"A:5":0.25,"A:6":0.416667,"A:7":0.0,"A:8":0.0,"A:9":0.833333,"A:10":1.0,"A:11":0.583333,"A:12":0.416667,"B:1":0.316667,"B:2":0.283333,"B:3":0.25,"B:4":0.233333,"B:5":0.2,"B:6":0.233333,"B:7":0.283333,"B:8":0.316667,"B:9":0.35,"B:10":0.316667,"B:11":0.366667,"B:12":0.4,"C:1":0.5,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":0.5,"C:6":0.5,"C:7":0.5,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0,"CH:PORTA B":0.25,"CH:RANGE A":0.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.674551,"CLOCK:SOURCE":0.0,"MODE:MODE":1.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":0.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"HORIZON 24","format":1,"params":{"A:1":0.233333,"A:2":0.283333,"A:3":0.35,"A:4":0.316667,"A:5":0.283333,"A:6":0.266667,"A:7":0.233333,"A:8":0.2,"A:9":0.233333,"A:10":0.266667,"A:11":0.283333,"A:12":0.35,"B:1":0.4,"B:2":0.383333,"B:3":0.35,"B:4":0.316667,"B:5":0.35,"B:6":0.283333,"B:7":0.266667,"B:8":0.316667,"B:9":0.283333,"B:10":0.266667,"B:11":0.2,"B:12":0.233333,"C:1":0.2,"C:2":0.3,"C:3":0.4,"C:4":0.5,"C:5":0.6,"C:6":0.7,"C:7":0.8,"C:8":0.7,"C:9":0.6,"C:10":0.5,"C:11":0.4,"C:12":0.3,"CH:PORTA A":0.18,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.666667,"CLOCK:SOURCE":0.0,"MODE:MODE":0.5,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":0.0,"STEPS:QUANT B":0.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"FIVEFOLD ARP","format":1,"params":{"A:1":0.2,"A:2":0.25,"A:3":0.316667,"A:4":0.366667,"A:5":0.283333,"A:6":0.2,"A:7":0.2,"A:8":0.2,"A:9":0.2,"A:10":0.2,"A:11":0.2,"A:12":0.2,"B:1":0.2,"B:2":0.25,"B:3":0.316667,"B:4":0.366667,"B:5":0.283333,"B:6":0.2,"B:7":0.2,"B:8":0.2,"B:9":0.2,"B:10":0.2,"B:11":0.2,"B:12":0.2,"C:1":0.5,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":0.5,"C:6":0.5,"C:7":0.5,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.845065,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":1.0,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":1.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[["6:TRIG","INPUTS:RESET","yellow"]]},{"name":"ROLLING TEN","format":1,"params":{"A:1":0.125992,"A:2":0.251984,"A:3":0.125992,"A:4":0.188775,"A:5":0.149831,"A:6":0.125992,"A:7":0.224492,"A:8":0.125992,"A:9":0.188775,"A:10":0.149831,"A:11":0.125992,"A:12":0.125992,"B:1":0.125992,"B:2":0.251984,"B:3":0.125992,"B:4":0.188775,"B:5":0.149831,"B:6":0.125992,"B:7":0.224492,"B:8":0.125992,"B:9":0.188775,"B:10":0.149831,"B:11":0.125992,"B:12":0.125992,"C:1":0.5,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":0.5,"C:6":0.5,"C:7":0.5,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.674551,"CLOCK:SOURCE":1.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":1.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":1.0,"STEPS:LAW B":1.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[["11:TRIG","INPUTS:RESET","yellow"]]},{"name":"LINEAR LEAD","format":1,"params":{"A:1":0.336359,"A:2":0.4,"A:3":0.503968,"A:4":0.672717,"A:5":0.63496,"A:6":0.755099,"A:7":0.672717,"A:8":0.503968,"A:9":0.533936,"A:10":0.89797,"A:11":0.8,"A:12":0.755099,"B:1":0.336359,"B:2":0.4,"B:3":0.503968,"B:4":0.672717,"B:5":0.63496,"B:6":0.755099,"B:7":0.672717,"B:8":0.503968,"B:9":0.533936,"B:10":0.89797,"B:11":0.8,"B:12":0.755099,"C:1":0.55,"C:2":0.6,"C:3":0.7,"C:4":1.0,"C:5":0.6,"C:6":0.7,"C:7":0.8,"C:8":0.55,"C:9":0.6,"C:10":1.0,"C:11":0.8,"C:12":0.7,"CH:PORTA A":0.2,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.515518,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.0,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":1.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":1.0,"STEPS:LAW B":1.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"RATCHET ROLL","format":1,"params":{"A:1":0.116667,"A:2":0.316667,"A:3":0.166667,"A:4":0.233333,"A:5":0.233333,"A:6":0.116667,"A:7":0.283333,"A:8":0.116667,"A:9":0.233333,"A:10":0.283333,"A:11":0.316667,"A:12":0.366667,"B:1":0.116667,"B:2":0.316667,"B:3":0.166667,"B:4":0.233333,"B:5":0.233333,"B:6":0.116667,"B:7":0.283333,"B:8":0.116667,"B:9":0.233333,"B:10":0.283333,"B:11":0.316667,"B:12":0.366667,"C:1":0.0,"C:2":0.0,"C:3":0.0,"C:4":0.2,"C:5":0.2,"C:6":0.0,"C:7":0.0,"C:8":0.0,"C:9":0.4,"C:10":0.4,"C:11":0.4,"C:12":0.4,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.682185,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[["OUTPUTS:CV C","CLOCK:TEMPO CV","green"]]},{"name":"GLASS PLUCKS","format":1,"params":{"A:1":0.333333,"A:2":0.583333,"A:3":1.0,"A:4":0.583333,"A:5":0.75,"A:6":0.333333,"A:7":0.166667,"A:8":0.583333,"A:9":0.0,"A:10":0.75,"A:11":0.583333,"A:12":0.166667,"B:1":0.333333,"B:2":0.583333,"B:3":1.0,"B:4":0.583333,"B:5":0.75,"B:6":0.333333,"B:7":0.166667,"B:8":0.583333,"B:9":0.0,"B:10":0.75,"B:11":0.583333,"B:12":0.166667,"C:1":0.3,"C:2":0.5,"C:3":0.7,"C:4":0.5,"C:5":0.4,"C:6":0.6,"C:7":0.8,"C:8":0.5,"C:9":0.3,"C:10":0.6,"C:11":0.7,"C:12":0.4,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":0.0,"CH:RANGE B":0.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.670641,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":1.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":0.0,"STEPS:QUANT B":0.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"ANTHEM LEAD","format":1,"params":{"A:1":0.4,"A:2":0.4,"A:3":0.35,"A:4":0.283333,"A:5":0.316667,"A:6":0.35,"A:7":0.366667,"A:8":0.35,"A:9":0.316667,"A:10":0.283333,"A:11":0.316667,"A:12":0.2,"B:1":0.4,"B:2":0.4,"B:3":0.35,"B:4":0.283333,"B:5":0.316667,"B:6":0.35,"B:7":0.366667,"B:8":0.35,"B:9":0.316667,"B:10":0.283333,"B:11":0.316667,"B:12":0.2,"C:1":0.8,"C:2":0.6,"C:3":0.7,"C:4":0.6,"C:5":0.75,"C:6":0.65,"C:7":1.0,"C:8":0.7,"C:9":0.7,"C:10":0.6,"C:11":0.75,"C:12":0.9,"CH:PORTA A":0.15,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.682185,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":1.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"DEEP PULSE","format":1,"params":{"A:1":0.066667,"A:2":0.066667,"A:3":0.183333,"A:4":0.066667,"A:5":0.233333,"A:6":0.066667,"A:7":0.116667,"A:8":0.066667,"A:9":0.066667,"A:10":0.183333,"A:11":0.15,"A:12":0.116667,"B:1":0.066667,"B:2":0.066667,"B:3":0.183333,"B:4":0.066667,"B:5":0.233333,"B:6":0.066667,"B:7":0.116667,"B:8":0.066667,"B:9":0.066667,"B:10":0.183333,"B:11":0.15,"B:12":0.116667,"C:1":0.9,"C:2":0.1,"C:3":0.3,"C:4":0.1,"C:5":0.6,"C:6":0.1,"C:7":0.3,"C:8":0.1,"C:9":0.9,"C:10":0.1,"C:11":0.45,"C:12":0.2,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":1.0,"CLOCK:TEMPO":0.666667,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":1.0,"CLOCK:TRIG MODE":0.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[]},{"name":"BROKEN ARP","format":1,"params":{"A:1":0.116667,"A:2":0.183333,"A:3":0.116667,"A:4":0.233333,"A:5":0.283333,"A:6":0.316667,"A:7":0.116667,"A:8":0.383333,"A:9":0.433333,"A:10":0.383333,"A:11":0.116667,"A:12":0.283333,"B:1":0.116667,"B:2":0.183333,"B:3":0.116667,"B:4":0.233333,"B:5":0.283333,"B:6":0.316667,"B:7":0.116667,"B:8":0.383333,"B:9":0.433333,"B:10":0.383333,"B:11":0.116667,"B:12":0.283333,"C:1":0.5,"C:2":0.5,"C:3":0.5,"C:4":0.5,"C:5":0.5,"C:6":0.5,"C:7":0.5,"C:8":0.5,"C:9":0.5,"C:10":0.5,"C:11":0.5,"C:12":0.5,"CH:PORTA A":0,"CH:PORTA B":0,"CH:RANGE A":1.0,"CH:RANGE B":1.0,"CH:C MODE":0.0,"CLOCK:TEMPO":0.691399,"CLOCK:SOURCE":0.0,"MODE:MODE":0.0,"MIXER:LEVEL 1":0.7,"MIXER:LEVEL 2":0.7,"CLOCK:DIV":0.5,"CLOCK:EXT SOURCE":0.0,"CLOCK:SETTLE":0.0,"CLOCK:TRIG MODE":1.0,"STEPS:LAW A":0.0,"STEPS:LAW B":0.0,"STEPS:QUANT A":1.0,"STEPS:QUANT B":1.0,"MIDI:CH A":0.0,"MIDI:CH B":0.06666667014360428,"MIDI:VEL A":0.0,"MIDI:VEL B":0.0},"cables":[["3:TRIG","INPUTS:STEP","white"],["7:TRIG","INPUTS:STEP","white"],["11:TRIG","INPUTS:STEP","white"]]}]}.patterns;
 Object.assign(P,PATTERNS[0].params);C.forEach(c=>c.def=P[c.id]);   // double-click returns a control to pattern A001
 let pressed=null;
 const steps=c=>c.positions||0,idx=c=>Math.round(P[c.id]*(steps(c)-1));
@@ -103,7 +649,7 @@ function setLed(id,on){const e=ledEls[id];if(!e||e.on===on)return;e.on=on;const{
   e.g.innerHTML=(on?`<circle cx="${cx}" cy="${cy}" r="${r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${cx-r*.3}" cy="${cy-r*.3}" r="${r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}
 Object.keys(ledEls).forEach(id=>setLed(id,false));
 function setP(id,v,quiet){const i=C.findIndex(c=>c.id==id),c=C[i];if(i<0)return;if(c.kind=="readout")return;v=Math.min(1,Math.max(0,v));if(steps(c)>=2)v=Math.round(v*(steps(c)-1))/(steps(c)-1);P[id]=v;drawCtl(i);if(id=="CLOCK:TEMPO"||id=="CLOCK:DIV"||id=="CLOCK:SOURCE")drawReadouts();
-  if(id=="TOP:BYPASS"&&v>.5&&ctx)voices.forEach(x=>{x.g.gain.cancelScheduledValues(ctx.currentTime);x.g.gain.setTargetAtTime(0,ctx.currentTime,.01)});   // bypass mutes the VCOs at once
+  if(id=="TOP:BYPASS")send({t:"bypass",d:KEY,on:v>.5});else if(c.kind!="button")send({t:"param",d:KEY,id,v});   // bypass mutes the gates and VCOs at once
   if(!quiet)info.textContent=describe(c)}
 function describe(c){const v=P[c.id];
   if(c.kind=="readout"||c.id=="CLOCK:TEMPO"||c.id=="CLOCK:DIV")return P["CLOCK:SOURCE"]>.5?"TEMPO · SOURCE is EXT: the CLOCK jack steps the sequencer, TEMPO and the BPM readout are ignored":`TEMPO · ${fmtBpm(bpmNow())} BPM at 1/${spb(P["CLOCK:DIV"])*4} · ${sps(P["CLOCK:TEMPO"]).toFixed(2)} steps/s`;if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
@@ -203,73 +749,54 @@ addEventListener("keydown",e=>{if(scrMode){screenKey(e);return}
   if(e.code=="Space"&&!/^(BUTTON|SELECT|INPUT)$/.test(document.activeElement.tagName)){e.preventDefault();press("MODE:START/STOP")}});
 function loop(){if(grab)pins(cables[grab.i]);step();paint();frame();requestAnimationFrame(loop)}
 
-// ================= sequencer (same law as engine/BushidoModule.cpp) =================
-const jid=id=>J.findIndex(j=>j.id==id);
-let route={};          // input jack id -> [output jack ids], rebuilt whenever the patch changes
-function routes(){route={};for(const c of cables){if(c.a<0||c.b<0)continue;const A=J[c.a],B=J[c.b];let o,i;
-  if(A.dir=="out"&&B.dir=="in"){o=A;i=B}else if(A.dir=="in"&&B.dir=="out"){o=B;i=A}else continue;(route[i.id]=route[i.id]||[]).push(o.id)}}
-const S={running:false,pos:-1,chan:0,next:0,lastTick:0,lastPeriod:.25,trig:-1,gen:0,cv:[0,0],cvC:0,gateUntil:[0,0]};
-const mode=()=>Math.round(P["MODE:MODE"]*2),ext=()=>P["CLOCK:SOURCE"]>.5,outJ=()=>mode()==2?S.chan:0;
-function outValue(id,t){                    // what an output jack carries now, for TEMPO CV
-  if(id=="OUTPUTS:CV A")return S.cv[0];if(id=="OUTPUTS:CV B")return S.cv[1];if(id=="OUTPUTS:CV C")return S.cvC;
-  if(id=="OUTPUTS:GATE A")return t<S.gateUntil[0]?5:0;if(id=="OUTPUTS:GATE B")return t<S.gateUntil[1]?5:0;
-  const m=id.match(/^(\d+):TRIG$/);if(m)return S.pos==+m[1]-1?5:0;return 0}
-function rate(t){const cv=(route["CLOCK:TEMPO CV"]||[]).reduce((s,o)=>s+outValue(o,t),0);return Math.min(64,Math.max(.05,.5*Math.pow(2,P["CLOCK:TEMPO"]*6)*Math.pow(2,cv)))}
-function advance(){if(S.pos<0){S.pos=0;S.chan=0}else if(++S.pos>=12){S.pos=0;S.chan=mode()==0?0:1-S.chan}if(mode()==0)S.chan=0}
-const queue=[];       // edges that reach an input after the 0.6 ms settle (gates), in time order
-function edge(outId,t,depth){for(const[inId,outs]of Object.entries(route))if(outs.includes(outId))input(inId,t,depth+1)}
-function input(id,t,depth=0){if(depth>24)return;
-  if(id=="INPUTS:START/STOP"){if(S.running)stop(t);else{S.running=true;S.pos=0;S.chan=0;S.next=t+1/rate(t);land(t,depth,true)}}
-  else if(id=="INPUTS:STEP"){if(S.lastTick)S.lastPeriod=Math.min(4,Math.max(.005,t-S.lastTick));S.lastTick=t;advance();land(t,depth,true)}
-  else if(id=="INPUTS:RESET"){S.pos=0;S.chan=0;if(S.running)S.next=t+1/rate(t);land(t,depth,S.running)}
-  else if(id=="CLOCK:CLOCK"){if(S.running&&ext()){if(S.lastTick)S.lastPeriod=Math.min(4,Math.max(.005,t-S.lastTick));S.lastTick=t;advance();land(t,depth,true)}}}
-// After the position changes: a TRIG jack that just went high reaches its patched inputs within the settle time,
-// so a reset or step it causes lands before this step's CV and gate (TRIG N into RESET never plays step N).
-function land(t,depth,sound){const g=++S.gen;
-  if(S.pos!=S.trig){S.trig=S.pos;edge(`${S.pos+1}:TRIG`,t,depth);if(S.gen!=g)return}
-  if(sound)play(t);else visuals.push({t,idle:true,pos:S.pos,chan:S.chan})}
-function stop(t){S.running=false;voices.forEach(v=>{v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(0,t,.01)});S.gateUntil=[0,0];visuals.push({t,stop:true})}
-function press(id){audio();const t=ctx.currentTime+.01;input({"MODE:START/STOP":"INPUTS:START/STOP","MODE:STEP":"INPUTS:STEP","MODE:RESET":"INPUTS:RESET"}[id],t)}
-function play(t){const jk=outJ(),row=S.chan,s=S.pos,knob=P[`${"AB"[row]}:${s+1}`],volts=knob*(P["CH:RANGE "+"AB"[jk]]>.5?5:1);
-  const period=S.running&&!ext()?1/rate(t):S.lastPeriod,time=P["CH:C MODE"]>.5,frac=time?.05+.9*P[`C:${s+1}`]:.5,len=Math.max(.008,frac*period);
-  S.cv[jk]=volts;S.cvC=time?0:P[`C:${s+1}`]*5;S.gateUntil[jk]=t+.0006+len;
-  sound(jk,volts,t,len);visuals.push({t,pos:s,chan:row,jk,volts,len});
-  queue.push({t:t+.0006,out:jk?"OUTPUTS:GATE B":"OUTPUTS:GATE A"});queue.sort((a,b)=>a.t-b.t)}
-setInterval(()=>{if(!ctx)return;master.gain.setTargetAtTime(+$("vol").value*.5,ctx.currentTime,.02);
-  const until=ctx.currentTime+.12;let n=0;
-  while(n++<400){const qt=queue.length?queue[0].t:Infinity,ct=S.running&&!ext()?S.next:Infinity,t=Math.min(qt,ct);if(t>until)break;
-    if(qt<=ct){const e=queue.shift();edge(e.out,e.t,0)}else{S.next+=1/rate(ct);advance();land(ct,0,true)}}},25);
-
-// ================= sound: two Hz/V VCOs on the A and B jacks =================
-let ctx=null,master=null,voices=[];
-["A","B"].forEach((v,k)=>{const s=$("oct"+v);for(let o=0;o<=4;o++){const op=document.createElement("option");op.value=o;op.textContent=`1 V = ${55*2**o} Hz`;s.appendChild(op)}s.value=k?1:2});
+// ================= sequencer and sound: the shared engine (web/bushido_dsp.js in web/rack_engine.js's patch graph) =================
+// The page runs the same sample-accurate port of engine/BushidoModule.cpp as the rack page, in an AudioWorklet (ScriptProcessor
+// fallback): START absorbs a coincident clock, SETTLE, TRIG low while stopped, TRIG MODE, PORTA, PITCH LAW, QUANT and the mixer
+// smoothing all behave as in the plugin. Cables go into the engine's graph, so TRIG into RESET, GATE into STEP and so on are
+// the plugin's (a loop is delayed one sample). The two VCOs are the engine's monitor voices, played straight out.
+const jid=id=>J.findIndex(j=>j.id==id),KEY="BUSHIDO#1";
+const mode=()=>Math.round(P["MODE:MODE"]*2);
+// Tab parameters (CLOCK, STEPS, MIDI): no knob on this panel yet; patterns carry them, and v1 patterns migrate (format 0 -> 1).
+const TAB={};BUSHIDO_DSP.PARAMS.slice(BUSHIDO_DSP.P.NUM_V1_PARAMS).forEach(q=>TAB[q.id]=q.def);let migration=null;
+const tabDef=id=>BUSHIDO_DSP.PARAMS[BUSHIDO_DSP.PARAMS.findIndex(q=>q.id==id)].def;
+function setTab(id,v){if(!(id in TAB))return;TAB[id]=v;send({t:"param",d:KEY,id,v})}
+let ctx=null,node=null,eng=null,starting=false,st=null;const outbox=[];
+function send(m){if(node)node.port.postMessage(m);else if(eng)eng.msg(m);else if(starting)outbox.push(m)}
+const cableList=()=>cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[KEY+"/"+J[c.a].id,KEY+"/"+J[c.b].id]);   // oldest first
+function routes(){send({t:"cables",list:cableList()})}
+const monMsg=()=>({t:"monitor",mode:"out",oct:[+$("octA").value,+$("octB").value]}),volMsg=()=>({t:"volume",v:+$("vol").value*2.5});
+function sync(){const out=[{t:"devices",list:[KEY]}];
+  C.forEach(c=>{if(c.kind!="button"&&c.kind!="readout"&&c.id!="TOP:BYPASS")out.push({t:"param",d:KEY,id:c.id,v:P[c.id]})});
+  for(const id in TAB)out.push({t:"param",d:KEY,id,v:TAB[id]});
+  out.push({t:"bypass",d:KEY,on:P["TOP:BYPASS"]>.5},monMsg(),volMsg(),{t:"cables",list:cableList()});return out}
 function audio(){if(ctx){if(ctx.state=="suspended")ctx.resume();return ctx}
-  ctx=new(window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.gain.value=+$("vol").value*.5;master.connect(ctx.destination);
-  voices=[0,1].map(()=>{const o=ctx.createOscillator(),o2=ctx.createOscillator(),m2=ctx.createGain(),f=ctx.createBiquadFilter(),g=ctx.createGain();
-    o.type="sawtooth";o2.type="square";o2.detune.value=6;m2.gain.value=.35;f.type="lowpass";f.Q.value=9;f.frequency.value=1800;g.gain.value=0;
-    o.connect(f);o2.connect(m2).connect(f);f.connect(g).connect(master);o.start();o2.start();return{o,o2,f,g}});return ctx}
-const hz=(v,k)=>v>0?55*v*2**+$("oct"+"AB"[k]).value:0;
-function sound(jk,volts,t,len){const v=voices[jk],porta=P["CH:PORTA "+"AB"[jk]],tau=porta*porta*2,f=Math.max(1,hz(volts,jk));
-  for(const o of[v.o,v.o2]){o.frequency.cancelScheduledValues(t);if(tau<1e-3)o.frequency.setValueAtTime(f,t);else o.frequency.setTargetAtTime(f,t,tau/3)}
-  const cut=P["CH:C MODE"]>.5?900:250+S.cvC/5*5000;   // each note opens the filter and lets it fall back, for an acid-style squelch
-  voices.forEach((x,k)=>{if(k!=jk)return;x.f.frequency.cancelScheduledValues(t);x.f.frequency.setValueAtTime(cut*3.2,t);x.f.frequency.setTargetAtTime(cut*.7,t+.005,.07)});
-  const peak=volts>0&&P["TOP:BYPASS"]<=.5?.7:0;v.g.gain.cancelScheduledValues(t);v.g.gain.setValueAtTime(0,t);v.g.gain.linearRampToValueAtTime(peak,t+.004);
-  v.g.gain.setTargetAtTime(peak*.55,t+.01,.08);v.g.gain.setValueAtTime(peak*.5,Math.max(t+.005,t+len-.004));v.g.gain.linearRampToValueAtTime(0,t+len)}
+  ctx=new(window.AudioContext||window.webkitAudioContext)();starting=true;
+  const src=$("dsp").textContent+"\nclass RackProc extends AudioWorkletProcessor{constructor(){super();this.e=RACK.create(sampleRate);this.e.post=m=>this.port.postMessage(m);this.port.onmessage=e=>this.e.msg(e.data)}process(i,o){const c=o[0];this.e.render(c[0],c[1]||c[0],c[0].length);return true}}\nregisterProcessor('rack',RackProc);";
+  const worklet=()=>ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src],{type:"application/javascript"}))).then(()=>{
+    node=new AudioWorkletNode(ctx,"rack",{numberOfInputs:0,outputChannelCount:[2]});node.port.onmessage=e=>{st=e.data};node.connect(ctx.destination)});
+  const fallback=()=>{eng=RACK.create(ctx.sampleRate);eng.post=m=>{st=m};const sp=ctx.createScriptProcessor(2048,0,2);
+    sp.onaudioprocess=e=>{const b=e.outputBuffer;eng.render(b.getChannelData(0),b.getChannelData(1),b.length)};sp.connect(ctx.destination)};
+  (ctx.audioWorklet&&!/fallback/.test(location.hash)?worklet():Promise.reject()).catch(fallback).then(()=>{starting=false;const ob=outbox.splice(0);sync().forEach(send);ob.forEach(send)});
+  return ctx}
+function press(id){audio();send({t:"press",d:KEY,id})}
+["octA","octB"].forEach(id=>$(id).onchange=()=>send(monMsg()));$("vol").oninput=()=>send(volMsg());
+["A","B"].forEach((v,k)=>{const s=$("oct"+v);for(let o=0;o<=4;o++){const op=document.createElement("option");op.value=o;op.textContent=["32'","16'","8'","4'","2'"][o];s.appendChild(op)}s.value=k?1:2});
 
-// ================= lamps and readout =================
-const visuals=[],NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const midiOf=v=>v>0?Math.max(0,Math.min(127,Math.round(33+12*Math.log2(v)))):-1,noteName=n=>n<0?"no note":NOTE[n%12]+(Math.floor(n/12)-1);
-function lamps(pos,chan){for(let s=1;s<=12;s++)setLed("STEP:"+s,pos==s-1);setLed("CH:A",pos>=0&&chan==0);setLed("CH:B",pos>=0&&chan==1)}
-function frame(){setLed("MODE:RUN",S.running);if(!ctx)return;
-  while(visuals.length&&visuals[0].t<=ctx.currentTime){const v=visuals.shift();
-    if(v.stop){$("r-step").textContent="stopped";continue}lamps(v.pos,v.chan);
-    if(v.idle){$("r-step").textContent=`at ${"AB"[v.chan]}${v.pos+1}, stopped`;continue}
-    const m=mode(),seq=m==1?`${v.chan*12+v.pos+1} of 24`:`${v.pos+1} of 12`;
-    $("r-step").innerHTML=`${"AB"[v.chan]}${v.pos+1} <small>· ${["A","A+B","ALT"][m]} step ${seq} · on the ${"AB"[v.jk]} jacks</small>`;
-    const f=(k)=>`${S.cv[k].toFixed(2)} V <small>· gate ${v.jk==k?"5 V":"0 V"}${v.jk!=k?" · holding":""}</small>`;$("r-a").innerHTML=f(0);$("r-b").innerHTML=f(1);
-    $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${v.pos+1}`]).toFixed(0)}% of the step</small>`:`${S.cvC.toFixed(2)} V <small>· opens both filters</small>`;
-    const n=P["TOP:BYPASS"]>.5?-1:midiOf(v.volts);$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${v.jk+1} · ${(55*v.volts).toFixed(1)} Hz on a Hz/V VCO</small>`;
-    for(const c of cables){const a=c.a>=0?J[c.a].id:"",b=c.b>=0?J[c.b].id:"";if(a==`${v.pos+1}:TRIG`||b==`${v.pos+1}:TRIG`)jiggle(c,1.2)}}}   // a cable twitches when its TRIG fires
+// ================= lamps and readout, from the engine's state (about 30 times a second) =================
+const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const noteName=n=>n<0?"no note":NOTE[n%12]+(Math.floor(n/12)-1);   // MIDI 48 = C3 (JCS R4)
+let seen=null,lastPos=-2,lastChan=-1,lastNote=null;
+function frame(){const q=st&&st.devices&&st.devices[KEY]&&st.devices[KEY].sq;setLed("MODE:RUN",!!(q&&q.running));if(!q||q===seen)return;seen=q;
+  if(q.pos!=lastPos||q.chan!=lastChan){lastPos=q.pos;lastChan=q.chan;
+    for(let s=1;s<=12;s++)setLed("STEP:"+s,q.pos==s-1);setLed("CH:A",q.pos>=0&&q.chan==0);setLed("CH:B",q.pos>=0&&q.chan==1);
+    if(q.running)for(const c of cables){const a=c.a>=0?J[c.a].id:"",b=c.b>=0?J[c.b].id:"";if(a==`${q.pos+1}:TRIG`||b==`${q.pos+1}:TRIG`)jiggle(c,1.2)}}   // a cable twitches when its TRIG fires
+  if(q.note)lastNote=q.note;
+  const m=q.mode,seq=m==1?`${q.chan*12+q.pos+1} of 24`:`${q.pos+1} of 12`;
+  $("r-step").innerHTML=q.pos<0?"stopped · press START":!q.running?`at ${"AB"[q.chan]}${q.pos+1}, stopped`:`${"AB"[q.chan]}${q.pos+1} <small>· ${["A","A+B","ALT"][m]} step ${seq} · on the ${"AB"[q.jk]} jacks</small>`;
+  const f=k=>`${q.cv[k].toFixed(2)} V <small>· gate ${q.gate[k]?"5 V":"0 V"}${q.running&&q.jk!=k?" · holding":""}</small>`;$("r-a").innerHTML=f(0);$("r-b").innerHTML=f(1);
+  $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${Math.max(0,q.pos)+1}`]).toFixed(0)}% of the step</small>`:`${q.cv[2].toFixed(2)} V <small>· opens both filters</small>`;
+  const ln=lastNote,n=ln?ln.note:-1,ch=ln?1+Math.round(TAB[ln.jk?"MIDI:CH B":"MIDI:CH A"]*15):0;
+  $("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":!ln?"–":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${ch} · ${ln.volts.toFixed(2)} V ${ln.law?"HZ/V LIN":"V/OCT"} = ${BUSHIDO_DSP.pitch.hz(ln.law,ln.volts).toFixed(1)} Hz at 8'</small>`}
 
 // ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as RONIN's PRESET screen) =================
 const SCREEN=L.screen;
@@ -346,11 +873,13 @@ function screenKey(e){const ch=typed(e);
 // A pattern sets every control except BYPASS, and replaces the cables. The sequencer keeps running if it was.
 function loadPattern(b,i){const Q=bankList(b)[i];if(!Q)return;cancel();hideMenu();
   C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,Q.params[c.id]??c.default,true)});
-  cables=Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0);build();loaded={b,i};view=b;drawLCD();info.textContent="PATTERN "+plabel()}
+  const pm=Object.assign({},Q.params);migration=BUSHIDO_DSP.migrate(Q.format??0,pm,Q.cables||[],"");   // v1 (no format): SETTLE = VINTAGE, TRIG MODE = STEP
+  for(const id in TAB)setTab(id,pm[id]??tabDef(id));
+  cables=Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0);build();loaded={b,i};view=b;drawLCD();info.textContent="PATTERN "+plabel();info.title=migration.lines.join("\n")}
 function savePattern(){const L=bankList(view);if(L.length>=MAXP){setMode(null);info.textContent=`BANK ${view} IS FULL`;return}
-  const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});
+  const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});for(const id in TAB)params[id]=+TAB[id].toFixed(4);
   const name=(nameBuf.trim()||"PATTERN").slice(0,NCH-5);
-  user[view].push({name,params,cables:cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[J[c.a].id,J[c.b].id,c.c])});persist();
+  user[view].push({name,format:BUSHIDO_DSP.FORMAT,params,cables:cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[J[c.a].id,J[c.b].id,c.c])});persist();
   loaded={b:view,i:bankList(view).length-1};setMode(null);info.textContent="SAVED "+plabel()}
 $("clr").onclick=()=>{cancel();cables=[];build();info.textContent="Cables cleared"};
 loadPattern("A",0);loop();

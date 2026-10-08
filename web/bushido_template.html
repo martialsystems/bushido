@@ -48,14 +48,17 @@ p.legal{font-size:.8rem;margin-top:16px}
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
   <div class="cell"><span class="k">CV B · Gate B</span><span class="v" id="r-b">0.00 V</span></div>
   <div class="cell"><span class="k">CV C</span><span class="v" id="r-c">0.00 V</span></div>
-  <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
+  <div class="cell"><span class="k">MIDI out</span><span class="v" id="r-midi">–</span></div>
 </div>
-<p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with the factory bank, INIT only for now. <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
+<p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with the factory bank: INIT, then acid lines, basslines, arps, plucks, stabs and leads. <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
 <b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> the green readout next to TEMPO is the same control in BPM; drag its digits (Shift = 0.1 BPM) or scroll. DIV sets the steps per beat (1/8, 1/16, 1/32): at 120 BPM and 1/16 the clock runs 8 steps per second. TEMPO CV still bends around it, and with SOURCE on EXT the readout shows EXT. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
-<b>Sound:</b> two Hz/V VCOs listen to CV A / GATE A and CV B / GATE B (1 V = 55 Hz × the octave setting above). In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
-<p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is inspired by classic Korg gear. Korg is a trademark of its owner; Martial Systems is not affiliated with or endorsed by Korg.</p>
+<b>Sound:</b> two VCOs listen to CV A / GATE A and CV B / GATE B under each row's PITCH LAW, by default the rack pitch standard, V/OCT with 0 V = C3 = 130.81 Hz (MIDI 48), at the footage set above (8' = C3). The sequencer is the plugin's engine, sample for sample. In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
+<p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is an original Martial Systems design inspired by classic Korg gear. Korg is a trademark of its owner. Martial Systems LLC is not affiliated with or endorsed by Korg.</p>
 </div>
+<script id="dsp">
+__DSP__
+</script>
 <script>
 const L=__LAYOUT__,J=L.jacks,LABELS=L.labels.map(l=>l.rect),VW=L.canvas[0],VH=L.canvas[1],NS="http://www.w3.org/2000/svg";
 const $=id=>document.getElementById(id),sv=$("sv"),cab=$("cab"),ring=$("ring"),info=$("info"),menu=$("menu"),stage=$("stage");
@@ -103,7 +106,7 @@ function setLed(id,on){const e=ledEls[id];if(!e||e.on===on)return;e.on=on;const{
   e.g.innerHTML=(on?`<circle cx="${cx}" cy="${cy}" r="${r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${cx-r*.3}" cy="${cy-r*.3}" r="${r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}
 Object.keys(ledEls).forEach(id=>setLed(id,false));
 function setP(id,v,quiet){const i=C.findIndex(c=>c.id==id),c=C[i];if(i<0)return;if(c.kind=="readout")return;v=Math.min(1,Math.max(0,v));if(steps(c)>=2)v=Math.round(v*(steps(c)-1))/(steps(c)-1);P[id]=v;drawCtl(i);if(id=="CLOCK:TEMPO"||id=="CLOCK:DIV"||id=="CLOCK:SOURCE")drawReadouts();
-  if(id=="TOP:BYPASS"&&v>.5&&ctx)voices.forEach(x=>{x.g.gain.cancelScheduledValues(ctx.currentTime);x.g.gain.setTargetAtTime(0,ctx.currentTime,.01)});   // bypass mutes the VCOs at once
+  if(id=="TOP:BYPASS")send({t:"bypass",d:KEY,on:v>.5});else if(c.kind!="button")send({t:"param",d:KEY,id,v});   // bypass mutes the gates and VCOs at once
   if(!quiet)info.textContent=describe(c)}
 function describe(c){const v=P[c.id];
   if(c.kind=="readout"||c.id=="CLOCK:TEMPO"||c.id=="CLOCK:DIV")return P["CLOCK:SOURCE"]>.5?"TEMPO · SOURCE is EXT: the CLOCK jack steps the sequencer, TEMPO and the BPM readout are ignored":`TEMPO · ${fmtBpm(bpmNow())} BPM at 1/${spb(P["CLOCK:DIV"])*4} · ${sps(P["CLOCK:TEMPO"]).toFixed(2)} steps/s`;if(c.id=="TOP:BYPASS")return v>.5?"BYPASS ON · the sequencer keeps running, its gates are muted":"BYPASS OFF";if(c.marks)return c.id+" · "+c.marks[idx(c)];if(/^[ABC]:/.test(c.id)){const row=c.id[0];return `${row}${c.id.slice(2)} · ${row=="C"?(P["CH:C MODE"]>.5?(5+90*v).toFixed(0)+"% gate":(v*5).toFixed(2)+" V"):(v*(P["CH:RANGE "+row]>.5?5:1)).toFixed(2)+" V"}`}return c.id+" · "+v.toFixed(2)}
@@ -203,73 +206,54 @@ addEventListener("keydown",e=>{if(scrMode){screenKey(e);return}
   if(e.code=="Space"&&!/^(BUTTON|SELECT|INPUT)$/.test(document.activeElement.tagName)){e.preventDefault();press("MODE:START/STOP")}});
 function loop(){if(grab)pins(cables[grab.i]);step();paint();frame();requestAnimationFrame(loop)}
 
-// ================= sequencer (same law as engine/BushidoModule.cpp) =================
-const jid=id=>J.findIndex(j=>j.id==id);
-let route={};          // input jack id -> [output jack ids], rebuilt whenever the patch changes
-function routes(){route={};for(const c of cables){if(c.a<0||c.b<0)continue;const A=J[c.a],B=J[c.b];let o,i;
-  if(A.dir=="out"&&B.dir=="in"){o=A;i=B}else if(A.dir=="in"&&B.dir=="out"){o=B;i=A}else continue;(route[i.id]=route[i.id]||[]).push(o.id)}}
-const S={running:false,pos:-1,chan:0,next:0,lastTick:0,lastPeriod:.25,trig:-1,gen:0,cv:[0,0],cvC:0,gateUntil:[0,0]};
-const mode=()=>Math.round(P["MODE:MODE"]*2),ext=()=>P["CLOCK:SOURCE"]>.5,outJ=()=>mode()==2?S.chan:0;
-function outValue(id,t){                    // what an output jack carries now, for TEMPO CV
-  if(id=="OUTPUTS:CV A")return S.cv[0];if(id=="OUTPUTS:CV B")return S.cv[1];if(id=="OUTPUTS:CV C")return S.cvC;
-  if(id=="OUTPUTS:GATE A")return t<S.gateUntil[0]?5:0;if(id=="OUTPUTS:GATE B")return t<S.gateUntil[1]?5:0;
-  const m=id.match(/^(\d+):TRIG$/);if(m)return S.pos==+m[1]-1?5:0;return 0}
-function rate(t){const cv=(route["CLOCK:TEMPO CV"]||[]).reduce((s,o)=>s+outValue(o,t),0);return Math.min(64,Math.max(.05,.5*Math.pow(2,P["CLOCK:TEMPO"]*6)*Math.pow(2,cv)))}
-function advance(){if(S.pos<0){S.pos=0;S.chan=0}else if(++S.pos>=12){S.pos=0;S.chan=mode()==0?0:1-S.chan}if(mode()==0)S.chan=0}
-const queue=[];       // edges that reach an input after the 0.6 ms settle (gates), in time order
-function edge(outId,t,depth){for(const[inId,outs]of Object.entries(route))if(outs.includes(outId))input(inId,t,depth+1)}
-function input(id,t,depth=0){if(depth>24)return;
-  if(id=="INPUTS:START/STOP"){if(S.running)stop(t);else{S.running=true;S.pos=0;S.chan=0;S.next=t+1/rate(t);land(t,depth,true)}}
-  else if(id=="INPUTS:STEP"){if(S.lastTick)S.lastPeriod=Math.min(4,Math.max(.005,t-S.lastTick));S.lastTick=t;advance();land(t,depth,true)}
-  else if(id=="INPUTS:RESET"){S.pos=0;S.chan=0;if(S.running)S.next=t+1/rate(t);land(t,depth,S.running)}
-  else if(id=="CLOCK:CLOCK"){if(S.running&&ext()){if(S.lastTick)S.lastPeriod=Math.min(4,Math.max(.005,t-S.lastTick));S.lastTick=t;advance();land(t,depth,true)}}}
-// After the position changes: a TRIG jack that just went high reaches its patched inputs within the settle time,
-// so a reset or step it causes lands before this step's CV and gate (TRIG N into RESET never plays step N).
-function land(t,depth,sound){const g=++S.gen;
-  if(S.pos!=S.trig){S.trig=S.pos;edge(`${S.pos+1}:TRIG`,t,depth);if(S.gen!=g)return}
-  if(sound)play(t);else visuals.push({t,idle:true,pos:S.pos,chan:S.chan})}
-function stop(t){S.running=false;voices.forEach(v=>{v.g.gain.cancelScheduledValues(t);v.g.gain.setTargetAtTime(0,t,.01)});S.gateUntil=[0,0];visuals.push({t,stop:true})}
-function press(id){audio();const t=ctx.currentTime+.01;input({"MODE:START/STOP":"INPUTS:START/STOP","MODE:STEP":"INPUTS:STEP","MODE:RESET":"INPUTS:RESET"}[id],t)}
-function play(t){const jk=outJ(),row=S.chan,s=S.pos,knob=P[`${"AB"[row]}:${s+1}`],volts=knob*(P["CH:RANGE "+"AB"[jk]]>.5?5:1);
-  const period=S.running&&!ext()?1/rate(t):S.lastPeriod,time=P["CH:C MODE"]>.5,frac=time?.05+.9*P[`C:${s+1}`]:.5,len=Math.max(.008,frac*period);
-  S.cv[jk]=volts;S.cvC=time?0:P[`C:${s+1}`]*5;S.gateUntil[jk]=t+.0006+len;
-  sound(jk,volts,t,len);visuals.push({t,pos:s,chan:row,jk,volts,len});
-  queue.push({t:t+.0006,out:jk?"OUTPUTS:GATE B":"OUTPUTS:GATE A"});queue.sort((a,b)=>a.t-b.t)}
-setInterval(()=>{if(!ctx)return;master.gain.setTargetAtTime(+$("vol").value*.5,ctx.currentTime,.02);
-  const until=ctx.currentTime+.12;let n=0;
-  while(n++<400){const qt=queue.length?queue[0].t:Infinity,ct=S.running&&!ext()?S.next:Infinity,t=Math.min(qt,ct);if(t>until)break;
-    if(qt<=ct){const e=queue.shift();edge(e.out,e.t,0)}else{S.next+=1/rate(ct);advance();land(ct,0,true)}}},25);
-
-// ================= sound: two Hz/V VCOs on the A and B jacks =================
-let ctx=null,master=null,voices=[];
-["A","B"].forEach((v,k)=>{const s=$("oct"+v);for(let o=0;o<=4;o++){const op=document.createElement("option");op.value=o;op.textContent=`1 V = ${55*2**o} Hz`;s.appendChild(op)}s.value=k?1:2});
+// ================= sequencer and sound: the shared engine (web/bushido_dsp.js in web/rack_engine.js's patch graph) =================
+// The page runs the same sample-accurate port of engine/BushidoModule.cpp as the rack page, in an AudioWorklet (ScriptProcessor
+// fallback): START absorbs a coincident clock, SETTLE, TRIG low while stopped, TRIG MODE, PORTA, PITCH LAW, QUANT and the mixer
+// smoothing all behave as in the plugin. Cables go into the engine's graph, so TRIG into RESET, GATE into STEP and so on are
+// the plugin's (a loop is delayed one sample). The two VCOs are the engine's monitor voices, played straight out.
+const jid=id=>J.findIndex(j=>j.id==id),KEY="BUSHIDO#1";
+const mode=()=>Math.round(P["MODE:MODE"]*2);
+// Tab parameters (CLOCK, STEPS, MIDI): no knob on this panel yet; patterns carry them, and v1 patterns migrate (format 0 -> 1).
+const TAB={};BUSHIDO_DSP.PARAMS.slice(BUSHIDO_DSP.P.NUM_V1_PARAMS).forEach(q=>TAB[q.id]=q.def);let migration=null;
+const tabDef=id=>BUSHIDO_DSP.PARAMS[BUSHIDO_DSP.PARAMS.findIndex(q=>q.id==id)].def;
+function setTab(id,v){if(!(id in TAB))return;TAB[id]=v;send({t:"param",d:KEY,id,v})}
+let ctx=null,node=null,eng=null,starting=false,st=null;const outbox=[];
+function send(m){if(node)node.port.postMessage(m);else if(eng)eng.msg(m);else if(starting)outbox.push(m)}
+const cableList=()=>cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[KEY+"/"+J[c.a].id,KEY+"/"+J[c.b].id]);   // oldest first
+function routes(){send({t:"cables",list:cableList()})}
+const monMsg=()=>({t:"monitor",mode:"out",oct:[+$("octA").value,+$("octB").value]}),volMsg=()=>({t:"volume",v:+$("vol").value*2.5});
+function sync(){const out=[{t:"devices",list:[KEY]}];
+  C.forEach(c=>{if(c.kind!="button"&&c.kind!="readout"&&c.id!="TOP:BYPASS")out.push({t:"param",d:KEY,id:c.id,v:P[c.id]})});
+  for(const id in TAB)out.push({t:"param",d:KEY,id,v:TAB[id]});
+  out.push({t:"bypass",d:KEY,on:P["TOP:BYPASS"]>.5},monMsg(),volMsg(),{t:"cables",list:cableList()});return out}
 function audio(){if(ctx){if(ctx.state=="suspended")ctx.resume();return ctx}
-  ctx=new(window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.gain.value=+$("vol").value*.5;master.connect(ctx.destination);
-  voices=[0,1].map(()=>{const o=ctx.createOscillator(),o2=ctx.createOscillator(),m2=ctx.createGain(),f=ctx.createBiquadFilter(),g=ctx.createGain();
-    o.type="sawtooth";o2.type="square";o2.detune.value=6;m2.gain.value=.35;f.type="lowpass";f.Q.value=9;f.frequency.value=1800;g.gain.value=0;
-    o.connect(f);o2.connect(m2).connect(f);f.connect(g).connect(master);o.start();o2.start();return{o,o2,f,g}});return ctx}
-const hz=(v,k)=>v>0?55*v*2**+$("oct"+"AB"[k]).value:0;
-function sound(jk,volts,t,len){const v=voices[jk],porta=P["CH:PORTA "+"AB"[jk]],tau=porta*porta*2,f=Math.max(1,hz(volts,jk));
-  for(const o of[v.o,v.o2]){o.frequency.cancelScheduledValues(t);if(tau<1e-3)o.frequency.setValueAtTime(f,t);else o.frequency.setTargetAtTime(f,t,tau/3)}
-  const cut=P["CH:C MODE"]>.5?900:250+S.cvC/5*5000;   // each note opens the filter and lets it fall back, for an acid-style squelch
-  voices.forEach((x,k)=>{if(k!=jk)return;x.f.frequency.cancelScheduledValues(t);x.f.frequency.setValueAtTime(cut*3.2,t);x.f.frequency.setTargetAtTime(cut*.7,t+.005,.07)});
-  const peak=volts>0&&P["TOP:BYPASS"]<=.5?.7:0;v.g.gain.cancelScheduledValues(t);v.g.gain.setValueAtTime(0,t);v.g.gain.linearRampToValueAtTime(peak,t+.004);
-  v.g.gain.setTargetAtTime(peak*.55,t+.01,.08);v.g.gain.setValueAtTime(peak*.5,Math.max(t+.005,t+len-.004));v.g.gain.linearRampToValueAtTime(0,t+len)}
+  ctx=new(window.AudioContext||window.webkitAudioContext)();starting=true;
+  const src=$("dsp").textContent+"\nclass RackProc extends AudioWorkletProcessor{constructor(){super();this.e=RACK.create(sampleRate);this.e.post=m=>this.port.postMessage(m);this.port.onmessage=e=>this.e.msg(e.data)}process(i,o){const c=o[0];this.e.render(c[0],c[1]||c[0],c[0].length);return true}}\nregisterProcessor('rack',RackProc);";
+  const worklet=()=>ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([src],{type:"application/javascript"}))).then(()=>{
+    node=new AudioWorkletNode(ctx,"rack",{numberOfInputs:0,outputChannelCount:[2]});node.port.onmessage=e=>{st=e.data};node.connect(ctx.destination)});
+  const fallback=()=>{eng=RACK.create(ctx.sampleRate);eng.post=m=>{st=m};const sp=ctx.createScriptProcessor(2048,0,2);
+    sp.onaudioprocess=e=>{const b=e.outputBuffer;eng.render(b.getChannelData(0),b.getChannelData(1),b.length)};sp.connect(ctx.destination)};
+  (ctx.audioWorklet&&!/fallback/.test(location.hash)?worklet():Promise.reject()).catch(fallback).then(()=>{starting=false;const ob=outbox.splice(0);sync().forEach(send);ob.forEach(send)});
+  return ctx}
+function press(id){audio();send({t:"press",d:KEY,id})}
+["octA","octB"].forEach(id=>$(id).onchange=()=>send(monMsg()));$("vol").oninput=()=>send(volMsg());
+["A","B"].forEach((v,k)=>{const s=$("oct"+v);for(let o=0;o<=4;o++){const op=document.createElement("option");op.value=o;op.textContent=["32'","16'","8'","4'","2'"][o];s.appendChild(op)}s.value=k?1:2});
 
-// ================= lamps and readout =================
-const visuals=[],NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const midiOf=v=>v>0?Math.max(0,Math.min(127,Math.round(33+12*Math.log2(v)))):-1,noteName=n=>n<0?"no note":NOTE[n%12]+(Math.floor(n/12)-1);
-function lamps(pos,chan){for(let s=1;s<=12;s++)setLed("STEP:"+s,pos==s-1);setLed("CH:A",pos>=0&&chan==0);setLed("CH:B",pos>=0&&chan==1)}
-function frame(){setLed("MODE:RUN",S.running);if(!ctx)return;
-  while(visuals.length&&visuals[0].t<=ctx.currentTime){const v=visuals.shift();
-    if(v.stop){$("r-step").textContent="stopped";continue}lamps(v.pos,v.chan);
-    if(v.idle){$("r-step").textContent=`at ${"AB"[v.chan]}${v.pos+1}, stopped`;continue}
-    const m=mode(),seq=m==1?`${v.chan*12+v.pos+1} of 24`:`${v.pos+1} of 12`;
-    $("r-step").innerHTML=`${"AB"[v.chan]}${v.pos+1} <small>· ${["A","A+B","ALT"][m]} step ${seq} · on the ${"AB"[v.jk]} jacks</small>`;
-    const f=(k)=>`${S.cv[k].toFixed(2)} V <small>· gate ${v.jk==k?"5 V":"0 V"}${v.jk!=k?" · holding":""}</small>`;$("r-a").innerHTML=f(0);$("r-b").innerHTML=f(1);
-    $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${v.pos+1}`]).toFixed(0)}% of the step</small>`:`${S.cvC.toFixed(2)} V <small>· opens both filters</small>`;
-    const n=P["TOP:BYPASS"]>.5?-1:midiOf(v.volts);$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${v.jk+1} · ${(55*v.volts).toFixed(1)} Hz on a Hz/V VCO</small>`;
-    for(const c of cables){const a=c.a>=0?J[c.a].id:"",b=c.b>=0?J[c.b].id:"";if(a==`${v.pos+1}:TRIG`||b==`${v.pos+1}:TRIG`)jiggle(c,1.2)}}}   // a cable twitches when its TRIG fires
+// ================= lamps and readout, from the engine's state (about 30 times a second) =================
+const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const noteName=n=>n<0?"no note":NOTE[n%12]+(Math.floor(n/12)-1);   // MIDI 48 = C3 (JCS R4)
+let seen=null,lastPos=-2,lastChan=-1,lastNote=null;
+function frame(){const q=st&&st.devices&&st.devices[KEY]&&st.devices[KEY].sq;setLed("MODE:RUN",!!(q&&q.running));if(!q||q===seen)return;seen=q;
+  if(q.pos!=lastPos||q.chan!=lastChan){lastPos=q.pos;lastChan=q.chan;
+    for(let s=1;s<=12;s++)setLed("STEP:"+s,q.pos==s-1);setLed("CH:A",q.pos>=0&&q.chan==0);setLed("CH:B",q.pos>=0&&q.chan==1);
+    if(q.running)for(const c of cables){const a=c.a>=0?J[c.a].id:"",b=c.b>=0?J[c.b].id:"";if(a==`${q.pos+1}:TRIG`||b==`${q.pos+1}:TRIG`)jiggle(c,1.2)}}   // a cable twitches when its TRIG fires
+  if(q.note)lastNote=q.note;
+  const m=q.mode,seq=m==1?`${q.chan*12+q.pos+1} of 24`:`${q.pos+1} of 12`;
+  $("r-step").innerHTML=q.pos<0?"stopped · press START":!q.running?`at ${"AB"[q.chan]}${q.pos+1}, stopped`:`${"AB"[q.chan]}${q.pos+1} <small>· ${["A","A+B","ALT"][m]} step ${seq} · on the ${"AB"[q.jk]} jacks</small>`;
+  const f=k=>`${q.cv[k].toFixed(2)} V <small>· gate ${q.gate[k]?"5 V":"0 V"}${q.running&&q.jk!=k?" · holding":""}</small>`;$("r-a").innerHTML=f(0);$("r-b").innerHTML=f(1);
+  $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${Math.max(0,q.pos)+1}`]).toFixed(0)}% of the step</small>`:`${q.cv[2].toFixed(2)} V <small>· opens both filters</small>`;
+  const ln=lastNote,n=ln?ln.note:-1,ch=ln?1+Math.round(TAB[ln.jk?"MIDI:CH B":"MIDI:CH A"]*15):0;
+  $("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":!ln?"–":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${ch} · ${ln.volts.toFixed(2)} V ${ln.law?"HZ/V LIN":"V/OCT"} = ${BUSHIDO_DSP.pitch.hz(ln.law,ln.volts).toFixed(1)} Hz at 8'</small>`}
 
 // ================= PATTERN screen (same 5x7 dot-matrix LCD and dropdown as RONIN's PRESET screen) =================
 const SCREEN=L.screen;
@@ -346,11 +330,13 @@ function screenKey(e){const ch=typed(e);
 // A pattern sets every control except BYPASS, and replaces the cables. The sequencer keeps running if it was.
 function loadPattern(b,i){const Q=bankList(b)[i];if(!Q)return;cancel();hideMenu();
   C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")setP(c.id,Q.params[c.id]??c.default,true)});
-  cables=Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0);build();loaded={b,i};view=b;drawLCD();info.textContent="PATTERN "+plabel()}
+  const pm=Object.assign({},Q.params);migration=BUSHIDO_DSP.migrate(Q.format??0,pm,Q.cables||[],"");   // v1 (no format): SETTLE = VINTAGE, TRIG MODE = STEP
+  for(const id in TAB)setTab(id,pm[id]??tabDef(id));
+  cables=Q.cables.map(([a,bb,c])=>({a:jid(a),b:jid(bb),c})).filter(c=>c.a>=0&&c.b>=0);build();loaded={b,i};view=b;drawLCD();info.textContent="PATTERN "+plabel();info.title=migration.lines.join("\n")}
 function savePattern(){const L=bankList(view);if(L.length>=MAXP){setMode(null);info.textContent=`BANK ${view} IS FULL`;return}
-  const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});
+  const params={};C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+P[c.id].toFixed(4)});for(const id in TAB)params[id]=+TAB[id].toFixed(4);
   const name=(nameBuf.trim()||"PATTERN").slice(0,NCH-5);
-  user[view].push({name,params,cables:cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[J[c.a].id,J[c.b].id,c.c])});persist();
+  user[view].push({name,format:BUSHIDO_DSP.FORMAT,params,cables:cables.filter(c=>c.a>=0&&c.b>=0).map(c=>[J[c.a].id,J[c.b].id,c.c])});persist();
   loaded={b:view,i:bankList(view).length-1};setMode(null);info.textContent="SAVED "+plabel()}
 $("clr").onclick=()=>{cancel();cables=[];build();info.textContent="Cables cleared"};
 loadPattern("A",0);loop();

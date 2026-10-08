@@ -405,7 +405,10 @@ var RONIN_DSP = (function () {
   }
 
   // ---------- VCO (S-02..S-06) ----------
-  const kFootage = [32.703, 65.406, 130.813, 261.626].map(F);
+  // S-03 footage (RONIN ecde6dd): 8' = the shared exact C3 (jidai-common kC3Hz = 130.8127826502993 Hz); 32', 16' and 4' are
+  // whole octaves of it, each rounded to float as Vco.cpp's static_cast<float>.
+  const kC3 = 130.8127826502993;
+  const kFootage = [kC3 / 4, kC3 / 2, kC3, kC3 * 2].map(F);
   const DT_MIN = F(1.0e-8);
   function polyBlep(t, dt) {
     if (dt <= DT_MIN) return 0;

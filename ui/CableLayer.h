@@ -33,7 +33,8 @@ public:
     void resized() override;
 
     rack::CableModel& model() { return cm; }                  // tests and tools
-    int jackAtDesign(juce::Point<float> p) const;
+    int jackAtDesign(juce::Point<float> p) const;               // hit area at least kMinJackHitPx square on screen
+    static constexpr float kMinJackHitPx = 16.0f;
     juce::Point<float> jackPosDesign(int j) const { return { jacks[(size_t) j].x, jacks[(size_t) j].y }; }
     int jackIndex(const juce::String& globalId) const { return ids.indexOf(globalId); }
 
@@ -47,7 +48,7 @@ private:
     bool clickCarry = false, swallowUp = false;
     std::unique_ptr<Chooser> chooser;
 
-    float scale() const { return getWidth() / dw; }
+    float scale() const { return static_cast<float>(getWidth()) / dw; }
     juce::Point<float> toDesign(juce::Point<float> p) const { return p / scale(); }
     void rebuildScene();
     void track(const juce::MouseEvent&);

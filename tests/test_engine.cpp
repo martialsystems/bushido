@@ -1,15 +1,21 @@
-// Engine + patch graph tests. Build: g++ -std=c++17 -O2 -I. tests/test_engine.cpp rack/PatchGraph.cpp engine/BushidoModule.cpp
+// Engine + patch graph tests. Build: g++ -std=c++17 -O2 -I. -isystem third_party/jidai-common/include tests/test_engine.cpp rack/PatchGraph.cpp engine/BushidoModule.cpp
 #include "../rack/PatchGraph.h"
-#include "../rack/HzPerVolt.h"
+#include "../rack/PitchLaw.h"
+#include <type_traits>
 #include "../engine/BushidoModule.h"
 #include <cstdio>
+#include <functional>
 #include <cmath>
 #include <thread>
 #include <set>
 #include <utility>
+#include <string>
 using namespace rack;
 static int fails = 0;
 #define CHECK(c, msg) do { bool _ok = (c); std::printf("%s %s\n", _ok ? "PASS" : "FAIL", msg); if (!_ok) ++fails; } while (0)
+// Exact floating-point compare, spelled out so -Wfloat-equal stays quiet under the rack's flags: same result as a == b
+// (usual arithmetic conversions via std::common_type, NaN never equal, -0 == +0). Not an epsilon compare.
+template <class A, class B> static constexpr bool exactEq(A a, B b) { using C = std::common_type_t<A, B>; return std::equal_to<C>{}(static_cast<C>(a), static_cast<C>(b)); }
 
 // A second "rack" for cross-rack tests: one input it records, one output it drives.
 struct Probe : Module {
@@ -53,7 +59,7 @@ struct Rig {
 static const float kModeA = 0.0f, kModeAB = 0.5f, kModeAlt = 1.0f;
 
 // Rows A and B set to distinct voltages: A step n = n x 0.01, B step n = 0.5 + n x 0.01 (x 5 V range).
-static void distinctRows(Rig& r) { for (int i = 0; i < 12; ++i) { r.sq.setParam(BushidoModule::STEPS + i, (i + 1) * 0.01f); r.sq.setParam(BushidoModule::STEPS + 12 + i, 0.5f + (i + 1) * 0.01f); } }
+static void distinctRows(Rig& r) { for (int i = 0; i < 12; ++i) { r.sq.setParam(BushidoModule::STEPS + i, static_cast<float>(i + 1) * 0.01f); r.sq.setParam(BushidoModule::STEPS + 12 + i, 0.5f + static_cast<float>(i + 1) * 0.01f); } }
 struct JackLog { int gateA = 0, gateB = 0; std::vector<float> cvAAtGate, cvBAtGate; float cvBMin = 1e9f, cvBMax = -1e9f; };
 // Runs `samples` and records every gate rise on each jack pair, with that jack's CV 2 ms into the gate.
 static JackLog logJacks(Rig& r, long samples)
@@ -82,13 +88,13 @@ static void testModeALoops()
     CHECK(ok, "mode A: A1..A12, A1..A12, A1.. (row A only, 12-step loop)");
     CHECK(r.sq.isRunning(), "mode A: still running after 2.5 passes");
     r.press("MODE:START/STOP"); r.run(1.0);
-    CHECK(! r.sq.isRunning() && r.out("OUTPUTS:GATE A") == 0, "mode A: only Stop stops it");
+    CHECK(! r.sq.isRunning() && exactEq(r.out("OUTPUTS:GATE A"), 0), "mode A: only Stop stops it");
 
     Rig q; distinctRows(q); q.sq.setParam(BushidoModule::MODE, kModeA); q.press("MODE:START/STOP");
     auto L = logJacks(q, 24 * 12000L - 2000);
     bool cv = L.cvAAtGate.size() == 24; for (size_t k = 0; k < L.cvAAtGate.size() && cv; ++k) cv = near(L.cvAAtGate[k], (k % 12 + 1) * 0.05f);
     CHECK(L.gateA == 24 && cv, "mode A: CV A and GATE A carry row A, 24 gates in two passes");
-    CHECK(L.gateB == 0 && L.cvBMin == L.cvBMax, "mode A: row B holds (no GATE B, CV B unchanged)");
+    CHECK(L.gateB == 0 && exactEq(L.cvBMin, L.cvBMax), "mode A: row B holds (no GATE B, CV B unchanged)");
 }
 
 static void testModeABLoops24()
@@ -103,9 +109,9 @@ static void testModeABLoops24()
     Rig q; distinctRows(q); q.sq.setParam(BushidoModule::MODE, kModeAB); q.press("MODE:START/STOP");
     auto L = logJacks(q, 48 * 12000L - 2000);
     bool cv = L.cvAAtGate.size() == 48;
-    for (size_t k = 0; k < L.cvAAtGate.size() && cv; ++k) { const int n = (int) (k % 24); cv = near(L.cvAAtGate[k], n < 12 ? (n + 1) * 0.05f : 2.5f + (n - 11) * 0.05f); }
+    for (size_t k = 0; k < L.cvAAtGate.size() && cv; ++k) { const int n = (int) (k % 24); cv = near(L.cvAAtGate[k], n < 12 ? static_cast<float>(n + 1) * 0.05f : 2.5f + static_cast<float>(n - 11) * 0.05f); }
     CHECK(L.gateA == 48 && cv, "mode A+B: one 24-step sequence on the A jacks, steps 13-24 are row B");
-    CHECK(L.gateB == 0 && L.cvBMin == L.cvBMax, "mode A+B: CV B and GATE B hold");
+    CHECK(L.gateB == 0 && exactEq(L.cvBMin, L.cvBMax), "mode A+B: CV B and GATE B hold");
 }
 
 static void testAltSwapsEachPass()
@@ -138,7 +144,7 @@ static void testAltSwapsEachPass()
 
 static void testTrigIntoResetSkipsStep()
 {
-    Rig r; for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + i, (i + 1) / 12.0f);
+    Rig r; for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + i, static_cast<float>(i + 1) / 12.0f);
     r.sq.setParam(BushidoModule::MODE, kModeA);
     r.g.setCables({ r.c("5:TRIG", "INPUTS:RESET") }); r.press("MODE:START/STOP");
     std::set<int> played; float maxCv = 0; int gateRises = 0, trig5Len = 0, trig5Max = 0; bool prevG = false;
@@ -155,14 +161,22 @@ static void testTrigIntoResetSkipsStep()
     CHECK(r.sq.isRunning(), "RESET from the cable does not stop the sequencer");
 }
 
-static void testMidiUsesHzPerVolt()
+static void testPitchLaw()                                           // JCS R4: 0 V = C3 = 130.8127826502993 Hz = MIDI 48
 {
-    CHECK(hzv::midiNote(1.0f) == 33 && std::abs(hzv::hz(1.0f) - 55.0f) < 1e-4f, "Hz/V: 1 V = 55 Hz = A1 (MIDI 33)");
-    CHECK(hzv::midiNote(2.0f) == 45 && hzv::midiNote(4.0f) == 57 && hzv::midiNote(0.5f) == 21, "Hz/V: doubling the volts is one octave up");
-    CHECK(hzv::midiNote(1.5f) == 40, "Hz/V: 1.5 V is a fifth above 1 V, not 1/2 octave");
-    CHECK(hzv::midiNote(1.0f) != 36 + 12 && hzv::midiNote(5.0f) == 61, "not 36 + CV x 12 (5 V would be note 96)");
-    CHECK(hzv::midiNote(0.0f) == -1 && hzv::midiNote(-1.0f) == -1, "0 V and below: no note (a Hz/V VCO is silent)");
-    CHECK(hzv::midiNote(0.001f) == 0 && hzv::midiNote(1000.0f) == 127, "notes clamp to 0..127");
+    using pitch::Law;
+    static_assert(std::is_same_v<pitch::Law, jidai::jcs::pitch::Law> && exactEq(pitch::kC3Hz, jidai::jcs::pitch::kC3Hz), "rack::pitch is the shared jidai-common pitch law");
+    const double c3 = 440.0 * std::exp2(-21.0 / 12);                  // C3 = MIDI 48 at A4 = 440, exactly (jidai-common 1.1.1 kC3Hz)
+    CHECK(pitch::midiNote(Law::VOct, 0.0) == 48 && std::abs(pitch::kC3Hz - c3) < 1e-12 && std::abs(pitch::kC3Hz - 130.8127826502993) < 1e-12
+          && std::abs(pitch::hz(Law::VOct, 0.0) - pitch::kC3Hz) < 1e-12, "V/OCT: 0 V = C3 = 440 x 2^(-21/12) = 130.8127826502993 Hz = MIDI 48");
+    CHECK(pitch::midiNote(Law::HzvLin, 1.0) == 48 && std::abs(pitch::hz(Law::HzvLin, 1.0) - pitch::kC3Hz) < 1e-12 && std::abs(pitch::hz(Law::HzvLin, 2.0) - 2.0 * c3) < 1e-12,
+          "HZ/V LIN: 1 V = C3 = 130.8127826502993 Hz = MIDI 48, 2 V = C4 (55 Hz retired)");
+    CHECK(pitch::midiNote(Law::HzvLin, 1.5) == 55, "HZ/V LIN: 1.5 V is a fifth above 1 V");
+    CHECK(pitch::midiNote(Law::HzvLin, 0.0) == -1 && pitch::midiNote(Law::HzvLin, -1.0) == -1, "HZ/V LIN: 0 V and below, no note");
+    CHECK(pitch::midiNote(Law::VOct, -5.0) == 0 && pitch::midiNote(Law::VOct, 10.0) == 127, "notes clamp to 0..127");
+    CHECK(std::abs(pitch::quantize(Law::VOct, 0.53) - 0.5) < 1e-12 && std::abs(pitch::quantize(Law::VOct, 5.0) - 5.0) < 1e-12, "QUANT V/OCT: round(12 V)/12, 5 V stays 5 V");
+    CHECK(std::abs(pitch::quantize(Law::HzvLin, 1.02) - 1.0) < 1e-12 && std::abs(pitch::quantize(Law::HzvLin, 1.5) - std::exp2(7.0 / 12)) < 1e-12, "QUANT LIN: nearest semitone in log2");
+    CHECK(std::abs(pitch::quantize(Law::HzvLin, 5.0) - std::exp2(27.0 / 12)) < 1e-12 && exactEq(pitch::quantize(Law::HzvLin, 0.02), 0.0), "QUANT LIN: 5 V clamps to note 75 under the rail; below 2^-5 V is 0 V");
+    char nb[8]; CHECK(std::string(pitch::noteName(48, nb, 8)) == "C3" && std::string(pitch::noteName(61, nb, 8)) == "C#4", "note names: 48 = C3");
     Rig r; r.sq.setParam(BushidoModule::STEPS, 0.4f); r.sq.setParam(BushidoModule::RANGE_A, 1.0f); r.press("MODE:START/STOP"); r.run(0.01);
     CHECK(std::abs(r.out("OUTPUTS:CV A") - 2.0f) < 1e-4f, "CV A stays in volts on the jack (0.4 x 5 V = 2 V)");
 }
@@ -171,26 +185,26 @@ static void testFeedbackDelayIsOneSample()
 {
     { Tap t; PatchGraph g; const int T = g.addModule(&t); g.prepare(48000, 256);
       g.setCables({ { T, 1, T, 0 } }); g.process(256); g.process(100);
-      bool ok = true; for (size_t i = 1; i < t.ins.size(); ++i) ok &= t.ins[i] == t.outs[i - 1];
-      CHECK(ok && t.outs.back() == 356.0f, "self-patch: input is the output one sample earlier (356 samples -> 356)"); }
+      bool ok = true; for (size_t i = 1; i < t.ins.size(); ++i) ok &= exactEq(t.ins[i], t.outs[i - 1]);
+      CHECK(ok && exactEq(t.outs.back(), 356.0f), "self-patch: input is the output one sample earlier (356 samples -> 356)"); }
 
     { Tap a, b; PatchGraph g; const int B = g.addModule(&b), A = g.addModule(&a); g.prepare(48000, 256);   // B runs first by index
       g.setCables({ { A, 1, B, 0 } }); g.process(64);
-      bool ok = true; for (size_t i = 0; i < b.ins.size(); ++i) ok &= b.ins[i] == a.outs[i];
+      bool ok = true; for (size_t i = 0; i < b.ins.size(); ++i) ok &= exactEq(b.ins[i], a.outs[i]);
       CHECK(ok, "forward cable is sample-accurate, whatever order the modules were added in"); }
 
     { Tap a, b; PatchGraph g; const int A = g.addModule(&a), B = g.addModule(&b); g.prepare(48000, 256);
       g.setCables({ { A, 1, B, 0 }, { B, 1, A, 0 } }); g.process(200);           // A->B older, B->A newest
-      bool fwd = true, back = b.ins.size() == 200 && a.ins[0] == 0.0f;
-      for (size_t i = 0; i < 200; ++i) fwd &= b.ins[i] == a.outs[i];
-      for (size_t i = 1; i < 200; ++i) back &= a.ins[i] == b.outs[i - 1];
+      bool fwd = true, back = b.ins.size() == 200 && exactEq(a.ins[0], 0.0f);
+      for (size_t i = 0; i < 200; ++i) fwd &= exactEq(b.ins[i], a.outs[i]);
+      for (size_t i = 1; i < 200; ++i) back &= exactEq(a.ins[i], b.outs[i - 1]);
       CHECK(fwd && back, "loop A->B->A: only the newest cable (B->A) is delayed, by exactly 1 sample"); }
 
     { Tap a, b; PatchGraph g; const int A = g.addModule(&a), B = g.addModule(&b); g.prepare(48000, 256);
       g.setCables({ { B, 1, A, 0 }, { A, 1, B, 0 } }); g.process(200);           // now A->B is the newest
       bool fwd = true, back = true;
-      for (size_t i = 0; i < 200; ++i) fwd &= a.ins[i] == b.outs[i];
-      for (size_t i = 1; i < 200; ++i) back &= b.ins[i] == a.outs[i - 1];
+      for (size_t i = 0; i < 200; ++i) fwd &= exactEq(a.ins[i], b.outs[i]);
+      for (size_t i = 1; i < 200; ++i) back &= exactEq(b.ins[i], a.outs[i - 1]);
       CHECK(fwd && back, "same loop patched in the other order: the newest cable (A->B) takes the delay"); }
 
     CHECK(PatchGraph::kFeedbackDelay == 1, "feedback delay is 1 sample (was 16)");
@@ -200,7 +214,7 @@ int main() {
     { Rig r; r.run(0.1); CHECK(! r.sq.isRunning() && r.sq.currentStep() == -1, "starts stopped with no step");
       r.press("MODE:START/STOP"); r.run(0.01);
       CHECK(r.sq.isRunning() && r.sq.currentStep() == 0, "START plays step 1");
-      CHECK(r.out("OUTPUTS:GATE A") == 5.0f && r.out("1:TRIG") == 5.0f, "gate A and TRIG 1 high on step 1");
+      CHECK(exactEq(r.out("OUTPUTS:GATE A"), 5.0f) && exactEq(r.out("1:TRIG"), 5.0f), "gate A and TRIG 1 high on step 1");
       // tempo 0.5 -> 0.5 * 2^3 = 4 steps/s -> a new step every 12000 samples
       int changes = 0, prev = r.sq.currentStep(); long firstAt = -1;
       for (int s = 0; s < 48000; s += 16) { r.g.process(16); if (r.sq.currentStep() != prev) { prev = r.sq.currentStep(); if (firstAt < 0) firstAt = s; ++changes; } }
@@ -211,12 +225,12 @@ int main() {
     testModeABLoops24();
     testAltSwapsEachPass();
     testTrigIntoResetSkipsStep();
-    testMidiUsesHzPerVolt();
+    testPitchLaw();
     testFeedbackDelayIsOneSample();
 
     { Rig r; r.sq.setParam(BushidoModule::MODE, kModeAB); r.press("MODE:START/STOP"); r.run(14 * 0.25);
       CHECK(r.sq.currentChannel() == 1, "(setup) playing row B");
-      r.press("MODE:START/STOP"); r.run(0.1); CHECK(! r.sq.isRunning() && r.out("OUTPUTS:GATE B") == 0, "START while running stops");
+      r.press("MODE:START/STOP"); r.run(0.1); CHECK(! r.sq.isRunning() && exactEq(r.out("OUTPUTS:GATE B"), 0), "START while running stops");
       r.press("MODE:START/STOP"); r.run(0.01); CHECK(r.sq.isRunning() && r.sq.currentChannel() == 0 && r.sq.currentStep() == 0, "starting after a stop begins at A step 1"); }
 
     { Rig r; r.sq.setParam(BushidoModule::MODE, kModeAB); r.press("MODE:START/STOP"); r.run(14 * 0.25);
@@ -224,8 +238,8 @@ int main() {
       CHECK(r.sq.isRunning() && r.sq.currentChannel() == 0 && r.sq.currentStep() == 0, "RESET goes to A step 1 and keeps running"); }
 
     { Rig r; r.press("MODE:STEP"); r.run(0.01); CHECK(! r.sq.isRunning() && r.sq.currentStep() == 0, "STEP while stopped moves to step 1");
-      CHECK(r.out("OUTPUTS:GATE A") == 5.0f, "STEP while stopped plays that step's gate");
-      r.run(1.0); CHECK(r.out("OUTPUTS:GATE A") == 0.0f && r.sq.currentStep() == 0, "...and the gate closes again; stopped, no clock");
+      CHECK(exactEq(r.out("OUTPUTS:GATE A"), 5.0f), "STEP while stopped plays that step's gate");
+      r.run(1.0); CHECK(exactEq(r.out("OUTPUTS:GATE A"), 0.0f) && r.sq.currentStep() == 0, "...and the gate closes again; stopped, no clock");
       r.press("MODE:STEP"); r.run(0.01); CHECK(r.sq.currentStep() == 1, "STEP again moves to step 2"); }
 
     { Rig r; r.sq.setParam(BushidoModule::SOURCE, 1.0f); r.g.setCables({ { r.P, 1, r.S, findJack(r.sq, "CLOCK:CLOCK") } });
@@ -255,7 +269,7 @@ int main() {
       r.g.setCables({ { r.S, findJack(r.sq, "OUTPUTS:CV A"), r.P, 0 }, { r.S, findJack(r.sq, "OUTPUTS:CV C"), r.P, 0 } }); r.run(0.01);
       CHECK(std::abs(r.pb.last - (0.8f + r.out("OUTPUTS:CV C"))) < 1e-4, "two cables into one input are summed");
       r.g.setCables({ { r.S, findJack(r.sq, "OUTPUTS:CV A"), r.S, findJack(r.sq, "OUTPUTS:CV B") } }); r.run(0.01);
-      CHECK(r.pb.last == 0.0f && ! r.g.isConnected(r.P, 0), "output-to-output cable does nothing"); }
+      CHECK(exactEq(r.pb.last, 0.0f) && ! r.g.isConnected(r.P, 0), "output-to-output cable does nothing"); }
 
     { Rig r; std::vector<float> host(256, 2.0f); r.g.setNormal(r.S, findJack(r.sq, "MIXER:IN 1"), host.data());
       r.sq.setParam(BushidoModule::LEVEL1, 0.5f); r.run(0.01); CHECK(std::abs(r.out("MIXER:OUT") - 1.0f) < 1e-5, "unpatched MIXER IN 1 uses the host signal");
@@ -263,7 +277,7 @@ int main() {
       CHECK(std::abs(r.out("MIXER:OUT") - 2.0f) < 1e-5, "patching MIXER IN 1 replaces the host signal"); }
 
     { Rig r; r.sq.setParam(BushidoModule::STEPS, 1.0f); r.sq.setParam(BushidoModule::STEPS + 12, 1.0f); r.press("MODE:START/STOP"); r.run(0.05);
-      CHECK(r.out("MIXER:OUT") == 0.0f, "the mixer has no CV normals: CV A and CV B never reach MIXER OUT"); }
+      CHECK(exactEq(r.out("MIXER:OUT"), 0.0f), "the mixer has no CV normals: CV A and CV B never reach MIXER OUT"); }
 
     { Rig r; r.sq.setParam(BushidoModule::PORTA_A, 0.6f); r.sq.setParam(BushidoModule::STEPS, 1.0f); r.press("MODE:START/STOP"); r.run(0.05);
       float v = r.out("OUTPUTS:CV A"); CHECK(v > 0.05f && v < 4.5f, "portamento slews CV A instead of jumping"); }
@@ -277,13 +291,13 @@ int main() {
 
     { Rig r; r.sq.setParam(BushidoModule::C_MODE, 1.0f); for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + 24 + i, 0.9f);
       r.press("MODE:START/STOP"); float mx = 0; for (int s = 0; s < 48000; s += 16) { r.g.process(16); for (int i = 0; i < 16; ++i) mx = std::max(mx, std::abs(r.g.output(r.S, BushidoModule::CV_C)[i])); }
-      CHECK(mx == 0.0f, "C MODE = TIME: no CV on CV C");
+      CHECK(exactEq(mx, 0.0f), "C MODE = TIME: no CV on CV C");
       r.sq.setParam(BushidoModule::C_MODE, 0.0f); r.run(0.3); CHECK(std::abs(r.out("OUTPUTS:CV C") - 4.5f) < 1e-4, "C MODE = CV: row C is a third CV (0..5 V)"); }
 
-    { Rig r; r.sq.setParam(BushidoModule::MODE, kModeAB); for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + 24 + i, i / 11.0f);
+    { Rig r; r.sq.setParam(BushidoModule::MODE, kModeAB); for (int i = 0; i < 12; ++i) r.sq.setParam(BushidoModule::STEPS + 24 + i, static_cast<float>(i) / 11.0f);
       r.press("MODE:START/STOP"); r.run(14 * 0.25 + 0.1);
-      CHECK(r.sq.currentChannel() == 1 && std::abs(r.out("OUTPUTS:CV C") - 5.0f * r.sq.currentStep() / 11.0f) < 1e-4, "C follows the step of whichever row is playing (row B)");
-      CHECK(r.sq.indicator(2 + r.sq.currentStep()) == 1.0f && r.sq.indicator(2 + (r.sq.currentStep() + 1) % 12) == 0.0f, "one step lamp lights for the playing step"); }
+      CHECK(r.sq.currentChannel() == 1 && std::abs(r.out("OUTPUTS:CV C") - 5.0f * static_cast<float>(r.sq.currentStep()) / 11.0f) < 1e-4, "C follows the step of whichever row is playing (row B)");
+      CHECK(exactEq(r.sq.indicator(2 + r.sq.currentStep()), 1.0f) && exactEq(r.sq.indicator(2 + (r.sq.currentStep() + 1) % 12), 0.0f), "one step lamp lights for the playing step"); }
 
     { Rig r; r.press("MODE:START/STOP"); bool stop = false;
       std::thread t([&] { int k = 0; while (! stop) { r.g.setCables(k++ % 2 ? std::vector<Cable>{ r.c("3:TRIG", "INPUTS:RESET") } : std::vector<Cable>{}); } });

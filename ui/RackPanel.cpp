@@ -87,7 +87,9 @@ void RackPanel::paint(juce::Graphics& g)
     if (bg) bg->draw(g, 1.0f);
     for (size_t i = 0; i < lay.controls.size(); ++i) {
         const auto& c = lay.controls[i]; const float v = bind.get(c.id);
-        if (c.kind == "readout") { PatternScreen::drawDots(g, c.lcd.reduced(2, 1), bind.readoutText(c.id).paddedLeft(' ', c.chars), c.chars, juce::Colour(0xff1e2419), 0.09f); continue; }
+        if (c.kind == "readout") {                     // a longer text ("EXT 118.4") gets smaller cells in the same LCD
+            const auto t = bind.readoutText(c.id); const int n = juce::jmax(c.chars, t.length());
+            PatternScreen::drawDots(g, c.lcd.reduced(2, 1), t.paddedLeft(' ', n), n, juce::Colour(0xff1e2419), 0.09f); continue; }
         if (c.kind == "button") drawKey(g, c.cx, c.cy, c.style == "black", (int) i == pressedIdx);
         else if (c.style == "rocker") drawRocker(g, c.rect, v > 0.5f, c.tone == "dark");
         else if (c.style == "toggle") drawToggle(g, c.cx, c.cy, v > 0.5f);
@@ -120,7 +122,7 @@ void RackPanel::mouseDrag(const juce::MouseEvent& e)
     if (dragIdx < 0) return;
     const auto& c = lay.controls[(size_t) dragIdx]; const float dy = dragStartY - e.position.y;
     if (std::abs(dy) > 3) dragMoved = true;
-    if (c.kind == "readout") { const double st = e.mods.isShiftDown() ? 0.1 : 1.0, v = dragStartR + dy * (e.mods.isShiftDown() ? 0.05 : 0.5);
+    if (c.kind == "readout") { const double st = e.mods.isShiftDown() ? 0.1 : 1.0, v = dragStartR + (double) dy * (e.mods.isShiftDown() ? 0.05 : 0.5);
         bind.setReadoutValue(c.id, std::round(v / st) * st); repaint(); return; }
     const float range = c.kind == "switch" ? 60.0f : (e.mods.isShiftDown() ? 1000.0f : 200.0f);   // screen pixels for full travel
     bind.set(c.id, snap(c, dragStartV + dy / range)); repaint();

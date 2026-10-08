@@ -38,7 +38,7 @@ public:
 private:
     PanelLayout lay; std::unique_ptr<juce::Drawable> bg; Binding& bind;
     int dragIdx = -1; float dragStartY = 0, dragStartV = 0; bool dragMoved = false; int pressedIdx = -1; double dragStartR = 0;
-    float scale() const { return getWidth() / lay.width; }
+    float scale() const { return static_cast<float>(getWidth()) / lay.width; }
     juce::Point<float> toDesign(juce::Point<float> p) const { return p / scale(); }
     int controlAt(juce::Point<float> design) const;
     float angleFor(const PanelLayout::Control&, float v) const;

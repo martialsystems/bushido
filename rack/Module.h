@@ -15,6 +15,10 @@ struct ParamInfo { std::string id; float def; int positions; };
 
 struct IndicatorInfo { std::string id; };                  // LEDs and meters, value 0..1, read by the UI
 
+// Host transport (JCS R5.7), handed to every module once per block before process(). ppq is the quarter-note
+// position at the block's first sample; valid = false when the host gives no transport (standalone, offline tools).
+struct Transport { bool valid = false, playing = false; double bpm = 120.0, ppq = 0.0; long long samplePos = 0; };
+
 class Module {
 public:
     virtual ~Module() = default;
@@ -32,6 +36,7 @@ public:
     virtual void setParam(int index, float value) = 0;
     virtual float getParam(int index) const = 0;
     virtual float indicator(int index) const { (void) index; return 0.0f; }
+    virtual void setTransport(const Transport& t) { (void) t; }   // audio thread, before process(); modules without HOST sync ignore it
 };
 
 int findJack(const Module& m, const std::string& id);     // -1 if missing
