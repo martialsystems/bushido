@@ -115,6 +115,7 @@ the settle in samples and the fixed transport rules; the MIDI tab the reference 
 - Patterns, knob volts and cables are unchanged, so every cable carries exactly the same volts as before. The audible differences in
   old patches are the fixes only: A1 is no longer skipped on RUN + CLK, the first gate after a restart has the right length, TRIG is low
   while stopped, and MIDI notes are correct.
-- Jack ids are stored in the neutral form (`BUSHIDO/...`); the legacy prefixes `SQ-10` and `MS-50` are read as aliases of BUSHIDO and RONIN.
+- Jack ids are stored in the neutral form (`BUSHIDO/...`) and read exactly as stored: there are no legacy prefix aliases, so a cable
+  whose id uses an unknown prefix does not bind (it is kept in the state but not patched).
 - A state from a newer format loads read-only: it is handed back unchanged when the host saves, and SETUP shows a READ-ONLY banner.
 - The SETUP tab lists the last load's migration report.

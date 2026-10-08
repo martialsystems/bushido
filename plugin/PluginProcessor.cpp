@@ -45,7 +45,7 @@ BushidoProcessor::Pattern BushidoProcessor::patternFromVar(const juce::var& pv)
     Pattern pat; pat.name = pv["name"].toString();
     pat.format = pv.hasProperty("format") ? (int) pv["format"] : 0;     // unversioned patterns are v1 (format 0) and migrate on load
     if (auto* o = pv["params"].getDynamicObject()) for (auto& kv : o->getProperties()) pat.params.push_back({ kv.name.toString(), (float) kv.value });
-    auto bare = [](const juce::String& j) { const auto c = juce::String(bushido::canonicalJackId(j.toStdString())); return c.startsWith("BUSHIDO/") ? c.fromFirstOccurrenceOf("/", false, false) : c; };
+    auto bare = [](const juce::String& j) { return j.startsWith("BUSHIDO/") ? j.fromFirstOccurrenceOf("/", false, false) : j; };
     if (auto* cl = pv["cables"].getArray())
         for (auto& c : *cl) { int col = 0; for (int k = 0; k < 4; ++k) if (c[2].toString() == kColourNames[k]) col = k;
             pat.cables.push_back({ "BUSHIDO/" + bare(c[0].toString()), "BUSHIDO/" + bare(c[1].toString()), col, (int) pat.cables.size() }); }
@@ -242,9 +242,8 @@ void BushidoProcessor::setStateInformation(const void* data, int size)
     auto state = juce::ValueTree::fromXml(*xml); if (! state.hasType(apvts.state.getType())) return;
     const int format = (int) state.getProperty("format", 0);             // unversioned states are v1 (format 0)
     std::vector<CableSpec> loaded;
-    auto canon = [](const juce::var& v) { return juce::String(bushido::canonicalJackId(v.toString().toStdString())); };
-    for (auto c : state.getChildWithName("CABLES"))                      // older states have no age: keep their list order
-        loaded.push_back({ canon(c["a"]), canon(c["b"]), (int) c["color"], c.hasProperty("age") ? (int) c["age"] : (int) loaded.size() });
+    for (auto c : state.getChildWithName("CABLES"))                      // older states have no age: keep their list order; ids as stored
+        loaded.push_back({ c["a"].toString(), c["b"].toString(), (int) c["color"], c.hasProperty("age") ? (int) c["age"] : (int) loaded.size() });
     state.removeChild(state.getChildWithName("CABLES"), nullptr);
     curBank = juce::jlimit(0, 1, (int) state.getProperty("bank", 0)); curPattern = juce::jmax(0, (int) state.getProperty("pattern", 0));
     apvts.replaceState(state);

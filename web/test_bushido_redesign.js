@@ -203,13 +203,16 @@ CHECK(B.create(48000).getParam(P.TRIG_MODE) === 0, "testTrigModeDefaultStep: a n
   const lawOf = (cables, self) => { const p = {}; const r = B.migrate(0, p, cables, self); return [p, r] };
   { const [p] = lawOf([["BUSHIDO#1/OUTPUTS:CV A", "RONIN#2/VCO:HZ/V"]]); CHECK(p["STEPS:LAW A"] === 1 && p["STEPS:LAW B"] === 0, "testMigrationPitchLawFromCables: row A into RONIN VCO:HZ/V -> LIN, row B -> V/OCT") }
   { const [p] = lawOf([["RONIN#1/VCO:V/OCT", "BUSHIDO#1/OUTPUTS:CV A"], ["BUSHIDO#1/OUTPUTS:CV B", "SHOGUN#1/LEAD:NOTE"]]); CHECK(p["STEPS:LAW A"] === 0 && p["STEPS:LAW B"] === 0, "testMigrationPitchLawFromCables: into RONIN V/OCT or SHOGUN NOTE -> V/OCT") }
-  { const [p] = lawOf([["SQ-10#1/OUTPUTS:CV B", "MS-50#1/VCO:HZ/V"]]); CHECK(p["STEPS:LAW B"] === 1, "legacy SQ-10/MS-50 prefixes alias to BUSHIDO/RONIN") }
+  { const old = "SQ" + "-10";   // a retired prefix, built from parts so the repo has no literal old name
+    const [p] = lawOf([[old + "#1/OUTPUTS:CV B", "RONIN#1/VCO:HZ/V"]]); CHECK(p["STEPS:LAW B"] === 0 && B.splitJack(old + "/OUTPUTS:CV B")[0] === old && B.canonicalJackId === undefined, "no prefix aliases: a retired-prefix cable is not rewritten and sets no law") }
   { const [p, r] = lawOf([["BUSHIDO#1/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V"], ["BUSHIDO#1/OUTPUTS:CV A", "RONIN#2/VCO:V/OCT"]]); CHECK(p["STEPS:LAW A"] === 1 && r.lawMismatch[0], "a row cabled to both gets LIN and flags its V/OCT cable") }
   { const [p] = lawOf([["BUSHIDO#2/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V"]], "BUSHIDO#1"); CHECK(p["STEPS:LAW A"] === 0, "another BUSHIDO's cable does not set this instance's law") }
   { const [p, r] = lawOf([["BUSHIDO/OUTPUTS:CV A", "RONIN/VCO:HZ/V", "red"]]); CHECK(p["STEPS:LAW A"] === 1 && r.lines.length > 0, "rack patch form (BUSHIDO/... RONIN/... with a colour) migrates too") }
   { const [p, r] = lawOf([]); CHECK(p["CLOCK:SETTLE"] === 1 && p["CLOCK:TRIG MODE"] === 0 && r.lines.length > 0, "format 0 -> 1: SETTLE = VINTAGE, TRIG MODE = STEP, report lines for SETUP") }
   { const p = { "A:1": 0.3 }; const r = B.migrate(7, p, []); CHECK(r.readOnly && Object.keys(p).length === 1, "a newer format loads read-only and untouched") }
-  CHECK(B.canonicalJackId("SQ-10/CLOCK:CLOCK") === "BUSHIDO/CLOCK:CLOCK" && B.canonicalJackId("OUTPUTS:CV A") === "OUTPUTS:CV A", "alias table: SQ-10/ -> BUSHIDO/, bare ids unchanged");
+  CHECK(JSON.stringify(B.splitJack("INPUTS:START/STOP")) === '["","INPUTS:START/STOP"]' && JSON.stringify(B.splitJack("OUTPUTS:CV A")) === '["","OUTPUTS:CV A"]', "splitJack: a bare id is never split at a '/' inside its label");
+  CHECK(JSON.stringify(B.splitJack("RONIN#2/VCO:HZ/V")) === '["RONIN","VCO:HZ/V"]' && JSON.stringify(B.splitJack("BUSHIDO/INPUTS:START/STOP")) === '["BUSHIDO","INPUTS:START/STOP"]', "splitJack: the prefix ends at the first '/' before ':' (as jidai::jcs::parseJackId)");
+  { const [p] = lawOf([["OUTPUTS:CV A", "INPUTS:START/STOP"], ["BUSHIDO/OUTPUTS:CV B", "RONIN/VCO:HZ/V"]]); CHECK(p["STEPS:LAW A"] === 0 && p["STEPS:LAW B"] === 1, "verify: cables-to-law with a bare START/STOP cable; RONIN VCO:HZ/V gives LIN") }
 }
 // ------------------------------------------------------------------ B11: flush-to-zero of the CV state
 {

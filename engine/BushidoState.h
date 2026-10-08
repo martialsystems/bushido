@@ -4,6 +4,7 @@
 //   format 1  this redesign: tab parameters (EXT SOURCE, SETTLE, TRIG MODE, LAW, QUANT, MIDI CH, VEL)
 // Loading runs migrate() before the parameters and cables are bound. Unknown future formats load read-only.
 #include "BushidoModule.h"
+#include <jidai/jcs/JackId.h>
 #include <map>
 #include <string>
 #include <vector>
@@ -13,26 +14,18 @@ namespace bushido {
 
 constexpr int kFormat = 1;
 
-// Legacy prefix aliases (JCS R6, optional, internal only): SQ-10 -> BUSHIDO, MS-50 -> RONIN. Saving writes only the neutral form.
-inline std::string canonicalJackId(const std::string& id)
-{
-    static const std::pair<const char*, const char*> aliases[] = { { "SQ-10", "BUSHIDO" }, { "MS-50", "RONIN" } };
-    for (auto& [from, to] : aliases) {
-        const std::string f(from);
-        if (id.compare(0, f.size(), f) == 0 && id.size() > f.size() && (id[f.size()] == '#' || id[f.size()] == '/'))
-            return std::string(to) + id.substr(f.size());
-    }
-    return id;
-}
+// Jack ids are read exactly as stored (JCS R6): there are no prefix aliases, so an id with an unknown prefix simply binds to nothing.
 
-// "BUSHIDO#1/OUTPUTS:CV A" -> { "BUSHIDO", "OUTPUTS:CV A" }; a bare "OUTPUTS:CV A" has an empty device.
+// "BUSHIDO#1/OUTPUTS:CV A" -> { "BUSHIDO", "OUTPUTS:CV A" }; a bare "OUTPUTS:CV A" or "INPUTS:START/STOP" has an empty device.
+// The prefix ends at the first '/' before the first ':' (jidai::jcs::parseJackId); labels may contain '/'. An id the shared
+// parser rejects (lowercase, a bad instance number) is split by the same rule, so a hand-edited file still loads.
 inline std::pair<std::string, std::string> splitJack(const std::string& gid)
 {
-    const std::string c = canonicalJackId(gid);
-    const auto slash = c.find('/');
-    if (slash == std::string::npos) return { "", c };
-    std::string dev = c.substr(0, slash); const auto hash = dev.find('#'); if (hash != std::string::npos) dev = dev.substr(0, hash);
-    return { dev, c.substr(slash + 1) };
+    if (const auto j = jidai::jcs::parseJackId(gid)) return { j->prefix, j->local() };
+    const auto colon = gid.find(':'), slash = gid.find('/');
+    if (slash == std::string::npos || slash > colon) return { "", gid };
+    std::string dev = gid.substr(0, slash); const auto hash = dev.find('#'); if (hash != std::string::npos) dev = dev.substr(0, hash);
+    return { dev, gid.substr(slash + 1) };
 }
 
 struct MigrationReport {
@@ -61,8 +54,7 @@ inline MigrationReport migrate(int fromFormat, std::map<std::string, float>& par
         if (end.first.empty()) return true;                                     // bare id: this unit's own file
         if (end.first != "BUSHIDO") return false;
         if (self.empty()) return true;                                          // outside the rack: every BUSHIDO end is this one
-        const std::string c = canonicalJackId(raw);
-        return c.rfind(self + "/", 0) == 0 || (self == "BUSHIDO#1" && c.rfind("BUSHIDO/", 0) == 0);   // "BUSHIDO/..." binds to the first instance
+        return raw.rfind(self + "/", 0) == 0 || (self == "BUSHIDO#1" && raw.rfind("BUSHIDO/", 0) == 0);   // "BUSHIDO/..." binds to the first instance
     };
     for (int row = 0; row < 2; ++row) {
         bool toLin = false, toVoct = false;

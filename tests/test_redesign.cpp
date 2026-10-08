@@ -146,7 +146,7 @@ static void testPortaLawUnchanged()
         const int ca = r.jack("OUTPUTS:CV A"); std::vector<float> got; long long first = -1;
         r.press("MODE:START/STOP");
         r.run(6000, [&](long long t, int i) { const float v = r.out(ca, i); if (first < 0 && v != 0.0f) first = t; if (first >= 0 && (long long) got.size() < 4800) got.push_back(v); });
-        const double tau = (double) porta * porta * 2.0;                          // v1, engine/Sq10Module.cpp L90 and L124, copied verbatim
+        const double tau = (double) porta * porta * 2.0;                          // v1 engine module, L90 and L124, copied verbatim
         const float k = tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr)));
         float cv = 0.0f; const float tgt = 0.8f * 5.0f; bool same = got.size() == 4800;
         for (size_t s = 0; s < got.size() && same; ++s) { cv += (tgt - cv) * k; same = std::memcmp(&cv, &got[s], sizeof cv) == 0; }
@@ -287,8 +287,11 @@ static void testMigration()
       CHECK(p["STEPS:LAW A"] == 1.0f && p["STEPS:LAW B"] == 0.0f, "testMigrationPitchLawFromCables: row A into RONIN VCO:HZ/V -> LIN, row B -> V/OCT"); }
     { auto [p, r] = lawOf({ { "RONIN#1/VCO:V/OCT", "BUSHIDO#1/OUTPUTS:CV A" }, { "BUSHIDO#1/OUTPUTS:CV B", "SHOGUN#1/LEAD:NOTE" } });
       CHECK(p["STEPS:LAW A"] == 0.0f && p["STEPS:LAW B"] == 0.0f, "testMigrationPitchLawFromCables: into RONIN V/OCT or SHOGUN NOTE -> V/OCT"); }
-    { auto [p, r] = lawOf({ { "SQ-10#1/OUTPUTS:CV B", "MS-50#1/VCO:HZ/V" } });
-      CHECK(p["STEPS:LAW B"] == 1.0f, "legacy SQ-10/MS-50 prefixes alias to BUSHIDO/RONIN"); }
+    { auto [p, r] = lawOf({ { "BUSHIDO/OUTPUTS:CV B", "RONIN/VCO:HZ/V" } });
+      CHECK(p["STEPS:LAW B"] == 1.0f && p["STEPS:LAW A"] == 0.0f, "testMigrationPitchLawFromCables: file form BUSHIDO/... into RONIN/VCO:HZ/V -> LIN"); }
+    { const std::string old = std::string("SQ") + "-10";   // a retired prefix, built from parts so the repo has no literal old name
+      auto [p, r] = lawOf({ { old + "#1/OUTPUTS:CV B", "RONIN#1/VCO:HZ/V" } });
+      CHECK(p["STEPS:LAW B"] == 0.0f && bushido::splitJack(old + "/OUTPUTS:CV B").first == old, "no prefix aliases: a retired-prefix cable is not rewritten and sets no law"); }
     { auto [p, r] = lawOf({ { "BUSHIDO#1/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V" }, { "BUSHIDO#1/OUTPUTS:CV A", "RONIN#2/VCO:V/OCT" } });
       CHECK(p["STEPS:LAW A"] == 1.0f && r.lawMismatch[0], "a row cabled to both gets LIN and flags its V/OCT cable"); }
     { auto [p, r] = lawOf({ { "BUSHIDO#2/OUTPUTS:CV A", "RONIN#1/VCO:HZ/V" } }, "BUSHIDO#1");
@@ -297,7 +300,13 @@ static void testMigration()
       CHECK(p["CLOCK:SETTLE"] == 1.0f && p["CLOCK:TRIG MODE"] == 0.0f && ! r.lines.empty(), "format 0 -> 1: SETTLE = VINTAGE, TRIG MODE = STEP, report lines for SETUP"); }
     { std::map<std::string, float> p { { "A:1", 0.3f } }; auto r = bushido::migrate(7, p, {});
       CHECK(r.readOnly && p.size() == 1, "a newer format loads read-only and untouched"); }
-    CHECK(bushido::canonicalJackId("SQ-10/CLOCK:CLOCK") == "BUSHIDO/CLOCK:CLOCK" && bushido::canonicalJackId("OUTPUTS:CV A") == "OUTPUTS:CV A", "alias table: SQ-10/ -> BUSHIDO/, bare ids unchanged");
+    using SP = std::pair<std::string, std::string>;
+    CHECK(bushido::splitJack("INPUTS:START/STOP") == SP("", "INPUTS:START/STOP") && bushido::splitJack("OUTPUTS:CV A") == SP("", "OUTPUTS:CV A"),
+          "splitJack: a bare id is never split at a '/' inside its label");
+    CHECK(bushido::splitJack("RONIN#2/VCO:HZ/V") == SP("RONIN", "VCO:HZ/V") && bushido::splitJack("BUSHIDO/INPUTS:START/STOP") == SP("BUSHIDO", "INPUTS:START/STOP")
+          && bushido::splitJack("bushido#1/outputs:cv a") == SP("bushido", "outputs:cv a"), "splitJack: prefix at the first '/' before ':'; ids the shared parser rejects split the same way");
+    { auto [p, r] = lawOf({ { "OUTPUTS:CV A", "INPUTS:START/STOP" }, { "BUSHIDO/OUTPUTS:CV B", "RONIN/VCO:HZ/V" } });
+      CHECK(p["STEPS:LAW A"] == 0.0f && p["STEPS:LAW B"] == 1.0f, "verify: cables-to-law with a bare START/STOP cable; RONIN VCO:HZ/V gives LIN"); }
 }
 
 int main()

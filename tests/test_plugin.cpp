@@ -68,8 +68,8 @@ static juce::MemoryBlock xmlState(const juce::String& xmlText)
 static void testState()
 {
     const auto v1 = xmlState("<BUSHIDO><PARAM id=\"CLOCK_SOURCE\" value=\"1\"/><PARAM id=\"A_1\" value=\"0.25\"/><PARAM id=\"CH_PORTA_A\" value=\"0.3\"/>"
-                             "<CABLES><CABLE a=\"SQ-10/5:TRIG\" b=\"SQ-10/INPUTS:RESET\" color=\"1\"/>"
-                             "<CABLE a=\"SQ-10/OUTPUTS:CV A\" b=\"MS-50/VCO:HZ/V\" color=\"2\"/></CABLES></BUSHIDO>");
+                             "<CABLES><CABLE a=\"BUSHIDO/5:TRIG\" b=\"BUSHIDO/INPUTS:RESET\" color=\"1\"/>"
+                             "<CABLE a=\"BUSHIDO/OUTPUTS:CV A\" b=\"RONIN/VCO:HZ/V\" color=\"2\"/></CABLES></BUSHIDO>");
     Host h; h.p->setStateInformation(v1.getData(), (int) v1.getSize());
     CHECK(h.get("CLOCK:SETTLE") == 1.0f && h.get("CLOCK:TRIG MODE") == 0.0f && h.get("CLOCK:EXT SOURCE") == 0.0f,
           "v1 state (no format): SETTLE = VINTAGE, TRIG MODE = STEP, EXT SOURCE = JACK");
@@ -77,7 +77,7 @@ static void testState()
           "v1 state keeps its stored SOURCE (EXT), knobs and PORTA");
     const auto cs = h.p->getCables();
     CHECK(cs.size() == 2 && cs[0].a == "BUSHIDO/5:TRIG" && cs[0].b == "BUSHIDO/INPUTS:RESET" && cs[1].a == "BUSHIDO/OUTPUTS:CV A" && cs[1].b == "RONIN/VCO:HZ/V" && cs[0].age == 0 && cs[1].age == 1,
-          "v1 cables: SQ-10/ -> BUSHIDO/, MS-50/ -> RONIN/, list order kept as age");
+          "v1 cables load as stored, list order kept as age");
     const auto lines = h.p->migrationLines();
     CHECK(lines.size() == 4 && lines[0].contains("VINTAGE") && lines[2].contains("HZ/V LIN") && h.get("STEPS:LAW A") == 1.0f && h.get("STEPS:LAW B") == 0.0f && ! h.p->isReadOnly(),
           "migration lines filled (" + juce::String((int) lines.size()) + "); row A cabled to RONIN HZ/V -> LIN, row B -> V/OCT");
@@ -102,6 +102,25 @@ static void testState()
     f.p->loadPattern(0, 0); juce::MemoryBlock after; f.p->getStateInformation(after);
     auto ax = juce::AudioProcessor::getXmlFromBinary(after.getData(), (int) after.getSize());
     CHECK(! f.p->isReadOnly() && ax && ax->getIntAttribute("format") == 1, "loading a pattern ends read-only; the next save is format 1");
+}
+
+// ------------------------------------------------------------------ no prefix aliases: a retired prefix stays as stored and does not bind
+static void testNoAliases()
+{
+    const juce::String old = juce::String("SQ") + "-10", oldRonin = juce::String("MS") + "-50";   // retired prefixes, built from parts
+    const auto st = xmlState("<BUSHIDO><PARAM id=\"CLOCK_SOURCE\" value=\"0\"/>"
+                             "<CABLES><CABLE a=\"" + old + "/5:TRIG\" b=\"" + old + "/INPUTS:RESET\" color=\"1\"/>"
+                             "<CABLE a=\"" + old + "/OUTPUTS:CV A\" b=\"" + oldRonin + "/VCO:HZ/V\" color=\"2\"/></CABLES></BUSHIDO>");
+    Host h; h.p->setStateInformation(st.getData(), (int) st.getSize());
+    const auto cs = h.p->getCables();
+    CHECK(cs.size() == 2 && cs[0].a == old + "/5:TRIG" && cs[0].b == old + "/INPUTS:RESET" && cs[1].b == oldRonin + "/VCO:HZ/V",
+          "retired-prefix cables are kept exactly as stored (not rewritten to BUSHIDO/RONIN)");
+    CHECK(h.get("STEPS:LAW A") == 0.0f, "a retired-prefix cable into HZ/V sets no law (row A stays V/OCT)");
+    h.press("MODE:START/STOP"); int maxPos = -1;
+    for (int b = 0; b < 600; ++b) { h.block(); maxPos = std::max(maxPos, h.p->sq.currentStep()); }
+    CHECK(maxPos >= 5, "a retired-prefix TRIG 5 -> RESET cable resolves as missing: the sequencer runs past step 5 (max step " + juce::String(maxPos + 1) + ")");
+    juce::MemoryBlock saved; h.p->getStateInformation(saved); Host r; r.p->setStateInformation(saved.getData(), (int) saved.getSize());
+    CHECK(r.p->getCables().size() == 2 && r.p->getCables()[0].a == old + "/5:TRIG", "the missing cables survive a save and reload unchanged");
 }
 
 // ------------------------------------------------------------------ patterns
@@ -225,6 +244,7 @@ int main()
     {
         juce::ScopedJuceInitialiser_GUI juce;
         testState();
+        testNoAliases();
         testPatterns();
         testMidi();
         testBypass();

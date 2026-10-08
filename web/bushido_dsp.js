@@ -100,16 +100,12 @@ var BUSHIDO_DSP = (function () {
 
   // ---- engine/BushidoState.h: state format and migration (JCS R6, R7). A pattern without `format` is v1 (format 0). ----
   const FORMAT = 1;
-  function canonicalJackId(id) {                                  // legacy prefix aliases: SQ-10 -> BUSHIDO, MS-50 -> RONIN
-    for (const [from, to] of [["SQ-10", "BUSHIDO"], ["MS-50", "RONIN"]])
-      if (id.startsWith(from) && id.length > from.length && (id[from.length] === "#" || id[from.length] === "/")) return to + id.slice(from.length);
-    return id;
-  }
+  // Jack ids are read exactly as stored (JCS R6): no prefix aliases, so an unknown prefix simply binds to nothing.
   function splitJack(gid) {                                       // "BUSHIDO#1/OUTPUTS:CV A" -> ["BUSHIDO", "OUTPUTS:CV A"]
-    const c = canonicalJackId(gid), slash = c.indexOf("/");
-    if (slash < 0) return ["", c];
-    let dev = c.slice(0, slash); const hash = dev.indexOf("#"); if (hash >= 0) dev = dev.slice(0, hash);
-    return [dev, c.slice(slash + 1)];
+    const colon = gid.indexOf(":"), slash = gid.indexOf("/");     // the prefix ends at the first "/" before the first ":"
+    if (slash < 0 || (colon >= 0 && slash > colon)) return ["", gid];   // bare, e.g. "INPUTS:START/STOP"
+    let dev = gid.slice(0, slash); const hash = dev.indexOf("#"); if (hash >= 0) dev = dev.slice(0, hash);
+    return [dev, gid.slice(slash + 1)];
   }
   // params: {id: value}, changed in place. cables: [[jackId, jackId], ...] (a third entry, the colour, is ignored).
   // self: this instance's rack key ("BUSHIDO#1"), or "" when the file is this unit's own (bare ids).
@@ -127,8 +123,7 @@ var BUSHIDO_DSP = (function () {
       if (!end[0]) return true;                                   // bare id: this unit's own file
       if (end[0] !== "BUSHIDO") return false;
       if (!self) return true;                                     // outside the rack: every BUSHIDO end is this one
-      const c = canonicalJackId(raw);
-      return c.startsWith(self + "/") || (self === "BUSHIDO#1" && c.startsWith("BUSHIDO/"));
+      return raw.startsWith(self + "/") || (self === "BUSHIDO#1" && raw.startsWith("BUSHIDO/"));
     };
     for (let row = 0; row < 2; row++) {
       let toLin = false, toVoct = false;
@@ -312,7 +307,7 @@ var BUSHIDO_DSP = (function () {
     m.prepare(sr);
     return m;
   }
-  return { create, JACKS, PARAMS, P, stepsPerSecond, stepsPerBeat, bpm, tempoForBpm, pitch, createMidiOut, FORMAT, migrate, canonicalJackId, splitJack,
+  return { create, JACKS, PARAMS, P, stepsPerSecond, stepsPerBeat, bpm, tempoForBpm, pitch, createMidiOut, FORMAT, migrate, splitJack,
            MAX_EVENTS, CLOCK_IN, TEMPO_CV, START_IN, STEP_IN, RESET_IN, MIX_IN1, MIX_IN2, CV_A, CV_B, CV_C, GATE_A, GATE_B, MIX_OUT, TRIG1 };
 })();
 if (typeof module !== "undefined") module.exports = BUSHIDO_DSP;
