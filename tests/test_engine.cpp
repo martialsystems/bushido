@@ -1,12 +1,13 @@
 // Engine + patch graph tests. Build: g++ -std=c++17 -O2 -I. tests/test_engine.cpp rack/PatchGraph.cpp engine/BushidoModule.cpp
 #include "../rack/PatchGraph.h"
-#include "../rack/HzPerVolt.h"
+#include "../rack/PitchLaw.h"
 #include "../engine/BushidoModule.h"
 #include <cstdio>
 #include <cmath>
 #include <thread>
 #include <set>
 #include <utility>
+#include <string>
 using namespace rack;
 static int fails = 0;
 #define CHECK(c, msg) do { bool _ok = (c); std::printf("%s %s\n", _ok ? "PASS" : "FAIL", msg); if (!_ok) ++fails; } while (0)
@@ -155,14 +156,18 @@ static void testTrigIntoResetSkipsStep()
     CHECK(r.sq.isRunning(), "RESET from the cable does not stop the sequencer");
 }
 
-static void testMidiUsesHzPerVolt()
+static void testPitchLaw()                                           // JCS R4: 0 V = C3 = 130.8128 Hz = MIDI 48
 {
-    CHECK(hzv::midiNote(1.0f) == 33 && std::abs(hzv::hz(1.0f) - 55.0f) < 1e-4f, "Hz/V: 1 V = 55 Hz = A1 (MIDI 33)");
-    CHECK(hzv::midiNote(2.0f) == 45 && hzv::midiNote(4.0f) == 57 && hzv::midiNote(0.5f) == 21, "Hz/V: doubling the volts is one octave up");
-    CHECK(hzv::midiNote(1.5f) == 40, "Hz/V: 1.5 V is a fifth above 1 V, not 1/2 octave");
-    CHECK(hzv::midiNote(1.0f) != 36 + 12 && hzv::midiNote(5.0f) == 61, "not 36 + CV x 12 (5 V would be note 96)");
-    CHECK(hzv::midiNote(0.0f) == -1 && hzv::midiNote(-1.0f) == -1, "0 V and below: no note (a Hz/V VCO is silent)");
-    CHECK(hzv::midiNote(0.001f) == 0 && hzv::midiNote(1000.0f) == 127, "notes clamp to 0..127");
+    using pitch::Law;
+    CHECK(pitch::midiNote(Law::VOct, 0.0) == 48 && std::abs(pitch::hz(Law::VOct, 0.0) - 130.8128) < 1e-9, "V/OCT: 0 V = C3 = 130.81 Hz = MIDI 48");
+    CHECK(pitch::midiNote(Law::HzvLin, 1.0) == 48 && std::abs(pitch::hz(Law::HzvLin, 1.0) - 130.8128) < 1e-9, "HZ/V LIN: 1 V = C3 = 130.81 Hz = MIDI 48 (55 Hz retired)");
+    CHECK(pitch::midiNote(Law::HzvLin, 1.5) == 55, "HZ/V LIN: 1.5 V is a fifth above 1 V");
+    CHECK(pitch::midiNote(Law::HzvLin, 0.0) == -1 && pitch::midiNote(Law::HzvLin, -1.0) == -1, "HZ/V LIN: 0 V and below, no note");
+    CHECK(pitch::midiNote(Law::VOct, -5.0) == 0 && pitch::midiNote(Law::VOct, 10.0) == 127, "notes clamp to 0..127");
+    CHECK(std::abs(pitch::quantize(Law::VOct, 0.53) - 0.5) < 1e-12 && std::abs(pitch::quantize(Law::VOct, 5.0) - 5.0) < 1e-12, "QUANT V/OCT: round(12 V)/12, 5 V stays 5 V");
+    CHECK(std::abs(pitch::quantize(Law::HzvLin, 1.02) - 1.0) < 1e-12 && std::abs(pitch::quantize(Law::HzvLin, 1.5) - std::exp2(7.0 / 12)) < 1e-12, "QUANT LIN: nearest semitone in log2");
+    CHECK(std::abs(pitch::quantize(Law::HzvLin, 5.0) - std::exp2(27.0 / 12)) < 1e-12 && pitch::quantize(Law::HzvLin, 0.02) == 0.0, "QUANT LIN: 5 V clamps to note 75 under the rail; below 2^-5 V is 0 V");
+    char nb[8]; CHECK(std::string(pitch::noteName(48, nb, 8)) == "C3" && std::string(pitch::noteName(61, nb, 8)) == "C#4", "note names: 48 = C3");
     Rig r; r.sq.setParam(BushidoModule::STEPS, 0.4f); r.sq.setParam(BushidoModule::RANGE_A, 1.0f); r.press("MODE:START/STOP"); r.run(0.01);
     CHECK(std::abs(r.out("OUTPUTS:CV A") - 2.0f) < 1e-4f, "CV A stays in volts on the jack (0.4 x 5 V = 2 V)");
 }
@@ -211,7 +216,7 @@ int main() {
     testModeABLoops24();
     testAltSwapsEachPass();
     testTrigIntoResetSkipsStep();
-    testMidiUsesHzPerVolt();
+    testPitchLaw();
     testFeedbackDelayIsOneSample();
 
     { Rig r; r.sq.setParam(BushidoModule::MODE, kModeAB); r.press("MODE:START/STOP"); r.run(14 * 0.25);

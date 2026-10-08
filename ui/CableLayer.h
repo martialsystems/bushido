@@ -33,7 +33,8 @@ public:
     void resized() override;
 
     rack::CableModel& model() { return cm; }                  // tests and tools
-    int jackAtDesign(juce::Point<float> p) const;
+    int jackAtDesign(juce::Point<float> p) const;               // hit area at least kMinJackHitPx square on screen
+    static constexpr float kMinJackHitPx = 16.0f;
     juce::Point<float> jackPosDesign(int j) const { return { jacks[(size_t) j].x, jacks[(size_t) j].y }; }
     int jackIndex(const juce::String& globalId) const { return ids.indexOf(globalId); }
 

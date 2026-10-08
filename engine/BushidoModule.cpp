@@ -18,7 +18,15 @@ BushidoModule::BushidoModule() : ind(15)
         {"CLOCK:TEMPO", 0.5f, 0}, {"CLOCK:SOURCE", 0.0f, 2}, {"MODE:MODE", 0.5f, 3},
         {"MODE:START/STOP", 0.0f, -1}, {"MODE:STEP", 0.0f, -1}, {"MODE:RESET", 0.0f, -1},
         {"MIXER:LEVEL 1", 0.7f, 0}, {"MIXER:LEVEL 2", 0.7f, 0},
-        {"CLOCK:DIV", 0.5f, 3} });                                // 1/8, 1/16, 1/32: the BPM readout's unit only
+        {"CLOCK:DIV", 0.5f, 3} });                                // 1/8, 1/16, 1/32: the BPM readout's unit, and the HOST step size
+    paramList.insert(paramList.end(), {                           // tab controls (the front panel is unchanged)
+        {"CLOCK:EXT SOURCE", 0.0f, 2},                            // JACK / HOST
+        {"CLOCK:SETTLE", 0.0f, 2},                                // TIGHT / VINTAGE
+        {"CLOCK:TRIG MODE", 0.0f, 2},                             // STEP / PULSE
+        {"STEPS:LAW A", 0.0f, 2}, {"STEPS:LAW B", 0.0f, 2},       // V/OCT / HZ/V LIN
+        {"STEPS:QUANT A", 0.0f, 2}, {"STEPS:QUANT B", 0.0f, 2},   // OFF / SEMI
+        {"MIDI:CH A", 0.0f, 16}, {"MIDI:CH B", 1.0f / 15.0f, 16}, // channel 1..16 (A on 1, B on 2)
+        {"MIDI:VEL A", 0.0f, 2}, {"MIDI:VEL B", 0.0f, 2} });      // 100 / FROM C
     for (size_t i = 0; i < values.size(); ++i) values[i].store(paramList[i].def);
 
     indList = { {"CH:A"}, {"CH:B"} };
@@ -26,7 +34,14 @@ BushidoModule::BushidoModule() : ind(15)
     indList.push_back({ "MODE:RUN" });                            // red lamp under START/STOP, lit while running
 }
 
-void BushidoModule::prepare(double sampleRate, int) { sr = sampleRate; settle = std::max(1.0, sr * 0.0006); }
+void BushidoModule::prepare(double sampleRate, int)
+{
+    sr = sampleRate;
+    kMix = -std::expm1(-1.0 / (0.010 * sr));                      // mixer LEVEL smoothing, 10 ms
+    levelsPrimed = false;
+    sampleCount = 0; absorbUntil = -1000; numEvents = 0;
+    lastTempoCv = 1e30; lastTempoRate = -1.0;
+}
 
 void BushidoModule::setParam(int i, float v)
 {
@@ -39,7 +54,7 @@ void BushidoModule::setParam(int i, float v)
     values[(size_t) i].store(std::clamp(v, 0.0f, 1.0f));
 }
 
-bool BushidoModule::edge(int which, float v)                         // rising edge with hysteresis: high > 1 V, low < 0.5 V
+bool BushidoModule::edge(int which, float v)                         // JCS R3: rising edge with hysteresis, high > 1 V, low < 0.5 V
 {
     bool& h = high[(size_t) which];
     if (! h && v > 1.0f) { h = true; return true; }
@@ -52,10 +67,17 @@ void BushidoModule::fire()                                           // start of
     samplesInStep = 0.0; gateOn = true;           // gate (and CV) start after the settle time, see process()
 }
 
-void BushidoModule::start()                                          // every start, including after a stop, begins at A step 1
+void BushidoModule::start(long long n)                               // JCS R5.2: every start, including after a stop, plays A step 1 now
 {
     running = true; pos = 0; chan = 0;
     phase = 0.0; fire();
+    sinceTick = 0.0; havePeriod = false;          // the stopped time is not a clock period
+    absorbUntil = n + 2;                          // an EXT edge on this sample or the next 2 is step 1's own clock
+}
+
+void BushidoModule::stop()                                           // JCS R5.4: gates and TRIGs go low now; lamps and CV hold
+{
+    running = false; gateOn = false;
 }
 
 void BushidoModule::reset()                                          // A step 1, keeps running (or stays stopped)
@@ -70,13 +92,21 @@ void BushidoModule::reset()                                          // A step 1
 //   ALT  (2): one row per pass, each on its own jacks: row A on the A jacks, then row B on the B jacks, and so on.
 void BushidoModule::tick()
 {
-    if (pos >= 0) lastPeriod = std::clamp(sinceTick, 0.005, 4.0);   // gate length for EXT and STEP: time since the last tick
-    sinceTick = 0.0;
+    if (havePeriod) { extPeriod = std::clamp(sinceTick, 0.005, 4.0); haveAnyPeriod = true; }   // gate length for EXT and STEP
+    havePeriod = true; sinceTick = 0.0;
     if (pos < 0) { pos = 0; chan = 0; fire(); return; }
     if (++pos < 12) { fire(); return; }
     pos = 0;
     chan = mode() == 0 ? 0 : 1 - chan;
     fire();
+}
+
+int BushidoModule::takeGateEvents(GateEvent* dst, int max)
+{
+    const int k = std::min(max, numEvents);
+    std::copy(events.begin(), events.begin() + k, dst);
+    numEvents = 0;
+    return k;
 }
 
 void BushidoModule::process(const float* const* in, float* const* out, int n)
@@ -86,26 +116,57 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
 
     const float rangeA = p(RANGE_A) > 0.5f ? 5.0f : 1.0f, rangeB = p(RANGE_B) > 0.5f ? 5.0f : 1.0f;
     const bool cIsTime = p(C_MODE) > 0.5f, external = p(SOURCE) > 0.5f;
+    const bool host = external && p(EXT_SOURCE) > 0.5f, jackClock = external && ! host;
     const double tempoRate = stepsPerSecond(p(TEMPO));                      // 0.5..32 steps/s, INT only; DIV does not change it
+    // PORTA law, kept bit-exact from v1 (user decision): tau = PORTA^2 x 2 s, k in double, the update in float.
     auto slew = [this](float porta) { const double tau = (double) porta * porta * 2.0; return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr))); };
     const float kA = slew(p(PORTA_A)), kB = slew(p(PORTA_B));
+    settle = p(SETTLE) > 0.5f ? std::max(1.0, sr * 0.0006) : 2.0;           // VINTAGE keeps v1's exact 0.6 ms; TIGHT is 2 samples (JCS R5.5)
+    const bool pulse = p(TRIG_MODE) > 0.5f;
+    const double pulseLen = std::max(1.0, std::round(0.005 * sr));
+    const pitch::Law lawA = law(0), lawB = law(1);
+    const bool quantA = p(QUANT_A) > 0.5f, quantB = p(QUANT_B) > 0.5f;
+    const double l1 = p(LEVEL1), l2 = p(LEVEL2);
+    if (! levelsPrimed) { lvl1 = l1; lvl2 = l2; levelsPrimed = true; }
+    const int q = stepsPerBeat(p(DIV));                                     // HOST: steps per quarter, 2 / 4 / 8
+    const bool hostValid = host && transport.valid && transport.bpm > 0.0;
+    if (! host) hostPlayingPrev = false;
 
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; ++i, ++sampleCount) {
         const bool doReset = edge(3, in[RESET_IN][i]) || (i == 0 && pressNow[2] > 0);
         const bool doStart = edge(1, in[START_IN][i]) || (i == 0 && pressNow[0] > 0);
         const bool doStep  = edge(2, in[STEP_IN][i])  || (i == 0 && pressNow[1] > 0);
         const bool extClk  = edge(0, in[CLOCK_IN][i]);
 
-        if (doStart) { if (running) { running = false; gateOn = false; } else start(); }
+        // HOST (JCS R5.7): the step index is floor(ppq x q); a change of index is a tick. Transport start and stop
+        // apply the START and STOP rules, so the step position follows the host and cannot drift.
+        bool hostTick = false;
+        if (hostValid) {
+            const double ppq = transport.ppq + (double) hostOffset * transport.bpm / (60.0 * sr);
+            const long long k = (long long) std::floor(ppq * q + 1e-9);
+            const bool playing = transport.playing;
+            if (playing && ! hostPlayingPrev) { if (! running) start(sampleCount); hostStep = k; }
+            else if (! playing && hostPlayingPrev) { if (running) stop(); }
+            else if (playing && running && k != hostStep) { hostStep = k; hostTick = true; }
+            hostPlayingPrev = playing;
+        }
+        ++hostOffset;
+
+        if (doStart) { if (running) stop(); else start(sampleCount); }
         if (doReset) reset();
         else {
             bool t = doStep;
             if (running && ! external) {                         // TEMPO and TEMPO CV bend the internal clock only; EXT ignores both
-                rate = std::clamp(tempoRate * std::pow(2.0, (double) in[TEMPO_CV][i]), 0.05, 200.0);
+                const double v = (double) in[TEMPO_CV][i];
+                if (std::abs(v - lastTempoCv) > 1e-6 || tempoRate != lastTempoRate) {
+                    lastTempoCv = v; lastTempoRate = tempoRate;
+                    rate = std::clamp(tempoRate * std::exp2(v), 0.05, 200.0);
+                }
                 phase += rate / sr;
                 if (phase >= 1.0) { phase -= 1.0; t = true; }
             }
-            if (running && external && extClk) t = true;
+            if (running && jackClock && extClk && sampleCount > absorbUntil) t = true;
+            if (hostTick) t = true;
             if (t) tick();
         }
         sinceTick += 1.0 / sr; samplesInStep += 1.0;
@@ -113,26 +174,42 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
         if (mode() == 0) chan = 0;                               // switched to A mid-row B: carry on in row A
         const int jk = outJacks();
         // CV: the jacks playing follow the knob at the current step (live edits are heard); the other jacks hold.
-        // A new step waits `settle` (0.6 ms) before CV and gate change, so a reset patched from a TRIG jack lands first.
+        // A new step waits `settle` before CV and gate change, so a reset patched from a TRIG jack lands first.
         const bool settled = samplesInStep >= settle;
         if (pos >= 0 && settled) {
             const float knob = p(STEPS + 12 * chan + pos);       // row A or row B
-            if (jk == 0) tgtA = knob * rangeA; else tgtB = knob * rangeB;   // range and portamento belong to the jacks
+            if (jk == 0) { const float v = knob * rangeA; tgtA = quantA ? (float) pitch::quantize(lawA, v) : v; }   // range, law and portamento belong to the jacks
+            else         { const float v = knob * rangeB; tgtB = quantB ? (float) pitch::quantize(lawB, v) : v; }
             cvC = p(STEPS + 24 + pos) * 5.0f;
         }
         if (cIsTime) cvC = 0.0f;                                 // TIME: row C sets gate length only and is never emitted as CV
         cvA += (tgtA - cvA) * kA; cvB += (tgtB - cvB) * kB;
 
-        const double period = (running && ! external) ? 1.0 / rate : lastPeriod;
+        const double period = host && running ? (hostValid ? 60.0 / (transport.bpm * q) : 1.0 / tempoRate)
+                            : (running && ! external) ? 1.0 / rate
+                            : haveAnyPeriod ? extPeriod : 1.0 / tempoRate;   // EXT before a period is known: the INT tempo period
         const double frac = (cIsTime && pos >= 0) ? 0.05 + 0.9 * p(STEPS + 24 + pos) : 0.5;
         const bool g = gateOn && pos >= 0 && settled && samplesInStep < settle + frac * period * sr;
 
+        lvl1 += (l1 - lvl1) * kMix; lvl2 += (l2 - lvl2) * kMix;
+        if (std::abs(l1 - lvl1) < 1e-9) lvl1 = l1;                // land exactly, so the smoother never decays into denormals
+        if (std::abs(l2 - lvl2) < 1e-9) lvl2 = l2;
+
         out[CV_A][i] = cvA; out[CV_B][i] = cvB; out[CV_C][i] = cvC;
-        out[GATE_A][i] = (g && jk == 0) ? 5.0f : 0.0f;
-        out[GATE_B][i] = (g && jk == 1) ? 5.0f : 0.0f;
-        out[MIX_OUT][i] = in[MIX_IN1][i] * p(LEVEL1) + in[MIX_IN2][i] * p(LEVEL2);
-        for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = (pos == s) ? 5.0f : 0.0f;
+        const bool gA = g && jk == 0, gB = g && jk == 1;
+        out[GATE_A][i] = gA ? 5.0f : 0.0f;
+        out[GATE_B][i] = gB ? 5.0f : 0.0f;
+        out[MIX_OUT][i] = (float) (in[MIX_IN1][i] * lvl1 + in[MIX_IN2][i] * lvl2);
+        const bool trigOn = running && (! pulse || samplesInStep <= pulseLen);   // JCS R5.4: TRIG low while stopped
+        for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = (trigOn && pos == s) ? 5.0f : 0.0f;
+
+        const bool gNow[2] = { gA, gB };
+        for (int j = 0; j < 2; ++j) if (gNow[j] != gatePrev[j]) {
+            gatePrev[j] = gNow[j];
+            if (numEvents < kMaxEvents) events[(size_t) numEvents++] = { sampleCount, j, gNow[j], j == 0 ? tgtA : tgtB, cvC };
+        }
     }
+    if (haveAnyPeriod) extPeriodShown.store(extPeriod, std::memory_order_relaxed);
     ind[0].store(pos >= 0 && chan == 0 ? 1.0f : 0.0f); ind[1].store(pos >= 0 && chan == 1 ? 1.0f : 0.0f);   // which row is being read
     for (int s = 0; s < 12; ++s) ind[(size_t) s + 2].store(pos == s ? 1.0f : 0.0f);   // one lamp per step, shared by rows A, B and C
     ind[14].store(running ? 1.0f : 0.0f);

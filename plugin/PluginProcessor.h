@@ -1,6 +1,8 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "../engine/BushidoModule.h"
+#include "../engine/BushidoState.h"
+#include "../engine/MidiOut.h"
 #include "../rack/PatchGraph.h"
 #include "../ui/CableLayer.h"
 
@@ -38,7 +40,7 @@ public:
     void setCables(const std::vector<CableSpec>& cables);               // message thread
     std::vector<CableSpec> getCables() const { return cables; }
     std::function<void()> onStateLoaded;                                 // editor reloads its cables
-    struct Pattern { juce::String name; std::vector<std::pair<juce::String, float>> params; std::vector<CableSpec> cables; };
+    struct Pattern { juce::String name; int format = 0; std::vector<std::pair<juce::String, float>> params; std::vector<CableSpec> cables; };
     static constexpr int kBankSize = 999;
     juce::StringArray patternNames(int bank) const;
     int loadedBank() const { return curBank.load(); }
@@ -47,6 +49,10 @@ public:
     int savePattern(int bank, const juce::String& name);                // returns the new index, or -1 when the bank is full
     static juce::File userPatternFile();
     bool isBypassed() const { return bypass != nullptr && bypass->get(); }
+    // The last load's migration report (SETUP tab): empty when the state was already format 1.
+    std::vector<juce::String> migrationLines() const { const juce::ScopedLock sl(bankLock); return migration; }
+    bool lawMismatch(int row) const { return row == 0 || row == 1 ? mismatch[row].load() : false; }
+    bool isReadOnly() const { return readOnly.load(); }
 
     BushidoModule sq;                               // must come before apvts: the parameter layout is built from it
     rack::PatchGraph graph;
@@ -59,12 +65,19 @@ private:
     std::vector<CableSpec> cables;
     std::vector<float> hostL, hostR;
     int maxBlock = 512;
-    int midiNote[2] = { -1, -1 }; bool gatePrev[2] = { false, false };
+    BushidoMidiOut midiOut;                      // MIDI tab: channel, velocity, note from the target volts under each row's PITCH LAW
+    BushidoModule::GateEvent events[BushidoModule::kMaxEvents];
+    bool wasBypassed = false;
+    juce::MemoryBlock readOnlyState;              // a state from a newer format: handed back unchanged while it is loaded
     juce::AudioParameterBool* bypass = nullptr;  // TOP:BYPASS, the rocker at the top left
     std::vector<Pattern> banks[2];
     int factoryCount = 0;                        // bank A's first entries; never written to the user file
     std::atomic<int> curBank { 0 }, curPattern { 0 };
     juce::CriticalSection bankLock;
+    std::vector<juce::String> migration;         // guarded by bankLock
+    std::atomic<bool> mismatch[2] { { false }, { false } }, readOnly { false };
+    // Format 0 (or no format) -> 1 for a parameter map keyed by module param id; cables are global jack ids.
+    void migrateParams(int fromFormat, std::map<std::string, float>& params, const std::vector<CableSpec>& cables);
     static Pattern patternFromVar(const juce::var&);
     static juce::var patternToVar(const Pattern&);
     void writeUserFile() const;

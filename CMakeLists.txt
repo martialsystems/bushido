@@ -26,7 +26,7 @@ juce_add_plugin(BUSHIDO
     IS_MIDI_EFFECT FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE)
 
-target_sources(BUSHIDO PRIVATE plugin/PluginProcessor.cpp plugin/PluginEditor.cpp ui/Layout.cpp ui/RackPanel.cpp ui/CableLayer.cpp ui/PatternScreen.cpp)
+target_sources(BUSHIDO PRIVATE plugin/PluginProcessor.cpp plugin/PluginEditor.cpp ui/Layout.cpp ui/RackPanel.cpp ui/CableLayer.cpp ui/PatternScreen.cpp ui/BushidoTabs.cpp)
 target_compile_definitions(BUSHIDO PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(BUSHIDO PRIVATE rack_core BushidoAssets juce::juce_audio_utils
     PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
@@ -39,3 +39,14 @@ add_test(NAME engine COMMAND test_engine)
 add_executable(test_cables tests/test_cables.cpp)
 target_link_libraries(test_cables PRIVATE rack_core)
 add_test(NAME cables COMMAND test_cables)
+add_executable(test_redesign tests/test_redesign.cpp)
+target_link_libraries(test_redesign PRIVATE rack_core)
+add_test(NAME redesign COMMAND test_redesign)
+
+# Headless plugin test (JUCE, no editor): BushidoProcessor state, MIDI out, sub-blocks, bypass, HOST sync.
+# It links the plugin's shared code (the BUSHIDO target) and takes its JUCE include paths and definitions.
+add_executable(test_plugin tests/test_plugin.cpp)
+target_link_libraries(test_plugin PRIVATE BUSHIDO rack_core)
+target_include_directories(test_plugin PRIVATE $<TARGET_PROPERTY:BUSHIDO,INCLUDE_DIRECTORIES>)
+target_compile_definitions(test_plugin PRIVATE $<TARGET_PROPERTY:BUSHIDO,COMPILE_DEFINITIONS>)
+add_test(NAME plugin COMMAND test_plugin)

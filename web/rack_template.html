@@ -90,11 +90,11 @@ p.legal{font-size:.8rem;margin-top:16px}
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
   <div class="cell"><span class="k">CV B · Gate B</span><span class="v" id="r-b">0.00 V</span></div>
   <div class="cell"><span class="k">CV C</span><span class="v" id="r-c">0.00 V</span></div>
-  <div class="cell"><span class="k">MIDI out (Hz/V)</span><span class="v" id="r-midi">–</span></div>
+  <div class="cell"><span class="k">MIDI out</span><span class="v" id="r-midi">–</span></div>
   <div class="cell"><span class="k" id="k-ronin">RONIN</span><span class="v" id="r-ronin">–</span></div>
 </div>
 <p><b>The rack:</b> BUSHIDO (the step sequencer) and RONIN (the semi-modular synth), both from the Martial Systems Jidai Collection, screw into one rack and share one patch graph and one set of cables. It starts with one of each. Drag a row from the device browser onto the rack to add one there, or click the row to add one at the bottom; search filters the list by name. BUSHIDO is a Sequencer; RONIN is a Voice, and an Effect for audio at its EXT IN. Each row shows how many are already on the rack. The « button at the top of the browser closes it to a strip so the rack gets the width; click the strip to open it again. Grab a device by its ear (or a folded strip anywhere) to move it, and drop it back on the browser, or off the rack, to remove it; × on the right ear removes it too, along with its cables. The arrow on the left ear folds a device to a thin strip: its cables are hidden, stay patched and keep playing. The readout follows the BUSHIDO and RONIN you last touched.
-<b>Cables:</b> any jack to any jack, across devices. Outputs fan out, inputs sum, and in a feedback loop the newest cable in the rack is delayed one sample. The graph follows RONIN's rules: Audio or CV into a Gate input is refused, and a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high). Patch either way: BUSHIDO's CV and gates into RONIN, and RONIN's outputs back into BUSHIDO's CLOCK, TEMPO CV, START/STOP, STEP, RESET and MIXER inputs (an MG PULSE into CLOCK with SOURCE on EXT clocks the sequencer). CV A into VCO HZ/V plays RONIN's VCO on the Hz/V law. <b>Play RONIN's VCO</b> sets that up between the BUSHIDO you last touched and the RONIN nearest it: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default every BUSHIDO's own two VCOs play into the first RONIN's EXT IN, the way a track feeds an effect in a DAW, so its preset (01 INIT is the default) processes them. Choose "straight out" to hear them dry, or "off". Every RONIN's OUTPUT is summed to the speakers.
+<b>Cables:</b> any jack to any jack, across devices. Outputs fan out, inputs sum, and every feedback loop has its loop-closing cable delayed one sample, so no device runs twice (JCS R9). The graph follows RONIN's rules: Audio or CV into a Gate input is refused, and a GATE or TRIG into a RONIN CV input arrives as an S-trig (0 V while high). Patch either way: BUSHIDO's CV and gates into RONIN, and RONIN's outputs back into BUSHIDO's CLOCK, TEMPO CV, START/STOP, STEP, RESET and MIXER inputs (an MG PULSE into CLOCK with SOURCE on EXT clocks the sequencer). CV A into VCO HZ/V plays RONIN's VCO on the linear law (1 V = C3); CV A into VCO V/OCT plays it on the rack standard (0 V = C3). <b>Play RONIN's VCO</b> sets that up between the BUSHIDO you last touched and the RONIN nearest it: CV A to HZ/V, GATE A to EG 1 TRIG, VCO through VCF and VCA 1. By default every BUSHIDO's own two VCOs play into the first RONIN's EXT IN, the way a track feeds an effect in a DAW, so its preset (01 INIT is the default) processes them. Choose "straight out" to hear them dry, or "off". Every RONIN's OUTPUT is summed to the speakers.
 <b>RONIN presets:</b> the same screen as BUSHIDO's: banks A and B of up to 999, click the PRESET screen or its key, type to search, arrows or scroll, Enter or click; SAVE stores RONIN's knobs, Effect switch and own cables as the next number in the lit bank. Bank A holds the factory bank, which is INIT only for now. A factory preset sets that RONIN's knobs and its own cables and leaves cables to other devices alone. Press and hold HOLD to open the EXT IN gate; the red lamp above it lights while it is down. The rocker is the plugin's Effect switch: off passes OUTPUT L/R dry, on blends in WET by MIX. Click a RONIN jack to point its meter at it (±5 V full scale); it starts on OUTPUT WET. VCA 1/2 INITIAL and MOD, the DIV RATIO SWITCH and the DIV /16 jack are not wired in this page's RONIN build yet.<br><b>Rack patches (bank B on both screens):</b> none ship yet. A rack patch, loaded from a device's screen, sets that device and the nearest device of the other kind and replaces their cables.
 <b>BUSHIDO patterns:</b> two banks, A and B, of up to 999 patterns each (bank B starts with any rack patches); the lit lamp is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, type to search, use the arrows or scroll, then click a row or press Enter. A pattern sets that BUSHIDO's knobs, switches and its own cables. Bank A has the factory bank, INIT only for now. <b>SAVE</b> stores the panel as the next number in the lit bank (type a name, then Enter). Saved patterns and presets stay in this browser and are shared by every BUSHIDO or RONIN on the rack. <b>BYPASS</b> on keeps BUSHIDO stepping with its gates muted.
 <b>Play:</b> START/STOP (Space starts the BUSHIDO you last touched), STEP and RESET. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> drag the green digits next to TEMPO; DIV sets steps per beat (120 BPM at 1/16 is 8 steps per second).
@@ -391,12 +391,13 @@ function audio(){if(ctx){if(ctx.state=="suspended")ctx.resume();return}
   const fallback=()=>{eng=RACK.create(ctx.sampleRate);eng.post=m=>{st=m};const sp=ctx.createScriptProcessor(2048,0,2);
     sp.onaudioprocess=e=>{const b=e.outputBuffer;eng.render(b.getChannelData(0),b.getChannelData(1),b.length)};sp.connect(ctx.destination)};
   (ctx.audioWorklet&&!/fallback/.test(location.hash)?worklet():Promise.reject()).catch(fallback).then(()=>{starting=false;const ob=outbox.splice(0);sync().forEach(send);ob.forEach(send)})}
-["A","B"].forEach((v,k)=>{const s=$("oct"+v);for(let o=0;o<=4;o++){const op=document.createElement("option");op.value=o;op.textContent=`1 V = ${55*2**o} Hz`;s.appendChild(op)}s.value=k?1:2});
+// BUSHIDO's own VCOs follow each row's PITCH LAW (V/OCT 0 V = C3, HZ/V LIN 1 V = C3, JCS R4); the menu is their footage (8' = C3).
+["A","B"].forEach((v,k)=>{const s=$("oct"+v);for(let o=0;o<=4;o++){const op=document.createElement("option");op.value=o;op.textContent=["32'","16'","8'","4'","2'"][o];s.appendChild(op)}s.value=k?1:2});
 ["mon","octA","octB"].forEach(id=>$(id).onchange=()=>send(monMsg()));$("vol").oninput=()=>send({t:"volume",v:+$("vol").value*4});
 
 // ================= lamps and readout, from the engine's state (about 30 times a second) =================
 const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const midiOf=v=>v>0?Math.max(0,Math.min(127,Math.round(33+12*Math.log2(v)))):-1,noteName=n=>n<0?"no note":NOTE[n%12]+(Math.floor(n/12)-1);
+const noteName=n=>n<0?"no note":NOTE[n%12]+(Math.floor(n/12)-1);   // MIDI 48 = C3 (JCS R4)
 let shown;
 function frame(){const S=st&&st.devices||{};rack.forEach(d=>d.ui.frame(S[d.key]));if(st===shown)return;shown=st;
   const b=focusB&&rack.includes(focusB)?focusB:rack.find(d=>d.k=="B"),r=focusR&&rack.includes(focusR)?focusR:rack.find(d=>d.k=="R");
@@ -494,10 +495,17 @@ class BushidoUI{
     this.ledEls={};L.leds.forEach(l=>{this.ledEls[l.id]={g:gEl(gled),l,on:null}});Object.keys(this.ledEls).forEach(id=>this.setLed(id,false));
     this.screen=new Screen({owner:this,G:SCREEN,els:[gl,gb,gEl(d.over)],title:"PATTERN",store:"bushido.patterns",factory:{A:PATTERNS,B:RACKP},
       apply:Q=>this.applyPattern(Q),capture:n=>this.capture(n)});
-    this.lastPos=-2;this.lastChan=-1;this.lastNote=null;this.running=null}
+    this.lastPos=-2;this.lastChan=-1;this.lastNote=null;this.running=null;
+    // Tab parameters (CLOCK, STEPS, MIDI), after DIV in the engine's list. They have no knob on the panel; patterns carry them.
+    this.T={};BUSHIDO_DSP.PARAMS.slice(BUSHIDO_DSP.P.NUM_V1_PARAMS).forEach(q=>this.T[q.id]=q.def);this.migration=null}
   init(){this.screen.load("A",0)}
+  setT(id,v){if(!(id in this.T))return;this.T[id]=v;this.send({t:"param",id,v})}
+  // Patterns and rack patches without `format` are v1 (format 0) and migrate to format 1 on load (BushidoState.h): SETTLE = VINTAGE,
+  // TRIG MODE = STEP, PITCH LAW per row from its cables. A newer format loads as it is (read-only). Returns the panel and tab values.
+  migrated(Q){const pm=Object.assign({},Q.params),r=BUSHIDO_DSP.migrate(Q.format??0,pm,Q.cables||[],"");this.migration=r;
+    for(const id in this.T)this.setT(id,pm[id]??BUSHIDO_DSP.PARAMS[BUSHIDO_DSP.PARAMS.findIndex(q=>q.id==id)].def);return pm}
   send(m){m.d=this.d.key;send(m)}
-  sync(){const out=[];this.C.forEach(c=>{if(c.kind!="button"&&c.kind!="readout")out.push({t:"param",d:this.d.key,id:c.id,v:this.P[c.id]})});out.push({t:"bypass",d:this.d.key,on:this.P["TOP:BYPASS"]>.5});return out}
+  sync(){const out=[];this.C.forEach(c=>{if(c.kind!="button"&&c.kind!="readout")out.push({t:"param",d:this.d.key,id:c.id,v:this.P[c.id]})});for(const id in this.T)out.push({t:"param",d:this.d.key,id,v:this.T[id]});out.push({t:"bypass",d:this.d.key,on:this.P["TOP:BYPASS"]>.5});return out}
   idx(c){return Math.round(this.P[c.id]*(steps(c)-1))}
   bpmNow(){return sps(this.P["CLOCK:TEMPO"])*60/spb(this.P["CLOCK:DIV"])}
   tempoFor(b){return Math.min(1,Math.max(0,Math.log2(b*spb(this.P["CLOCK:DIV"])/60/.5)/6))}
@@ -538,21 +546,23 @@ class BushidoUI{
   dragUp(k){if(k.press!=null){this.pressed=null;this.drawCtl(k.press);return}const c=this.C[k.i];
     if(k.bpm===undefined&&steps(c)>=2&&!k.moved){const n=steps(c)-1;this.setP(c.id,(Math.round(this.P[c.id]*n)+1)%(n+1)/n)}}   // a click steps a switch round
   // A pattern sets every control except BYPASS and replaces this BUSHIDO's own cables (cables to other devices stay). It keeps running if it was.
-  applyPattern(Q){this.C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")this.setP(c.id,Q.params[c.id]??c.default,true)});
+  applyPattern(Q){const pm=this.migrated(Q);this.C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")this.setP(c.id,pm[c.id]??c.default,true)});
     replaceOwn(this.d,Q.cables.map(([a,b,c])=>({a:this.d.key+"/"+a,b:this.d.key+"/"+b,c})))}
   capture(name){const params={};this.C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")params[c.id]=+this.P[c.id].toFixed(4)});
-    return {name,params,cables:cables.filter(c=>own(this.d,c.a)&&own(this.d,c.b)).map(c=>[jackOf(c.a),jackOf(c.b),c.c])}}
-  rackPatch(R){this.C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")this.setP(c.id,R.params[c.id]??c.default,true)})}
+    for(const id in this.T)params[id]=+this.T[id].toFixed(4);
+    return {name,format:BUSHIDO_DSP.FORMAT,params,cables:cables.filter(c=>own(this.d,c.a)&&own(this.d,c.b)).map(c=>[jackOf(c.a),jackOf(c.b),c.c])}}
+  rackPatch(R){const pm=this.migrated(R);this.C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")this.setP(c.id,pm[c.id]??c.default,true)})}
   frame(s){const q=s&&s.sq;this.setLed("MODE:RUN",!!(q&&q.running));if(!q||q===this.seen)return;this.seen=q;
     if(q.pos!=this.lastPos||q.chan!=this.lastChan){this.lastPos=q.pos;this.lastChan=q.chan;
       for(let s=1;s<=12;s++)this.setLed("STEP:"+s,q.pos==s-1);this.setLed("CH:A",q.pos>=0&&q.chan==0);this.setLed("CH:B",q.pos>=0&&q.chan==1);
       if(q.running){const t=`${this.d.key}/${q.pos+1}:TRIG`;for(const c of cables)if(c.a==t||c.b==t)jiggle(c,1.2)}}   // a cable twitches when its TRIG fires
-    if(q.gate[q.jk])this.lastNote={jk:q.jk,v:q.cv[q.jk]}}
+    if(q.note)this.lastNote=q.note}   // the last note-on: from the row's target volts under its PITCH LAW, never the slewed CV
   readout(q){if(!q){$("r-step").innerHTML="stopped · press START";$("r-a").innerHTML=$("r-b").innerHTML=$("r-c").innerHTML="0.00 V";$("r-midi").innerHTML="–";return}const P=this.P,m=q.mode,seq=m==1?`${q.chan*12+q.pos+1} of 24`:`${q.pos+1} of 12`;
     $("r-step").innerHTML=q.pos<0?"stopped · press START":!q.running?`at ${"AB"[q.chan]}${q.pos+1}, stopped`:`${"AB"[q.chan]}${q.pos+1} <small>· ${["A","A+B","ALT"][m]} step ${seq} · on the ${"AB"[q.jk]} jacks</small>`;
     const f=k=>`${q.cv[k].toFixed(2)} V <small>· gate ${q.gate[k]?"5 V":"0 V"}</small>`;$("r-a").innerHTML=f(0);$("r-b").innerHTML=f(1);
     $("r-c").innerHTML=P["CH:C MODE"]>.5?`0.00 V <small>· TIME: gate ${(5+90*P[`C:${Math.max(0,q.pos)+1}`]).toFixed(0)}% of the step</small>`:`${q.cv[2].toFixed(2)} V`;
-    const ln=this.lastNote,n=ln?midiOf(ln.v):-1;$("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":!ln?"–":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${ln.jk+1} · ${(55*ln.v).toFixed(1)} Hz on a Hz/V VCO</small>`}}
+    const ln=this.lastNote,n=ln?ln.note:-1,ch=ln?1+Math.round(this.T[ln.jk?"MIDI:CH B":"MIDI:CH A"]*15):0;
+    $("r-midi").innerHTML=P["TOP:BYPASS"]>.5?"– <small>· BYPASS: no notes</small>":!ln?"–":`${n<0?"–":n} <small>· ${noteName(n)} · ch ${ch} · ${ln.volts.toFixed(2)} V ${ln.law?"HZ/V LIN":"V/OCT"} = ${BUSHIDO_DSP.pitch.hz(ln.law,ln.volts).toFixed(1)} Hz at 8'</small>`}}
 
 // ================= RONIN: knobs, HOLD, Effect rocker, meter, preset screen (same behaviour as the RONIN plugin) =================
 const RSCR=RL.screen,POWER=RL.power,METER=RL.meter,HOLDB=RL.buttons[0],RPRE=RK.presets;
@@ -620,6 +630,7 @@ $("xp").onclick=()=>{cancel();hideMenu();audio();
     ["RONIN/EG 1:OUT A","RONIN/VCA 1:ENV","yellow"],["RONIN/EG 1:OUT A","RONIN/VCF:CUTOFF","yellow"],["RONIN/VCA 1:OUT","RONIN/OUTPUT:WET","green"]];
   const map=g=>g.replace(/^BUSHIDO\//,b.key+"/").replace(/^RONIN\//,r.key+"/");
   cables=cables.filter(c=>!own(r,c.a)&&!own(r,c.b)).concat(X.map(([a,bb,c])=>({a:map(a),b:map(bb),c})));build();
+  b.ui.setT("STEPS:LAW A",1);   // CV A now feeds RONIN's linear HZ/V input: row A's PITCH LAW is HZ/V LIN (notes and MIDI match RONIN)
   const K={"EG 1:ATTACK":.05,"EG 1:DECAY":.4,"EG 1:SUSTAIN":.25,"EG 1:RELEASE":.3,"VCF:CUTOFF":.38,"VCF:PEAK":.55,"VCF:MOD":.6,"VCO:RANGE":.5,"OUTPUT:MIX":1,"OUTPUT:LEVEL":.7};
   r.ui.KN.forEach((k,i)=>{if(K[k.id]!==undefined)r.ui.setKnob(i,K[k.id],true)});
   if(!r.ui.power)r.ui.setPower(true,true);$("mon").value="off";send(monMsg());

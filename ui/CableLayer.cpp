@@ -85,7 +85,13 @@ void CableLayer::rebuildScene()
 
 int CableLayer::jackAtDesign(juce::Point<float> p) const
 {
-    for (size_t i = 0; i < jackHits.size(); ++i) if (jackHits[i].contains(p)) return (int) i;
+    // Every jack takes at least 16 x 16 screen px, whatever the scale (22 design units are only 13 px at 75 %).
+    const float m = getWidth() > 0 ? kMinJackHitPx / scale() : 0.0f;
+    for (size_t i = 0; i < jackHits.size(); ++i) {
+        auto h = jackHits[i];
+        if (h.getWidth() < m || h.getHeight() < m) h = juce::Rectangle<float>(juce::jmax(h.getWidth(), m), juce::jmax(h.getHeight(), m)).withCentre({ jacks[i].x, jacks[i].y });
+        if (h.contains(p)) return (int) i;
+    }
     return -1;
 }
 

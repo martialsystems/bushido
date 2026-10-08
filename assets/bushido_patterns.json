@@ -1,8 +1,9 @@
 {
- "note": "Factory bank for the PATTERN screen (INIT only for now). Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.",
+ "note": "Factory bank for the PATTERN screen (INIT only for now). format 1 is this redesign; a pattern without a format is v1 and migrates on load. Values are 0..1 parameter positions; cables are [jack, jack, colour] with BUSHIDO jack ids.",
  "patterns": [
   {
    "name": "INIT",
+   "format": 1,
    "params": {
     "MODE:MODE": 0.5,
     "CH:C MODE": 0.0,
