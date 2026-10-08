@@ -149,7 +149,7 @@ void TabPage::paint(juce::Graphics& g)
 void TabPage::paintSteps(juce::Graphics& g)
 {
     for (int row = 0; row < 3; ++row) rowBlock(g, row, { 30, 34 + 130.0f * (float) row, 1540, 116 });
-    text(g, juce::String::fromUTF8("values are the panel knobs (two views of one parameter) \xc2\xb7 drag, or double-click and type \"C4\" or \"2.5\" \xc2\xb7 note names follow each row's PITCH LAW (JCS R4)"),
+    text(g, juce::String::fromUTF8("values are the panel knobs (two views of one parameter) \xc2\xb7 drag, or double-click and type \"C4\" or \"2.5\" \xc2\xb7 note names follow each row's PITCH LAW"),
          800, 426, 10, kDim, false, 0.6f);
 }
 
@@ -317,7 +317,7 @@ void TabPage::paintClock(juce::Graphics& g)
     const bool run = host.lamp("MODE:RUN") > 0.5f;
     const juce::String rowName(host.lamp("CH:B") > 0.5f ? "B" : "A");
     lcd(g, { 1220, 288, 220, 36 }, run ? "RUN " + rowName + juce::String(pos + 1) : (pos >= 0 ? "STOP " + rowName + juce::String(pos + 1) : juce::String("STOP")), 10);
-    text(g, "fixed rules (JCS R5), shown so you can see them", 1330, 346, 10, kDim, false, 0.5f);
+    text(g, "fixed rules, shown so you can see them", 1330, 346, 10, kDim, false, 0.5f);
 }
 
 // ---------------------------------------------------------------- MIDI
@@ -351,9 +351,9 @@ void TabPage::paintMidi(juce::Graphics& g)
     block(g, ref, "REFERENCE");
     lcd(g, { 640, 82, 320, 34 }, "C3 = 130.81 HZ = 48", 19);
     lcd(g, { 640, 124, 320, 34 }, "V/OCT 0V  LIN 1V", 19);
-    text(g, "fixed by the Jidai pitch standard (JCS R4)", 800, 184, 10, kDim, false, 0.5f);
+    text(g, "fixed by the Jidai pitch standard", 800, 184, 10, kDim, false, 0.5f);
     text(g, "the 55 Hz / MIDI 33 reference is retired", 800, 200, 10, kDim, false, 0.5f);
-    text(g, "in the rack, MIDI goes to RACK I/O (JCS R13)", 800, 250, 10, kDim, false, 0.5f);
+    text(g, "in the rack, MIDI goes to RACK I/O", 800, 250, 10, kDim, false, 0.5f);
 
     // monitor: what each jack pair is sending now (from the panel lamps and knobs, so it costs the audio thread nothing)
     block(g, { 30, 298, 1540, 106 }, "MIDI MONITOR");
