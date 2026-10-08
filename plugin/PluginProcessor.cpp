@@ -56,7 +56,7 @@ BushidoProcessor::Pattern BushidoProcessor::patternFromVar(const juce::var& pv)
 juce::var BushidoProcessor::patternToVar(const Pattern& pat)
 {
     auto* o = new juce::DynamicObject(); o->setProperty("name", pat.name); o->setProperty("format", pat.format);
-    auto* params = new juce::DynamicObject(); for (auto& [id, v] : pat.params) params->setProperty(id, v);
+    auto* params = new juce::DynamicObject(); for (auto& [id, v] : pat.params) params->setProperty(id, (double) v);
     o->setProperty("params", juce::var(params));
     juce::Array<juce::var> cl;
     for (auto& c : pat.cables) cl.add(juce::var(juce::Array<juce::var> { c.a.fromFirstOccurrenceOf("/", false, false), c.b.fromFirstOccurrenceOf("/", false, false), kColourNames[juce::jlimit(0, 3, c.color)] }));

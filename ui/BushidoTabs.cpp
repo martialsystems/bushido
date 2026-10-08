@@ -177,7 +177,7 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
             g.setColour(kWarn); g.fillEllipse(right.getRight() - 8, right.getY() - 6, 13, 13);
             text(g, juce::String::fromUTF8("\xe2\x89\xa0"), right.getRight() - 1.5f, right.getY() + 4.5f, 10, juce::Colours::white, true, 0);
         }
-        const double tau = (double) host.value(rowParam("CH:PORTA", row)) * host.value(rowParam("CH:PORTA", row)) * 2.0;   // BushidoModule: tau = PORTA^2 x 2 s
+        const double tau = (double) host.value(rowParam("CH:PORTA", row)) * (double) host.value(rowParam("CH:PORTA", row)) * 2.0;   // BushidoModule: tau = PORTA^2 x 2 s
         const double t99 = std::log(100.0) * tau;
         auto secs = [](double s) { return s < 0.1 ? juce::String((int) std::round(s * 1000.0)) + " ms" : juce::String(s, 2) + " s"; };
         text(g, juce::String(law == Law::VOct ? "V/OCT: 0 V = C3" : "LIN: 1 V = C3") + juce::String::fromUTF8(" \xc2\xb7 RANGE ") + juce::String((int) range) + " V",
@@ -202,17 +202,17 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
         const float x = 242 + 94.0f * (float) s;
         const juce::String id = stepId(row, s);
         const float knob = host.value(id);
-        double v = knob * range; if (quant) v = rack::pitch::quantize(law, v);
+        double v = (double) (knob * range); if (quant) v = rack::pitch::quantize(law, v);
         const juce::Rectangle<float> vr(x, y + 18, 82, 30), nr(x, y + 56, 82, 30);
         if (s == pos && (isC || row == reading)) { g.setColour(kGold); g.drawRoundedRectangle(vr.getUnion(nr).expanded(4), 4, 1.4f); }
         lcd(g, vr, juce::String(v, 2) + "V", 5);
-        lcd(g, nr, isC && cTime ? juce::String((int) std::round(100.0 * (0.05 + 0.9 * knob))) + "%" : noteText(rack::pitch::midiNote(law, v)), 5);
+        lcd(g, nr, isC && cTime ? juce::String((int) std::round(100.0 * (0.05 + 0.9 * (double) knob))) + "%" : noteText(rack::pitch::midiNote(law, v)), 5);
         text(g, juce::String(s + 1), x + 41, y + 104, 10, kDim, true, 0.8f);
         const Law typedLaw = law; const float rng = range;
         auto type = [this, id, typedLaw, rng, vr, nr, v] {
             typeInto(vr.getUnion(nr), juce::String(v, 2), [this, id, typedLaw, rng](const juce::String& txt) {
                 const double volts = parseStep(txt, typedLaw == Law::VOct ? 0 : 1);
-                if (! std::isnan(volts)) setParam(id, (float) (volts / rng));
+                if (! std::isnan(volts)) setParam(id, (float) (volts / (double) rng));
             });
         };
         auto wheel = [this, id](int d) { setParam(id, host.value(id) + 0.01f * (float) d); };
@@ -366,11 +366,11 @@ void TabPage::paintMidi(juce::Graphics& g)
         mon << kRow[j] << " CH" << ch << " ";
         if (! run || pos < 0 || j != jack) { mon << "--        "; continue; }
         const Law law = host.value(rowParam("STEPS:LAW", j)) > 0.5f ? Law::HzvLin : Law::VOct;
-        double v = host.value(stepId(chan, pos)) * (host.value(rowParam("CH:RANGE", j)) > 0.5f ? 5.0 : 1.0);
+        double v = (double) host.value(stepId(chan, pos)) * (host.value(rowParam("CH:RANGE", j)) > 0.5f ? 5.0 : 1.0);
         if (host.value(rowParam("STEPS:QUANT", j)) > 0.5f) v = rack::pitch::quantize(law, v);
         const int note = rack::pitch::midiNote(law, v);
         const bool fromC = host.value(rowParam("MIDI:VEL", j)) > 0.5f && ! cTime;
-        const int vel = fromC ? juce::jlimit(1, 127, (int) std::lround(1.0 + 126.0 * host.value(stepId(2, pos)))) : 100;
+        const int vel = fromC ? juce::jlimit(1, 127, (int) std::lround(1.0 + 126.0 * (double) host.value(stepId(2, pos)))) : 100;
         if (note < 0) mon << "--        "; else mon << noteText(note) << " " << note << " V" << vel << "   ";
     }
     lcd(g, { 60, 324, 1480, 36 }, mon.trimEnd(), 44);

@@ -12,6 +12,7 @@ public:
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
     bool isBusesLayoutSupported(const BusesLayout&) const override;
+    using juce::AudioProcessor::processBlock;                           // keep JUCE's double overload visible (-Woverloaded-virtual)
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;

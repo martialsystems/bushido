@@ -20,7 +20,7 @@ public:
             const auto& g = ev[e]; const int j = g.jack;
             if (g.on) {
                 if (note[j] >= 0) emit(Msg { g.sample, chan[j], note[j], 0, false });
-                note[j] = rack::pitch::midiNote(m.law(j), g.target);
+                note[j] = rack::pitch::midiNote(m.law(j), (double) g.target);
                 chan[j] = channel(m, j);
                 if (note[j] >= 0) emit(Msg { g.sample, chan[j], note[j], velocity(m, j, g.cvC), true });
             } else if (note[j] >= 0) { emit(Msg { g.sample, chan[j], note[j], 0, false }); note[j] = -1; }

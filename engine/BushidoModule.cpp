@@ -118,14 +118,14 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
     const bool host = external && p(EXT_SOURCE) > 0.5f, jackClock = external && ! host;
     const double tempoRate = stepsPerSecond(p(TEMPO));                      // 0.5..32 steps/s, INT only; DIV does not change it
     // PORTA law, kept bit-exact from v1 (user decision): tau = PORTA^2 x 2 s, k in double, the update in float.
-    auto slew = [this](float porta) { const double tau = (double) porta * porta * 2.0; return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr))); };
+    auto slew = [this](float porta) { const double tau = (double) porta * (double) porta * 2.0; return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr))); };
     const float kA = slew(p(PORTA_A)), kB = slew(p(PORTA_B));
     settle = p(SETTLE) > 0.5f ? std::max(1.0, sr * 0.0006) : 2.0;           // VINTAGE keeps v1's exact 0.6 ms; TIGHT is 2 samples (JCS R5.5)
     const bool pulse = p(TRIG_MODE) > 0.5f;
     const double pulseLen = std::max(1.0, std::round(0.005 * sr));
     const pitch::Law lawA = law(0), lawB = law(1);
     const bool quantA = p(QUANT_A) > 0.5f, quantB = p(QUANT_B) > 0.5f;
-    const double l1 = p(LEVEL1), l2 = p(LEVEL2);
+    const double l1 = (double) p(LEVEL1), l2 = (double) p(LEVEL2);
     if (! levelsPrimed) { lvl1 = l1; lvl2 = l2; levelsPrimed = true; }
     const int q = stepsPerBeat(p(DIV));                                     // HOST: steps per quarter, 2 / 4 / 8
     const bool hostValid = host && transport.valid && transport.bpm > 0.0;
@@ -177,8 +177,8 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
         const bool settled = samplesInStep >= settle;
         if (pos >= 0 && settled) {
             const float knob = p(STEPS + 12 * chan + pos);       // row A or row B
-            if (jk == 0) { const float v = knob * rangeA; tgtA = quantA ? (float) pitch::quantize(lawA, v) : v; }   // range, law and portamento belong to the jacks
-            else         { const float v = knob * rangeB; tgtB = quantB ? (float) pitch::quantize(lawB, v) : v; }
+            if (jk == 0) { const float v = knob * rangeA; tgtA = quantA ? (float) pitch::quantize(lawA, (double) v) : v; }   // range, law and portamento belong to the jacks
+            else         { const float v = knob * rangeB; tgtB = quantB ? (float) pitch::quantize(lawB, (double) v) : v; }
             cvC = p(STEPS + 24 + pos) * jidai::jcs::kNominal;     // unipolar CV 0..+5 V (JCS R1)
         }
         if (cIsTime) cvC = 0.0f;                                 // TIME: row C sets gate length only and is never emitted as CV
@@ -187,7 +187,7 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
         const double period = host && running ? (hostValid ? 60.0 / (transport.bpm * q) : 1.0 / tempoRate)
                             : (running && ! external) ? 1.0 / rate
                             : haveAnyPeriod ? extPeriod : 1.0 / tempoRate;   // EXT before a period is known: the INT tempo period
-        const double frac = (cIsTime && pos >= 0) ? 0.05 + 0.9 * p(STEPS + 24 + pos) : 0.5;
+        const double frac = (cIsTime && pos >= 0) ? 0.05 + 0.9 * (double) p(STEPS + 24 + pos) : 0.5;
         const bool g = gateOn && pos >= 0 && settled && samplesInStep < settle + frac * period * sr;
 
         lvl1 += (l1 - lvl1) * kMix; lvl2 += (l2 - lvl2) * kMix;
@@ -198,7 +198,7 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
         const bool gA = g && jk == 0, gB = g && jk == 1;
         out[GATE_A][i] = jidai::jcs::gateVolts(gA);              // 0 / +5 V (JCS R2)
         out[GATE_B][i] = jidai::jcs::gateVolts(gB);
-        out[MIX_OUT][i] = (float) (in[MIX_IN1][i] * lvl1 + in[MIX_IN2][i] * lvl2);
+        out[MIX_OUT][i] = (float) ((double) in[MIX_IN1][i] * lvl1 + (double) in[MIX_IN2][i] * lvl2);
         const bool trigOn = running && (! pulse || samplesInStep <= pulseLen);   // JCS R5.4: TRIG low while stopped
         for (int s = 0; s < 12; ++s) out[TRIG1 + s][i] = jidai::jcs::gateVolts(trigOn && pos == s);
 

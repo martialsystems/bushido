@@ -122,7 +122,7 @@ void RackPanel::mouseDrag(const juce::MouseEvent& e)
     if (dragIdx < 0) return;
     const auto& c = lay.controls[(size_t) dragIdx]; const float dy = dragStartY - e.position.y;
     if (std::abs(dy) > 3) dragMoved = true;
-    if (c.kind == "readout") { const double st = e.mods.isShiftDown() ? 0.1 : 1.0, v = dragStartR + dy * (e.mods.isShiftDown() ? 0.05 : 0.5);
+    if (c.kind == "readout") { const double st = e.mods.isShiftDown() ? 0.1 : 1.0, v = dragStartR + (double) dy * (e.mods.isShiftDown() ? 0.05 : 0.5);
         bind.setReadoutValue(c.id, std::round(v / st) * st); repaint(); return; }
     const float range = c.kind == "switch" ? 60.0f : (e.mods.isShiftDown() ? 1000.0f : 200.0f);   // screen pixels for full travel
     bind.set(c.id, snap(c, dragStartV + dy / range)); repaint();
