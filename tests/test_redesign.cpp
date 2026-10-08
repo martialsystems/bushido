@@ -1,4 +1,4 @@
-// BUSHIDO redesign tests (BUSHIDO_Redesign.md section 5, JCS R4/R5). No JUCE.
+// BUSHIDO redesign tests (behaviour in docs/REFERENCE.md; JCS R4/R5). No JUCE.
 // Build: g++ -std=c++17 -O2 -I. -isystem third_party/jidai-common/include tests/test_redesign.cpp rack/PatchGraph.cpp engine/BushidoModule.cpp
 #include "../rack/PatchGraph.h"
 #include "../engine/BushidoModule.h"

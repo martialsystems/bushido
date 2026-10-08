@@ -1,5 +1,5 @@
 #pragma once
-// BUSHIDO's full-face tabs (BUSHIDO_Redesign.md §4). The front panel art is never touched:
+// BUSHIDO's full-face tabs (docs/REFERENCE.md, Tab controls). The front panel art is never touched:
 // - TabStrip is a separate 36-design-px strip above the art (29 px at the 1280 default): MAIN · STEPS · CLOCK · MIDI · SETUP.
 // - TabPage replaces the whole face (same size as the panel) for every tab but MAIN. Each page is a set of equal,
 //   gold-ruled blocks, mirrored left to right, in the panel's own language (plate, gold rules, cream labels, LCD green).

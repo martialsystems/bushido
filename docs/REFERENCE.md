@@ -1,14 +1,14 @@
 # BUSHIDO: how it behaves
 
 Source: `engine/BushidoModule.cpp`, `rack/PitchLaw.h`, `engine/BushidoState.h`. Tests: `tests/test_engine.cpp`, `tests/test_redesign.cpp`. Everything here is pinned by a test unless marked otherwise.
-Clock, transport and pitch follow the Jidai Cable Standard v1.1 (JCS R3–R7); the design notes are in `BUSHIDO_Redesign.md`.
+Signals, clock, transport, pitch and saved state follow the Jidai cable standard (v1.1), the rules every Jidai Collection unit shares.
 
 > The panel and the engine change together: edit `panel/build_panel.py` and `engine/BushidoModule.cpp` as a pair.
 
 ## Signals
-Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 1 V and low again below 0.5 V (JCS R3).
+Volts in floats. Gates and TRIG outputs are 0 / 5 V. Inputs count as high above 1 V and low again below 0.5 V.
 
-## Pitch laws (JCS R4)
+## Pitch laws
 The CV jacks are always plain volts: the knob -> volts mapping never changes, so CV A / CV B are bit-identical under either law.
 A row's PITCH LAW (STEPS tab) only decides what those volts mean: note names, QUANT, MIDI, and the jack's role (ring and cable colour,
 the `≠` badge when a cable expects the other law). Both laws use the same reference, **C3 = 130.81 Hz = MIDI 48** (exactly 440 x 2^(-21/12) = 130.8127826502993 Hz, jidai-common `kC3Hz`).
@@ -16,7 +16,7 @@ the `≠` badge when a cable expects the other law). Both laws use the same refe
   RANGE 5 V spans C3..C8. Patch it into SHOGUN `NOTE` or RONIN `VCO:V/OCT`.
 - **HZ/V LIN** (shown as LIN): **1 V = C3**, doubling the volts is one octave, note = 48 + 12 x log2(V); 0 V or below has no note.
   RANGE 5 V tops out at note 75.86. Patch it into RONIN's linear `VCO:HZ/V`.
-- The old 55 Hz / A1 = MIDI 33 reference (`rack/HzPerVolt.h`) is **retired**; `rack/PitchLaw.h` replaces it everywhere.
+- Earlier versions used 1 V = 55 Hz (A1 = MIDI 33). That reference is retired; both laws above use C3.
 
 | Volts | HZ/V LIN | V/OCT |
 |---|---|---|
@@ -60,7 +60,7 @@ the settle in samples and the fixed transport rules; the MIDI tab the reference 
 16 x 16 screen px at every scale.
 
 ## Sequencing
-- START toggles running. Every start, including one after a stop, begins at A step 1 at once (JCS R5). In EXT, a clock edge on the
+- START toggles running. Every start, including one after a stop, begins at A step 1 at once. In EXT, a clock edge on the
   START sample or the next 2 samples is step 1's own clock and is absorbed, so A1 is never skipped when RUN and CLK arrive together.
 - STOP sends every gate and TRIG output low at once; the CVs and lamps hold.
 - **HOST** (SOURCE = EXT, EXT SOURCE = HOST): the step index is floor(ppq x q) with q = 2 / 4 / 8 from DIV; a change of index is a tick,
@@ -101,11 +101,11 @@ the settle in samples and the fixed transport rules; the MIDI tab the reference 
   channel A. A note-on is sent at the sample the gate opens and a note-off when it closes; bypass sends all notes off. Velocity is 100 or
   FROM C (see the tab controls). CV A and CV B stay in volts on the jacks. The note comes from the jack's **target** volts (never the
   slewed CV, so PORTA cannot change it) under the row's PITCH LAW: V/OCT round(48 + 12 V), HZ/V LIN round(48 + 12 log2 V) with no note at
-  or below 0 V, clamped to 0..127 (JCS R4.5). Old patches' MIDI rises by 15 semitones under LIN (1 V was MIDI 33, now 48), so it matches
-  RONIN. Unless QUANT is SEMI, a step between semitones is rounded in MIDI but not on the jack. In the rack, MIDI goes to RACK I/O (JCS R13).
+  or below 0 V, clamped to 0..127. Old patches' MIDI rises by 15 semitones under LIN (1 V was MIDI 33, now 48), so it matches
+  RONIN. Unless QUANT is SEMI, a step between semitones is rounded in MIDI but not on the jack. In the rack, MIDI goes to RACK I/O.
 - Buttons are not host-automatable; every knob and switch is.
 
-## State format and migration (JCS R6, R7)
+## State format and migration
 - The plugin state carries `format = 1`. A state without one is format 0 (v1) and migrates on load, before the parameters and cables
   are bound (`bushido::migrate`, `engine/BushidoState.h`):
   - `CLOCK:SETTLE` = VINTAGE and `CLOCK:TRIG MODE` = STEP, so old patches keep their timing;

@@ -1,4 +1,4 @@
-// BUSHIDO redesign in the web engine: mirrors tests/test_redesign.cpp (BUSHIDO_Redesign.md section 5, JCS R4/R5/R9).
+// BUSHIDO redesign in the web engine: mirrors tests/test_redesign.cpp (behaviour in docs/REFERENCE.md; JCS R4/R5/R9).
 // Run: node web/test_bushido_redesign.js   (the C++-vs-JS sample parity check is web/test_bushido_parity.js)
 const W = __dirname + "/";
 const B = require(W + "bushido_dsp.js"); global.BUSHIDO_DSP = B; global.RONIN_DSP = require(W + "ronin_dsp.js"); const RACK = require(W + "rack_engine.js");

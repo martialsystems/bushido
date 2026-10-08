@@ -5,7 +5,7 @@
 #include "../ui/PatternScreen.h"
 #include "../ui/BushidoTabs.h"
 
-// MAIN is today's panel and editor, untouched, under a tab strip (BUSHIDO_Redesign §4.0): MAIN · STEPS · CLOCK · MIDI · SETUP.
+// MAIN is today's panel and editor, untouched, under a tab strip (docs/REFERENCE.md, Tab controls): MAIN · STEPS · CLOCK · MIDI · SETUP.
 // The strip is 36 design px above the 1600 x 434 art; a non-MAIN tab replaces the whole face at the same size.
 class BushidoEditor : public juce::AudioProcessorEditor, private RackPanel::Binding, private bushido_ui::TabHost {
 public:

@@ -1,7 +1,7 @@
 // BUSHIDO engine for the web page: a line-for-line port of engine/BushidoModule.cpp (with rack/PitchLaw.h, engine/MidiOut.h and
 // engine/BushidoState.h), run one sample at a time so it can share one patch graph with the RONIN modules. Plain script: defines
 // the global BUSHIDO_DSP. Same module contract as the RONIN modules: numPorts(), port(i), processSample(), portValue[], inputConnected[].
-// Clock, transport and pitch follow the Jidai Cable Standard v1.1 (JCS R4, R5); see BUSHIDO_Redesign.md.
+// Clock, transport and pitch follow the Jidai Cable Standard v1.1 (JCS R4, R5); see docs/REFERENCE.md.
 // Parity: the C++ keeps parameters, CV and outputs in float and the clock in double. This port rounds to float (Math.fround) at
 // the same places, so for the same inputs it gives the same outputs sample for sample (tests: web/test_bushido_redesign.js).
 // Denormals (B11): the plugin runs under ScopedNoDenormals (FTZ/DAZ). Here the float CV state is flushed to 0 below the float

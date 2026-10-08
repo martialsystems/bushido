@@ -1,6 +1,6 @@
 #pragma once
 // BUSHIDO, the 3 x 12 step sequencer, as a rack::Module. Behaviour is documented in docs/REFERENCE.md.
-// Clock, transport and pitch rules follow the Jidai Cable Standard v1.1 (JCS R4, R5); see BUSHIDO_Redesign.md.
+// Clock, transport and pitch rules follow the Jidai Cable Standard v1.1 (JCS R4, R5); see docs/REFERENCE.md.
 #include "../rack/Module.h"
 #include "../rack/PitchLaw.h"
 #include <jidai/jcs/Detect.h>
