@@ -323,7 +323,8 @@ void TabPage::typeInto(juce::Rectangle<float> cell, const juce::String& current,
     auto finish = [this, done](bool apply) {
         if (! typing) return;
         const auto t = typing->getText();
-        juce::MessageManager::callAsync([sp = juce::Component::SafePointer<TabPage>(this)] { if (sp) sp->typing.reset(); });
+        juce::Component::SafePointer<TabPage> sp(this);   // not an init-capture of this: MSVC C++17 reads it as the lambda
+        juce::MessageManager::callAsync([sp] { if (sp) sp->typing.reset(); });
         if (apply) done(t);
     };
     te->onReturnKey = [finish] { finish(true); };

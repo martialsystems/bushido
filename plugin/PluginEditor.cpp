@@ -39,7 +39,7 @@ BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), pro
     screen->save = [this](int bank, const juce::String& name) { const int i = proc.savePattern(bank, name); if (i >= 0) proc.updateHostDisplay(); return i; };
     mainFace.addAndMakeVisible(*screen);
     mainFace.addMouseListener(&cables, true);   // cables see the pointer everywhere on the face (hover push-away), not only over jacks
-    proc.onStateLoaded = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<BushidoEditor>(this)] { if (sp) { sp->cables.setPatch(sp->proc.getCables()); sp->strip.repaint(); sp->page->repaint(); } }); };
+    proc.onStateLoaded = [this] { juce::Component::SafePointer<BushidoEditor> sp(this); juce::MessageManager::callAsync([sp] { if (sp) { sp->cables.setPatch(sp->proc.getCables()); sp->strip.repaint(); sp->page->repaint(); } }); };
 
     page = std::make_unique<bushido_ui::TabPage>(static_cast<bushido_ui::TabHost&>(*this));
     addChildComponent(*page);
