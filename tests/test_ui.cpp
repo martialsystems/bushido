@@ -39,6 +39,15 @@ static int diff(const juce::Image& a, const juce::Image& b, const juce::Rectangl
     return n;
 }
 
+// Writes <temp>/bbw/ui_<name>.png (the system temp folder, so it works on every platform) for looking at a failure.
+static void dump(const juce::Image& im, const juce::String& name)
+{
+    const auto dir = juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("bbw");
+    dir.createDirectory();
+    const auto f = dir.getChildFile("ui_" + name + ".png"); f.deleteFile();
+    juce::FileOutputStream o(f); juce::PNGImageFormat().writeImageToStream(im, o);
+}
+
 struct Rig {
     BushidoProcessor proc;
     std::unique_ptr<BushidoEditor> ed;
@@ -162,7 +171,7 @@ static void testPanelRepaint()
     for (float k : { 1.0f, 2.0f }) {
         p.setImageCache(false); const auto direct = snap(ed, k);
         p.setImageCache(true);  const auto cached = snap(ed, k);
-        { juce::PNGImageFormat f; for (auto [im, nm] : { std::pair { direct, "direct" }, std::pair { cached, "cached" } }) { juce::File("/tmp/bbw/ui_" + juce::String(nm) + juce::String(k) + ".png").deleteFile(); juce::FileOutputStream o(juce::File("/tmp/bbw/ui_" + juce::String(nm) + juce::String(k) + ".png")); f.writeImageToStream(im, o); } }
+        dump(direct, "direct" + juce::String(k)); dump(cached, "cached" + juce::String(k));
         CHECK(diff(direct, cached) == 0, "panel x" + juce::String(k) + ": the face image paints exactly what a direct paint does");
     }
     p.refresh(); p.takeInvalidated();
@@ -187,7 +196,7 @@ static void testPanelRepaint()
         int outside = 0; const int changed = diff(before, truth, &dirty, &outside);
         const auto cached = snap(ed);                   // the image, redrawn only inside `dirty`, must match a direct paint everywhere
         CHECK(changed > 0 && outside == 0, juce::String("panel: ") + c.what + ": " + juce::String(changed) + " px changed, " + juce::String(outside) + " outside the repainted area (" + juce::String(own.getWidth()) + "x" + juce::String(own.getHeight()) + " px)");
-        if (diff(cached, truth) != 0) { juce::PNGImageFormat f; for (auto [im, nm] : { std::pair { cached, "inc_cached" }, std::pair { truth, "inc_truth" } }) { juce::File fl("/tmp/bbw/ui_" + juce::String(nm) + ".png"); fl.deleteFile(); juce::FileOutputStream o(fl); f.writeImageToStream(im, o); } }
+        if (diff(cached, truth) != 0) { dump(cached, "inc_cached"); dump(truth, "inc_truth"); }
         CHECK(diff(cached, truth) == 0, juce::String("panel: ") + c.what + ": the image matches a direct paint");
     }
     // incremental: keep one image across a run of changes (no rebuild), then compare with a direct paint
