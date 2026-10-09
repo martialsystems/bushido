@@ -54,6 +54,8 @@ public:
     int  currentChannel() const { return chan; }     // row being read: 0 = A, 1 = B
     int  outJacks() const { return mode() == 2 ? chan : 0; }   // jacks it plays on: 0 = CV/GATE A, 1 = CV/GATE B (only ALT uses B)
     bool isRunning() const      { return running; }
+    void setIdleSkip(bool on)   { idleSkip = on; }       // tests: off runs every block through the full loop (same outputs, slower)
+    long long idleBlocks() const { return idleCount; }   // blocks that took the stopped fast path
 
     // jack indices
     enum In  { CLOCK_IN, TEMPO_CV, START_IN, STEP_IN, RESET_IN, MIX_IN1, MIX_IN2, NUM_IN };
@@ -102,6 +104,11 @@ private:
     int hostOffset = 0;
     bool hostPlayingPrev = false;
     long long hostStep = 0;
+    // per-block coefficients, recomputed only when their parameter changes (the same pure functions, so the same bits):
+    // with a feedback cable the graph calls process() one sample at a time, so the per-call exp and pow added up
+    float slewPortaA = -1.0f, slewPortaB = -1.0f, slewKA = 1.0f, slewKB = 1.0f;
+    float rateTempo = -1.0f; double rateSteps = 1.0;
+    bool idleSkip = true; long long idleCount = 0;
     // mixer level smoothing, 10 ms
     double lvl1 = 0.0, lvl2 = 0.0, kMix = 1.0; bool levelsPrimed = false;
     // gate events for MIDI
@@ -113,6 +120,8 @@ private:
     float p(int i) const { return values[(size_t) i].load(std::memory_order_relaxed); }
     int mode() const { return (int) std::lround(p(MODE) * 2.0f); }     // 0 = A, 1 = A+B, 2 = ALT
     bool edge(int which, float v);
+    bool idleBlock(const float* const* in, int n, int pressed, bool hostValid);
+    float slewFor(float porta) const;
     void start(long long n);
     void stop();
     void tick();

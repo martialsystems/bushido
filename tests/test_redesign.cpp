@@ -313,6 +313,60 @@ static void testMigration()
       CHECK(exactEq(p["STEPS:LAW A"], 0.0f) && exactEq(p["STEPS:LAW B"], 1.0f), "verify: cables-to-law with a bare START/STOP cable; RONIN VCO:HZ/V gives LIN"); }
 }
 
+// ------------------------------------------------------------------ stopped fast path
+// The stopped fast path (BushidoModule::idleBlock) must give exactly the outputs of the full loop. Two engines, one with the
+// fast path and one without, get the same inputs, cables, knob moves, presses and transport; every output sample and every
+// gate event must match bit for bit, and the fast path must actually have run.
+static void testIdleSkipExact()
+{
+    struct Scene { const char* name; int block; bool selfPatch, extClock, host; };
+    const Scene scenes[] = { { "no cables, 256-sample blocks", 256, false, false, false }, { "TRIG 8 -> RESET (sample by sample)", 64, true, false, false },
+                             { "ext clock into CLOCK, odd blocks", 37, false, true, false }, { "HOST, transport stopped and started", 128, false, false, true } };
+    for (const auto& sc : scenes) {
+        std::vector<std::vector<float>> outs[2]; std::vector<BushidoModule::GateEvent> evs[2]; long long idle[2] = { 0, 0 };
+        for (int k = 0; k < 2; ++k) {
+            BushidoModule sq; Driver d { 4 }; PatchGraph g; const int S = g.addModule(&sq), D = g.addModule(&d); g.prepare(48000, sc.block);
+            sq.setIdleSkip(k == 0);
+            for (int i = 0; i < 36; ++i) sq.setParam(i, (float) ((i * 5) % 12) / 11.0f);
+            sq.setParam(BushidoModule::PORTA_A, 0.4f); sq.setParam(BushidoModule::PORTA_B, 0.2f); sq.setParam(BushidoModule::MODE, 1.0f);
+            d.f = [&](int o, long long t) {
+                if (o == 0) return sc.extClock && t % 3000 < 100 ? 5.0f : 0.0f;                          // clock pulses, even while stopped
+                if (o == 1) return t >= 90000 && t < 90200 ? 5.0f : 0.0f;                                 // STEP edge while stopped
+                if (o == 2) return t >= 150000 && t < 150050 ? 5.0f : 0.0f;                               // RESET edge
+                return 0.3f * std::sin((float) t * 0.01f);                                                // audio into the mixer
+            };
+            std::vector<Cable> c = { { D, 1, S, findJack(sq, "INPUTS:STEP") }, { D, 2, S, findJack(sq, "INPUTS:RESET") }, { D, 3, S, findJack(sq, "MIXER:IN 1") } };
+            if (sc.extClock) { c.push_back({ D, 0, S, findJack(sq, "CLOCK:CLOCK") }); sq.setParam(BushidoModule::SOURCE, 1.0f); }
+            if (sc.host) { sq.setParam(BushidoModule::SOURCE, 1.0f); sq.setParam(BushidoModule::EXT_SOURCE, 1.0f); }
+            if (sc.selfPatch) c.push_back({ S, findJack(sq, "8:TRIG"), S, findJack(sq, "INPUTS:RESET") });
+            g.setCables(c);
+            const int nj = (int) sq.jacks().size(); outs[k].assign((size_t) nj, {});
+            auto press = [&](int prm) { sq.setParam(prm, 1); sq.setParam(prm, 0); };
+            for (long long t = 0; t < 240000; t += sc.block) {
+                if (t == 20000) press(BushidoModule::BTN_STEP);                         // STEP while stopped: a gate, then CV slews at rest
+                if (t == 30000) sq.setParam(BushidoModule::STEPS + 12, 0.9f);           // a knob turned while stopped is heard
+                if (t == 40000) sq.setParam(BushidoModule::C_MODE, 1.0f);
+                if (t == 50000) sq.setParam(BushidoModule::LEVEL1, 0.2f);
+                if (t == 60000) { sq.setParam(BushidoModule::QUANT_A, 1.0f); sq.setParam(BushidoModule::SETTLE, 1.0f); }
+                if (t == 110000 && ! sc.host) press(BushidoModule::BTN_START);
+                if (t == 140000 && ! sc.host) press(BushidoModule::BTN_START);         // stop again
+                if (t == 170000) press(BushidoModule::BTN_RESET);
+                if (t == 200000) sq.setParam(BushidoModule::TEMPO, 0.8f);
+                if (sc.host) { Transport tr; tr.valid = true; tr.bpm = 120; tr.playing = t >= 100000 && t < 160000; tr.ppq = (double) t * 120.0 / (60.0 * 48000.0); tr.samplePos = t; sq.setTransport(tr); }
+                g.process(sc.block);
+                for (int j = 0; j < nj; ++j) { const float* o = g.output(S, j); outs[k][(size_t) j].insert(outs[k][(size_t) j].end(), o, o + sc.block); }
+                BushidoModule::GateEvent e[BushidoModule::kMaxEvents]; const int ne = sq.takeGateEvents(e, BushidoModule::kMaxEvents); evs[k].insert(evs[k].end(), e, e + ne);
+            }
+            idle[k] = sq.idleBlocks();
+        }
+        bool same = evs[0].size() == evs[1].size();
+        for (size_t j = 0; j < outs[0].size(); ++j) same &= outs[0][j].size() == outs[1][j].size() && std::memcmp(outs[0][j].data(), outs[1][j].data(), outs[0][j].size() * sizeof(float)) == 0;
+        for (size_t e = 0; same && e < evs[0].size(); ++e) same &= evs[0][e].sample == evs[1][e].sample && evs[0][e].jack == evs[1][e].jack && evs[0][e].on == evs[1][e].on
+                                                              && std::memcmp(&evs[0][e].target, &evs[1][e].target, sizeof(float)) == 0 && std::memcmp(&evs[0][e].cvC, &evs[1][e].cvC, sizeof(float)) == 0;
+        CHECK(same && idle[0] > 0 && idle[1] == 0, (std::string("stopped fast path: bit-identical outputs and gate events, ") + sc.name + " (" + std::to_string(idle[0]) + " blocks skipped)").c_str());
+    }
+}
+
 int main()
 {
     testStartClockRace();
@@ -328,5 +382,6 @@ int main()
     testHostDefaults();
     testExtPinUnchanged();
     testMigration();
+    testIdleSkipExact();
     std::printf(fails ? "%d FAILED\n" : "ALL PASSED\n", fails); return fails ? 1 : 0;
 }
