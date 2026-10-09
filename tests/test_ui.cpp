@@ -237,6 +237,61 @@ static void testPageRepaint()
     CHECK(page.refresh().isEmpty(), "tab: nothing changed, nothing repainted");
 }
 
+// Help text: never under the minimum, a tooltip each, inside its block, over nothing else, at 1366 wide.
+static void testHelpText()
+{
+    Rig r; auto& ed = *r.ed; auto& page = ed.tabPage();
+    ed.setSize(1366, BushidoEditor::stripHeight(1366) + BushidoEditor::panelHeight(1366));
+    CHECK(page.getWidth() == 1366, "editor at 1366 wide (fits a 1366 x 768 screen: " + juce::String(ed.getWidth()) + " x " + juce::String(ed.getHeight()) + ")");
+    using TP = bushido_ui::TabPage;
+    int helps = 0, small = 0, plainNotHelp = 0, outside = 0, overlaps = 0, noTip = 0;
+    for (int tab : { bushido_ui::STEPS, bushido_ui::CLOCK, bushido_ui::MIDI, bushido_ui::SETUP })
+        for (int variant = 0; variant < 2; ++variant) {                   // both texts of the lines that change with a setting
+            for (auto id : { "CLOCK:SOURCE", "CLOCK:SETTLE", "CLOCK:TRIG MODE", "CH:C MODE", "STEPS:LAW A", "STEPS:LAW B" }) r.set(id, (float) variant);
+            ed.showTab(tab); page.layout();
+            const auto& ms = page.marks();
+            std::vector<juce::Rectangle<float>> blocks; for (auto& m : ms) if (m.key == "block") blocks.push_back(m.r);
+            for (auto& m : ms) {
+                if (m.size > 0 && ! m.bold && ! m.help) { ++plainNotHelp; std::printf("  plain text that is not help: %s\n", m.key.toRawUTF8()); }
+                if (! m.help) continue;
+                ++helps;
+                if (m.size < TP::kHelpMin) { ++small; std::printf("  small: %s\n", m.tip.toRawUTF8()); }
+                if (page.tooltipAt(m.r.getCentre()) != m.tip) ++noTip;
+                const auto ink = m.r.reduced(3, 1);
+                const juce::Rectangle<float> pageArea(0, 0, TP::kDesignW, TP::kDesignH);
+                const juce::Rectangle<float>* in = nullptr;
+                for (auto& b : blocks) if (b.contains(ink.getCentre()) && (in == nullptr || b.getWidth() < in->getWidth())) in = &b;
+                const auto room = in ? in->reduced(4, 0) : pageArea.reduced(8, 0);
+                if (! room.contains(ink)) { ++outside; std::printf("  overflows its block: %s (%.0f..%.0f in %.0f..%.0f)\n", m.tip.toRawUTF8(), ink.getX(), ink.getRight(), room.getX(), room.getRight()); }
+                for (auto& o : ms) {
+                    if (&o == &m || o.key == "block") continue;
+                    if (o.r.reduced(3, 1).intersects(ink) && ! (o.key.startsWith("t") ? o.r.reduced(3, 1) : o.r).getIntersection(ink).isEmpty()) {
+                        ++overlaps; std::printf("  overlaps: %s  <->  %s\n", m.tip.toRawUTF8(), o.key.substring(0, 60).toRawUTF8()); }
+                }
+            }
+        }
+    CHECK(helps > 40, juce::String(helps) + " help lines checked on 4 tabs (both texts of the switching lines)");
+    CHECK(small == 0, "every help line is at least " + juce::String(TP::kHelpMin) + " design units (" + juce::String(TP::kHelpMin * 0.8f, 1) + " pt at 100 %)");
+    CHECK(plainNotHelp == 0, "every plain (non-bold) text on the tabs is help text");
+    CHECK(noTip == 0, "every help line has itself as its tooltip");
+    CHECK(outside == 0, "no help line runs out of its block at 1366 wide");
+    CHECK(overlaps == 0, "no help line overlaps another part at 1366 wide");
+}
+
+static void testFonts()
+{
+    Rig r; auto& ed = *r.ed;
+    const auto mf = ed.lookAndFeel().getPopupMenuFont();
+    CHECK(! mf.isBold() && mf.getTypefaceName() == juce::Font::getDefaultSansSerifFontName() && mf.getHeight() >= 15.0f, "menus: plain sans, " + juce::String(mf.getHeight()) + " px (" + mf.getTypefaceName() + ")");
+    CHECK(PatternScreen::dotted(PatternScreen::Part::closedScreen), "pattern screen, closed: the dot-matrix display (as before)");
+    CHECK(! PatternScreen::dotted(PatternScreen::Part::listRow) && ! PatternScreen::dotted(PatternScreen::Part::findField) && ! PatternScreen::dotted(PatternScreen::Part::nameField),
+          "pattern list rows, FIND and the name field: plain font");
+    const auto lf = PatternScreen::listFont(0.8f);
+    CHECK(! lf.isBold() && lf.getTypefaceName() == juce::Font::getDefaultSansSerifFontName() && lf.getHeight() * 0.8f >= 12.0f, "pattern list font: plain sans, " + juce::String(lf.getHeight() * 0.8f) + " px at 100 %");
+    CHECK(BushidoLookAndFeel::kTipFont > bushido_ui::TabPage::kHelpMin * 0.8f * 1.5f, "tooltips: " + juce::String(BushidoLookAndFeel::kTipFont) + " px, over 1.5 x the smallest help text on screen");
+    CHECK(ed.tooltipWindow().getParentComponent() == &ed, "the editor has a tooltip window");
+}
+
 static void testTimers()
 {
     Rig r; auto& ed = *r.ed;
@@ -256,6 +311,8 @@ int main()
     testPanelRepaint();
     testPageRepaint();
     testTimers();
+    testHelpText();
+    testFonts();
     std::printf("\n%d PASS, %d FAIL\n%s\n", passes, fails, fails ? "SOME FAILED" : "ALL PASSED");
     return fails ? 1 : 0;
 }

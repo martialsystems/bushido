@@ -36,6 +36,13 @@ public:
     listmenu::Choice listItems() const;
     void applyListChoice(int index);
 
+    // Lettering: the closed screen is a 5x7 dot-matrix display like the panel's other small displays. The open list and
+    // the text you type (FIND and a new pattern's name) use a plain font, so they read like any list or text field.
+    enum class Part { closedScreen, findField, nameField, listRow };
+    static bool dotted(Part p) { return p == Part::closedScreen; }
+    static juce::Font listFont(float scale);               // plain sans, 15 design units (12 px at the 1280 default)
+    static constexpr float kListFont = 15.0f;
+
     static void drawDots(juce::Graphics&, juce::Rectangle<float> area, const juce::String& text, int chars, juce::Colour ink, float ghost);
 
 private:

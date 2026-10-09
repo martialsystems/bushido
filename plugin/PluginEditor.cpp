@@ -19,6 +19,7 @@ private:
 
 BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), proc(p)
 {
+    setLookAndFeel(&look);
     auto layout = PanelLayout::fromJson(juce::String::fromUTF8(BinaryData::bushido_layout_json, BinaryData::bushido_layout_jsonSize));
     auto bg = juce::Drawable::createFromImageData(BinaryData::bushido_panel_bg_svg, BinaryData::bushido_panel_bg_svgSize);   // vector: sharp at any size
     panel = std::make_unique<RackPanel>(layout, std::move(bg), static_cast<RackPanel::Binding&>(*this));
@@ -65,7 +66,7 @@ void BushidoEditor::refreshTimers()
     page->setLive(live && ! main);
 }
 
-BushidoEditor::~BushidoEditor() { proc.onStateLoaded = nullptr; mainFace.removeMouseListener(&cables); }
+BushidoEditor::~BushidoEditor() { proc.onStateLoaded = nullptr; mainFace.removeMouseListener(&cables); setLookAndFeel(nullptr); }
 
 void BushidoEditor::resized()
 {

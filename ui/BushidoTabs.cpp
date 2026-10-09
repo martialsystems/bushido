@@ -67,7 +67,22 @@ void TabPage::text(juce::Graphics& g, const juce::String& s, float x, float base
         const float tw = it->second;
         const float x0 = hz == juce::Justification::left ? x : hz == juce::Justification::right ? x - tw : x - tw / 2;
         mark({ x0 - 3, top - 1, tw + 6, h + 2 }, "t" + juce::String(size) + (bold ? "b" : "p") + c.toString() + s);
+        recorder->back().size = size; recorder->back().bold = bold;
     }
+}
+
+void TabPage::help(juce::Graphics& g, const juce::String& s, float x, float baseline, float size, juce::Colour c, float spacing, juce::Justification j)
+{
+    text(g, s, x, baseline, juce::jmax(size, kHelpMin), c, false, spacing, j);
+    if (recorder != nullptr && ! recorder->empty()) { recorder->back().help = true; recorder->back().tip = s; }
+}
+
+juce::String TabPage::getTooltip() { return tooltipAt(design(getMouseXYRelative().toFloat())); }
+
+juce::String TabPage::tooltipAt(juce::Point<float> p) const
+{
+    for (auto& m : recorded) if (m.help && m.r.contains(p)) return m.tip;
+    return {};
 }
 
 void TabPage::plate(juce::Graphics& g)
@@ -87,6 +102,7 @@ void TabPage::plate(juce::Graphics& g)
 
 void TabPage::block(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& title)
 {
+    mark(r, "block");
     g.setColour(kGold); g.drawRect(r, 1.6f);
     if (title.isNotEmpty()) text(g, title, r.getCentreX(), r.getY() + 20, 12, kLabel, true, 2.0f);
 }
@@ -190,8 +206,8 @@ void TabPage::paint(juce::Graphics& g)
 void TabPage::paintSteps(juce::Graphics& g)
 {
     for (int row = 0; row < 3; ++row) rowBlock(g, row, { 30, 34 + 130.0f * (float) row, 1540, 116 });
-    text(g, juce::String::fromUTF8("values are the panel knobs (two views of one parameter) \xc2\xb7 drag, or double-click and type \"C4\" or \"2.5\" \xc2\xb7 note names follow each row's PITCH LAW"),
-         800, 426, 10, kDim, false, 0.6f);
+    help(g, juce::String::fromUTF8("values are the panel knobs (two views of one parameter) \xc2\xb7 drag, or double-click and type \"C4\" or \"2.5\" \xc2\xb7 note names follow each row's PITCH LAW"),
+         800, 426, 10, kDim, 0.6f);
 }
 
 void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
@@ -221,8 +237,8 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
         const double tau = (double) host.value(rowParam("CH:PORTA", row)) * (double) host.value(rowParam("CH:PORTA", row)) * 2.0;   // BushidoModule: tau = PORTA^2 x 2 s
         const double t99 = std::log(100.0) * tau;
         auto secs = [](double s) { return s < 0.1 ? juce::String((int) std::round(s * 1000.0)) + " ms" : juce::String(s, 2) + " s"; };
-        text(g, juce::String(law == Law::VOct ? "V/OCT: 0 V = C3" : "LIN: 1 V = C3") + juce::String::fromUTF8(" \xc2\xb7 RANGE ") + juce::String((int) range) + " V",
-             cx, y + 91, 9, kDim, false, 0.6f);
+        help(g, juce::String(law == Law::VOct ? "V/OCT: 0 V = C3" : "LIN: 1 V = C3") + juce::String::fromUTF8(" \xc2\xb7 RANGE ") + juce::String((int) range) + " V",
+             cx, y + 91, 9, kDim, 0.6f);
         text(g, tau < 1e-4 ? juce::String("PORTA off (no glide)")
                            : juce::String::fromUTF8("\xcf\x84 = ") + secs(tau) + juce::String::fromUTF8(" \xc2\xb7 99 % in ") + secs(t99),
              cx, y + 106, 9, kLabel, true, 0.4f);
@@ -232,8 +248,8 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
         lcd(g, left, cTime ? "TIME" : "CV", 5);
         lcd(g, right, "5V", 5);
         hits.push_back(listParam(left, "CH:C MODE", { "CV", "TIME" }));
-        text(g, cTime ? juce::String::fromUTF8("TIME: gate length 5\xe2\x80\x93" "95 %") : juce::String::fromUTF8("CV: 0\xe2\x80\x93" "5 V on CV C"), cx, y + 91, 9, kDim, false, 0.6f);
-        text(g, cTime ? juce::String("never sent as CV") : juce::String::fromUTF8("VEL FROM C = round(1 + 126\xc2\xb7" "C/5)"), cx, y + 106, 9, kDim, false, 0.6f);
+        help(g, cTime ? juce::String::fromUTF8("TIME: gate length 5\xe2\x80\x93" "95 %") : juce::String::fromUTF8("CV: 0\xe2\x80\x93" "5 V on CV C"), cx, y + 91, 9, kDim, 0.6f);
+        help(g, cTime ? juce::String("never sent as CV") : juce::String::fromUTF8("VEL = round(1 + 126\xc2\xb7" "C/5)"), cx, y + 106, 9, kDim, 0.6f);
     }
 
     // which step is lit, and whether this row is the one being read (the panel lamps)
@@ -325,8 +341,8 @@ void TabPage::paintClock(juce::Graphics& g)
     // EXT SOURCE
     const bool ext = host.value("CLOCK:SOURCE") > 0.5f, hostSrc = host.value("CLOCK:EXT SOURCE") > 0.5f;
     segmented(g, { 206, 92, 128, 24 }, { "JACK", "HOST" }, "CLOCK:EXT SOURCE");
-    text(g, ext ? juce::String("front SOURCE = EXT: this picks the clock") : juce::String("front SOURCE = INT: this applies when it is at EXT"), 270, 138, 10, kDim, false, 0.5f);
-    text(g, "HOST is preset only for a new rack instance made while the DAW plays", 270, 153, 10, kDim, false, 0.5f);
+    help(g, ext ? juce::String("front SOURCE = EXT: this picks the clock") : juce::String("front SOURCE = INT: this applies when it is at EXT"), 270, 138, 10, kDim, 0.5f);
+    help(g, "HOST is preset only for a new rack instance made while the DAW plays", 270, 153, 10, kDim, 0.5f);
     const float div = host.value("CLOCK:DIV");
     juce::String bpmText;
     if (hostSrc) { const double hb = host.hostBpm(); bpmText = hb > 0 ? "HOST " + fmtBpm(hb) : juce::String("HOST --"); }
@@ -335,18 +351,18 @@ void TabPage::paintClock(juce::Graphics& g)
     text(g, hostSrc ? "DAW TEMPO" : "MEASURED BPM", 270, 236, 10, kDim, true, 0.8f);
     text(g, "HOST DIV", 270, 278, 11, kLabel, true, 1.0f);
     segmented(g, { 180, 288, 180, 24 }, { "1/8", "1/16", "1/32" }, "CLOCK:DIV");
-    text(g, juce::String::fromUTF8("HOST: 2 / 4 / 8 steps per quarter \xc2\xb7 INT / EXT: the BPM unit"), 270, 334, 10, kDim, false, 0.5f);
+    help(g, juce::String::fromUTF8("HOST: 2 / 4 / 8 steps per quarter \xc2\xb7 INT / EXT: the BPM unit"), 270, 334, 10, kDim, 0.5f);
 
     // TIMING
     const bool vintage = host.value("CLOCK:SETTLE") > 0.5f, pulse = host.value("CLOCK:TRIG MODE") > 0.5f;
     text(g, "SETTLE", 800, 84, 9, kDim, true, 0.8f);
     segmented(g, { 710, 92, 180, 24 }, { "TIGHT", "VINTAGE" }, "CLOCK:SETTLE");
-    text(g, vintage ? juce::String("VINTAGE: CV and gate 0.6 ms after the step, as v1") : juce::String("TIGHT: CV and gate 2 samples after the step"), 800, 138, 10, kDim, false, 0.5f);
+    help(g, vintage ? juce::String("VINTAGE: CV and gate 0.6 ms after the step, as v1") : juce::String("TIGHT: CV and gate 2 samples after the step"), 800, 138, 10, kDim, 0.5f);
     text(g, "TRIG MODE", 800, 178, 9, kDim, true, 0.8f);
     segmented(g, { 710, 186, 180, 24 }, { "STEP", "PULSE" }, "CLOCK:TRIG MODE");
-    text(g, pulse ? juce::String("PULSE: each TRIG is a 5 ms trigger") : juce::String("STEP (default): each TRIG is high for its whole step"), 800, 232, 10, kDim, false, 0.5f);
+    help(g, pulse ? juce::String("PULSE: each TRIG is a 5 ms trigger") : juce::String("STEP (default): each TRIG is high for its whole step"), 800, 232, 10, kDim, 0.5f);
     lcd(g, { 690, 270, 220, 36 }, "SETTLE " + juce::String(host.settleSamples()) + " SMP", 12);
-    text(g, "CV-to-gate settle at this sample rate", 800, 326, 10, kDim, false, 0.5f);
+    help(g, "CV-to-gate settle at this sample rate", 800, 326, 10, kDim, 0.5f);
 
     // TRANSPORT: the fixed JCS R5 rules, as lamps you can read; and the run state
     const char* rules[] = { "START plays step 1", "START absorbs an EXT edge within 2 samples", "RESET absorbs a coincident clock", "STOP sends gates and TRIGs low" };
@@ -360,7 +376,7 @@ void TabPage::paintClock(juce::Graphics& g)
     const bool run = host.lamp("MODE:RUN") > 0.5f;
     const juce::String rowName(host.lamp("CH:B") > 0.5f ? "B" : "A");
     lcd(g, { 1220, 288, 220, 36 }, run ? "RUN " + rowName + juce::String(pos + 1) : (pos >= 0 ? "STOP " + rowName + juce::String(pos + 1) : juce::String("STOP")), 10);
-    text(g, "fixed rules, shown so you can see them", 1330, 346, 10, kDim, false, 0.5f);
+    help(g, "fixed rules, shown so you can see them", 1330, 346, 10, kDim, 0.5f);
 }
 
 // ---------------------------------------------------------------- MIDI
@@ -390,19 +406,19 @@ void TabPage::paintMidi(juce::Graphics& g)
         text(g, "VELOCITY", cx + 100, 90, 10, kDim, true, 0.8f);
         segmented(g, { cx + 30, 103, 140, 24 }, { "100", "FROM C" }, rowParam("MIDI:VEL", row), cTime ? 1 : -1);
         const bool lin = host.value(rowParam("STEPS:LAW", row)) > 0.5f;
-        text(g, lin ? juce::String::fromUTF8("LIN: note = round(48 + 12\xc2\xb7log2 V), none at 0 V") : juce::String::fromUTF8("V/OCT: note = round(48 + 12\xc2\xb7V)"), cx, 172, 10, kDim, false, 0.5f);
-        text(g, "of the step target (not the slewed CV)", cx, 188, 10, kDim, false, 0.5f);
-        text(g, cTime ? juce::String("FROM C needs C MODE = CV (it is TIME now)") : juce::String::fromUTF8("FROM C: velocity = round(1 + 126\xc2\xb7" "C / 5)"),
-             cx, 214, 10, cTime ? kWarn.withAlpha(0.8f) : kDim, false, 0.5f);
-        text(g, juce::String("plays on the CV / GATE ") + kRow[row] + " jacks", cx, 250, 10, kDim, false, 0.5f);
+        help(g, lin ? juce::String::fromUTF8("LIN: note = round(48 + 12\xc2\xb7log2 V), none at 0 V") : juce::String::fromUTF8("V/OCT: note = round(48 + 12\xc2\xb7V)"), cx, 172, 10, kDim, 0.5f);
+        help(g, "of the step target (not the slewed CV)", cx, 188, 10, kDim, 0.5f);
+        help(g, cTime ? juce::String("FROM C needs C MODE = CV (it is TIME now)") : juce::String::fromUTF8("FROM C: velocity = round(1 + 126\xc2\xb7" "C / 5)"),
+             cx, 214, 10, cTime ? kWarn.withAlpha(0.8f) : kDim, 0.5f);
+        help(g, juce::String("plays on the CV / GATE ") + kRow[row] + " jacks", cx, 250, 10, kDim, 0.5f);
     }
     const juce::Rectangle<float> ref(550, 34, 500, 250);
     block(g, ref, "REFERENCE");
     lcd(g, { 640, 82, 320, 34 }, "C3 = 130.81 HZ = 48", 19);
     lcd(g, { 640, 124, 320, 34 }, "V/OCT 0V  LIN 1V", 19);
-    text(g, "fixed by the Jidai pitch standard", 800, 184, 10, kDim, false, 0.5f);
-    text(g, "the 55 Hz / MIDI 33 reference is retired", 800, 200, 10, kDim, false, 0.5f);
-    text(g, "in the rack, no MIDI goes to the DAW: patch the jacks", 800, 250, 10, kDim, false, 0.5f);
+    help(g, "fixed by the Jidai pitch standard", 800, 184, 10, kDim, 0.5f);
+    help(g, "the 55 Hz / MIDI 33 reference is retired", 800, 200, 10, kDim, 0.5f);
+    help(g, "in the rack, no MIDI goes to the DAW: patch the jacks", 800, 250, 10, kDim, 0.5f);
 
     // monitor: what each jack pair is sending now (from the panel lamps and knobs, so it costs the audio thread nothing)
     block(g, { 30, 298, 1540, 106 }, "MIDI MONITOR");
@@ -423,7 +439,7 @@ void TabPage::paintMidi(juce::Graphics& g)
         if (note < 0) mon << "--        "; else mon << noteText(note) << " " << note << " V" << vel << "   ";
     }
     lcd(g, { 60, 324, 1480, 36 }, mon.trimEnd(), 44);
-    text(g, run ? juce::String("now playing: the step target under each row's law, on its channel and velocity") : juce::String("stopped: no notes"), 800, 384, 10, kDim, false, 0.5f);
+    help(g, run ? juce::String("now playing: the step target under each row's law, on its channel and velocity") : juce::String("stopped: no notes"), 800, 384, 10, kDim, 0.5f);
 }
 
 // ---------------------------------------------------------------- SETUP
@@ -445,10 +461,10 @@ void TabPage::paintSetup(juce::Graphics& g)
         h.choose = [this](int k) { const int pcs[] = { 75, 100, 125, 150, 200 }; if (k >= 0 && k < 5) host.setScalePercent(pcs[k]); }; }
     const int w = juce::roundToInt(1280.0 * cur / 100.0), h = juce::roundToInt(36.0 * w / 1600.0) + juce::roundToInt(434.0 * w / 1600.0);
     lcd(g, { 290, 146, 240, 36 }, juce::String(w) + " X " + juce::String(h), 11);
-    text(g, juce::String::fromUTF8("default 1280 \xc3\x97 376: the panel (1280 \xc3\x97 347) plus a 29 px tab strip \xc2\xb7 960 to 2560 wide"), 410, 210, 11, kDim, false, 0.5f);
-    text(g, juce::String::fromUTF8("jack hit area \xe2\x89\xa5 16 px at every scale"), 410, 240, 11, kLabel, false, 0.5f);
-    text(g, "MAIN is the unchanged front panel; every new control lives on a tab", 410, 266, 11, kDim, false, 0.5f);
-    text(g, "the scale is saved with the session", 410, 346, 10, kDim, false, 0.5f);
+    help(g, juce::String::fromUTF8("default 1280 \xc3\x97 376: the panel (1280 \xc3\x97 347) plus a 29 px tab strip \xc2\xb7 960 to 2560 wide"), 410, 210, 11, kDim, 0.5f);
+    help(g, juce::String::fromUTF8("jack hit area \xe2\x89\xa5 16 px at every scale"), 410, 240, 11, kLabel, 0.5f);
+    help(g, "MAIN is the unchanged front panel; every new control lives on a tab", 410, 266, 11, kDim, 0.5f);
+    help(g, "the scale is saved with the session", 410, 346, 10, kDim, 0.5f);
 
     float y = 64;
     if (host.readOnly()) {
@@ -476,7 +492,7 @@ void TabPage::paintSetup(juce::Graphics& g)
         g.drawFittedText(t, lr.reduced(12, 3).toNearestInt(), juce::Justification::centredLeft, 1, 0.8f);
         mark(lr.expanded(1), "m" + t);
     }
-    text(g, juce::String::fromUTF8("the last load's report (format 0 \xe2\x86\x92 1); cables and knob volts never change"), 1190, 390, 10, kDim, false, 0.5f);
+    help(g, juce::String::fromUTF8("the last load's report (format 0 \xe2\x86\x92 1); cables and knob volts never change"), 1190, 390, 10, kDim, 0.5f);
 }
 
 // ---------------------------------------------------------------- lists

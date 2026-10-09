@@ -4,6 +4,7 @@
 #include "../ui/CableLayer.h"
 #include "../ui/PatternScreen.h"
 #include "../ui/BushidoTabs.h"
+#include "../ui/BushidoLookAndFeel.h"
 
 // MAIN is today's panel and editor, untouched, under a tab strip (docs/REFERENCE.md, Tab controls): MAIN · STEPS · CLOCK · MIDI · SETUP.
 // The strip is 36 design px above the 1600 x 434 art; a non-MAIN tab replaces the whole face at the same size.
@@ -16,6 +17,8 @@ public:
     CableLayer& cableLayer() { return cables; }
     RackPanel& rackPanel() { return *panel; }
     bushido_ui::TabPage& tabPage() { return *page; }
+    BushidoLookAndFeel& lookAndFeel() { return look; }
+    juce::TooltipWindow& tooltipWindow() { return tips; }
     PatternScreen& patternScreen() { return *screen; }
     // The panel, page and pattern screen timers run only while the editor is on screen (not hidden, minimised or
     // closed) and only for the face that is showing. Checked on visibility changes, tab changes and 4 times a second.
@@ -32,6 +35,8 @@ public:
 private:
     class Swatches;
     BushidoProcessor& proc;
+    BushidoLookAndFeel look;                     // menus and tooltips only; everything else draws as before
+    juce::TooltipWindow tips { this, 500 };      // help text, larger, after a 0.5 s hover
     juce::Component mainFace;                    // the MAIN tab: panel, cables, swatches and pattern screen, exactly as before
     bushido_ui::TabStrip strip;
     std::unique_ptr<bushido_ui::TabPage> page;

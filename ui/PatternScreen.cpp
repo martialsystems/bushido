@@ -59,6 +59,11 @@ void PatternScreen::drawDots(juce::Graphics& g, juce::Rectangle<float> a, const 
 
 static juce::String pad3(int n) { return juce::String(n).paddedLeft('0', 3); }
 
+juce::Font PatternScreen::listFont(float)
+{
+    return juce::Font(juce::FontOptions(juce::Font::getDefaultSansSerifFontName(), kListFont, juce::Font::plain));
+}
+
 juce::String PatternScreen::row(int bank, int i) const
 {
     const auto n = names ? names(bank) : juce::StringArray();
@@ -75,9 +80,6 @@ juce::Array<int> PatternScreen::matches() const
 
 juce::String PatternScreen::lcdText() const
 {
-    const juce::String cur(blink ? "_" : " ");
-    if (mode == Mode::search) return ("FIND " + query + cur).getLastCharacters(scr.chars);
-    if (mode == Mode::name) return (juce::String(view ? "B" : "A") + pad3((names ? names(view).size() : 0) + 1) + " " + nameBuf + cur).substring(0, scr.chars);
     if (message.isNotEmpty()) return message;
     const auto l = loaded ? loaded() : std::pair<int, int> { 0, 0 };
     const auto r = row(l.first, l.second);
@@ -137,7 +139,15 @@ void PatternScreen::paint(juce::Graphics& g)
 {
     g.addTransform(juce::AffineTransform::scale(scale()).translated((float) -getX(), (float) -getY()));   // design units -> this component
     shown = loaded ? loaded() : std::pair<int, int> { 0, 0 };
-    drawDots(g, scr.lcd.reduced(2, 1), lcdText(), scr.chars, kInk, 0.09f);            // the LCD glass is in the panel art
+    const Part screenPart = mode == Mode::closed ? Part::closedScreen : mode == Mode::search ? Part::findField : Part::nameField;
+    if (dotted(screenPart)) drawDots(g, scr.lcd.reduced(2, 1), lcdText(), scr.chars, kInk, 0.09f);   // the LCD glass is in the panel art
+    else {                                                                            // typing: plain text on the same glass
+        const juce::String cur(blink ? "|" : " ");
+        const auto t = mode == Mode::search ? "FIND  " + query + cur
+                                            : juce::String(view ? "B" : "A") + pad3((names ? names(view).size() : 0) + 1) + "  " + nameBuf + cur;
+        g.setColour(kInk); g.setFont(listFont(scale()));
+        g.drawText(t, scr.lcd.reduced(6, 0), juce::Justification::centredLeft, true);
+    }
     for (size_t i = 0; i < scr.banks.size(); ++i) {                                   // the lit lamp is the bank being browsed and saved to
         const auto& b = scr.banks[i]; const bool on = (int) i == view;
         if (on) { g.setColour(juce::Colour(0x55ff3b2b)); g.fillEllipse(b.cx - b.r * 2.2f, b.cy - b.r * 2.2f, b.r * 4.4f, b.r * 4.4f); }
@@ -151,11 +161,14 @@ void PatternScreen::paint(juce::Graphics& g)
         const juce::Rectangle<float> r(b.getX() + kPad, b.getY() + kPad + (float) k * kRow, b.getWidth() - kPad * 2, kRow - 3);
         if (h) g.setColour(kInk); else g.setGradientFill(lcdFill(r));
         g.fillRoundedRectangle(r, 1.5f);
-        drawDots(g, r.reduced(3, 1), txt, scr.chars, h ? kLit : kInk, h ? 0.08f : 0.09f);
+        if (dotted(Part::listRow)) { drawDots(g, r.reduced(3, 1), txt.toUpperCase(), scr.chars, h ? kLit : kInk, h ? 0.08f : 0.09f); return; }
+        g.setColour(h ? kLit : kInk); g.setFont(listFont(scale()));
+        g.drawText(txt, r.reduced(6, 0), juce::Justification::centredLeft, true);
     };
-    if (m.isEmpty()) drawRow(0, (names && names(view).size() > 0) ? juce::String(" NO MATCH") : juce::String(" BANK ") + (view ? "B" : "A") + " IS EMPTY", false);
+    if (m.isEmpty()) drawRow(0, (names && names(view).size() > 0) ? juce::String("   No match") : juce::String("   Bank ") + (view ? "B" : "A") + " is empty", false);
+    const auto all = names ? names(view) : juce::StringArray();
     for (int k = 0; k < scr.listRows && top + k < m.size(); ++k) { const int i = m[top + k];
-        drawRow(k, juce::String(l.first == view && l.second == i ? ">" : " ") + row(view, i), top + k == hi); }
+        drawRow(k, juce::String::fromUTF8(l.first == view && l.second == i ? "\xe2\x80\xa2 " : "   ") + pad3(i + 1) + "   " + all[i], top + k == hi); }
     if (m.size() > scr.listRows) {                                                    // scroll position
         const float h = b.getHeight() - 8;
         g.setColour(kGold.withAlpha(0.7f)); g.fillRoundedRectangle(b.getRight() - 4, b.getY() + 4 + h * (float) top / (float) m.size(), 2, h * (float) scr.listRows / (float) m.size(), 1);

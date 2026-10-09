@@ -44,7 +44,7 @@ private:
     int tab = MAIN;
 };
 
-class TabPage : public juce::Component, private juce::Timer {
+class TabPage : public juce::Component, public juce::TooltipClient, private juce::Timer {
 public:
     static constexpr float kDesignW = 1600.0f, kDesignH = 434.0f;
     explicit TabPage(TabHost& host);
@@ -68,6 +68,13 @@ public:
     static void lcd(juce::Graphics&, juce::Rectangle<float> r, const juce::String& text, int chars = 0);   // bezel, glass, 5x7 dot matrix
     static void text(juce::Graphics&, const juce::String& s, float x, float baseline, float size, juce::Colour c,
                      bool bold = true, float spacing = 0.8f, juce::Justification j = juce::Justification::centredTop);
+    // Help and description text (explanation and hint lines, notes, reference paragraphs): plain, never under kHelpMin
+    // design units (9.2 pt at the 1280 default), and its own tooltip, so a hover shows it larger (the editor's TooltipWindow).
+    static constexpr float kHelpMin = 11.5f;
+    static void help(juce::Graphics&, const juce::String& s, float x, float baseline, float size, juce::Colour c,
+                     float spacing = 0.5f, juce::Justification j = juce::Justification::centredTop);
+    juce::String getTooltip() override;                 // the help text under the mouse
+    juce::String tooltipAt(juce::Point<float> design) const;
 
     // Parse a typed step value: "2.5", "2.5V" (volts) or a note "C4", "F#3", "Bb2" under a pitch law (0 = V/OCT, 1 = HZ/V LIN).
     // Returns volts, or NaN when the text is neither.
@@ -84,7 +91,9 @@ public:
     // Repaint: every drawn part leaves a mark (its area in design units and a key for what it shows). Each tick runs the
     // page's drawing with nothing to draw into, compares the marks with the last ones and repaints only the parts whose
     // key or area changed (a lit step, an LCD, a lamp). A different number of parts repaints the page.
-    struct Mark { juce::Rectangle<float> r; juce::String key; bool operator==(const Mark& o) const { return r == o.r && key == o.key; } };
+    struct Mark { juce::Rectangle<float> r; juce::String key;
+                  float size = 0; bool bold = false, help = false; juce::String tip;   // text marks: the point size; help text and its tooltip
+                  bool operator==(const Mark& o) const { return r == o.r && key == o.key; } };
     const std::vector<Mark>& marks() const { return recorded; }
     juce::RectangleList<int> refresh();                  // the tick: returns what it repainted (component pixels)
     juce::Rectangle<int> toComponent(juce::Rectangle<float> design) const;
@@ -112,7 +121,7 @@ private:
     static std::vector<float> clipboard;                 // COPY / PASTE, one row of 12 knob values
     std::vector<Mark> recorded, shown;                   // the last drawing's marks; the marks of what is on screen
     static std::vector<Mark>* recorder;                  // where the drawing helpers leave marks (null: the strip)
-    static void mark(juce::Rectangle<float> r, const juce::String& key) { if (recorder != nullptr) recorder->push_back({ r, key }); }
+    static void mark(juce::Rectangle<float> r, const juce::String& key) { if (recorder != nullptr) { Mark m; m.r = r; m.key = key; recorder->push_back(m); } }
 
     float scale() const { return (float) getWidth() / kDesignW; }
     juce::Point<float> design(juce::Point<float> p) const { return p / scale(); }
