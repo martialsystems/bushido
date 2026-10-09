@@ -1,0 +1,55 @@
+name: Release
+# Push a tag like v0.1.0 to build macOS + Windows and attach zips to a DRAFT release.
+# Builds are unsigned: code signing / notarization is a follow-up.
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macOS
+          - os: windows-latest
+            platform: Windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch JUCE 8.0.4
+        shell: bash
+        run: git clone -b 8.0.4 --depth 1 https://github.com/juce-framework/JUCE.git ../JUCE
+      - name: Configure
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel 4
+      - name: Package
+        shell: bash
+        run: |
+          out="../../../BUSHIDO-${GITHUB_REF_NAME}-${{ matrix.platform }}.zip"
+          cd build/BUSHIDO_artefacts/Release
+          formats=$(ls -d VST3 AU AAX Standalone 2>/dev/null)
+          if [ "$RUNNER_OS" = "Windows" ]; then 7z a "$out" $formats; else zip -ry "$out" $formats; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}
+          path: '*.zip'
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --repo "$GITHUB_REPOSITORY" --draft --generate-notes --title "BUSHIDO $GITHUB_REF_NAME"

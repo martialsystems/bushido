@@ -1,3 +1,5 @@
+> **Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
+
 # BUSHIDO
 
 **A 3 x 12 step sequencer with patch cables on the panel, from the Martial Systems Jidai Collection.**
