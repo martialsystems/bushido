@@ -66,9 +66,12 @@ A strip above the panel opens five tabs: **MAIN**, **STEPS**, **CLOCK**, **MIDI*
 | Drag a knob up or down | 200 px moves it through its full travel. Hold **Shift** for fine control (1000 px). |
 | Mouse wheel over a knob | Small steps. Hold **Shift** for finer steps. |
 | Double-click a knob or switch | Returns it to its default. |
-| Click a switch | Steps to the next position and wraps around at the end. You can also drag it (60 px) or use the wheel. |
+| Click a switch | Steps to the next position and wraps around at the end. **Shift**-click steps back. You can also drag it (60 px) or use the wheel. |
 | Click a rocker (RANGE, BYPASS) | Click the left half for the left position and the right half for the right position. |
+| Right-click a switch or rocker | Opens a list of its positions with the current one ticked. Pick one to set it. |
 | Drag from a jack | Pulls out a new cable. See 4.1. |
+
+The same rule holds for every control that picks from a list, on every tab: click for the next setting, **Shift**-click for the previous one, right-click for the whole list. The wheel works as before.
 
 Every knob and switch is a plugin parameter that your DAW can automate. The START/STOP, STEP and RESET buttons are not parameters.
 
@@ -77,7 +80,7 @@ Every knob and switch is a plugin parameter that your DAW can automate. The STAR
 | Control | What it does |
 |---|---|
 | **BYPASS** OFF / ON | ON silences BUSHIDO. Its MIDI notes stop, and your track's audio passes through unchanged. The sequencer keeps running underneath, so it is still in step when you switch back. |
-| **PATTERN** screen | Shows the bank letter, number and name of the loaded pattern, for example `A005 ACID SEVENS`. Click it, or the ▼ key, to open the pattern list. |
+| **PATTERN** screen | Shows the bank letter, number and name of the loaded pattern, for example `A005 ACID SEVENS`. Click it, or the ▼ key, to open the pattern list. Right-click it for a menu of every pattern in both banks, with the loaded one ticked. |
 | Bank lamps **A** and **B** | Choose which bank the list shows and which bank SAVE writes to. |
 | **+ SAVE** | Saves the panel as a new pattern in the lit bank. |
 | Cable swatches | Red, white, yellow or green: the colour of the next cable you patch. |
@@ -135,7 +138,7 @@ The STEPS tab shows all 36 steps as numbers. Each cell shows the step's voltage 
 
 - Drag a cell to change it (200 px full travel, Shift 1000 px), or use the wheel (±0.01).
 - Double-click a cell and type a value: `2.5`, `2.5V`, or a note such as `C4`, `F#3` or `Bb2`. A note is converted to a voltage under the row's pitch law.
-- **QUANT**, **PITCH LAW** and **C MODE**: click a screen to switch it. See below.
+- **QUANT**, **PITCH LAW** and **C MODE**: click a screen to switch it, or right-click it for the list. See below.
 - **COPY** and **PASTE** copy one row's twelve steps to another row. **RAND** fills the row with random values. **CLEAR** sets every step to 0 V.
 - Under each pitch row, a line shows the row's law, its range and its glide, for example `PORTA off (no glide)` or the glide time.
 
@@ -158,13 +161,15 @@ The STEPS tab shows all 36 steps as numbers. Each cell shows the step's voltage 
 | **TRIG MODE** STEP / PULSE | STEP: each TRIG jack is high for its whole step. PULSE: each TRIG jack fires a 5 ms pulse. |
 | **TRANSPORT** | The fixed start and stop rules (section 5), and a screen showing RUN or STOP and the current step, for example `RUN A9`. |
 
+Click a setting's button to choose it, or right-click the setting for a list with the current choice ticked.
+
 ### 3.6 MIDI tab
 
 ![MIDI tab: the monitor showing row A playing G3](images/bushido_midi.png)
 
 | Setting | What it does |
 |---|---|
-| **CHANNEL** (row A, row B) | MIDI channel 1–16. Click the left or right half of the screen, or use the wheel. The defaults are 1 for row A and 2 for row B. |
+| **CHANNEL** (row A, row B) | MIDI channel 1–16. Click the left or right half of the screen, use the wheel, or right-click for a list of all 16 channels. The defaults are 1 for row A and 2 for row B. |
 | **VELOCITY** 100 / FROM C | A fixed velocity of 100, or the velocity from row C: round(1 + 126 × C / 5), where C is the row C voltage. Row C at full (5 V) gives 127, and half (2.5 V) gives 64. FROM C is only available when C MODE is CV. |
 | **REFERENCE** | The pitch reference: C3 = 130.81 Hz = MIDI note 48, which is 0 V under V/OCT and 1 V under HZ/V LIN. |
 | **MIDI MONITOR** | The note playing on each row: row, channel, note name, note number and velocity, for example `A CH1 G3 55 V64`. |
@@ -173,7 +178,7 @@ The STEPS tab shows all 36 steps as numbers. Each cell shows the step's voltage 
 
 ![SETUP tab](images/bushido_setup.png)
 
-- **UI SCALE**: 75, 100, 125, 150 or 200 %. The default window is 1280 × 376 (the panel plus the tab strip). You can also drag the corner to any width from 960 to 2560; the shape stays fixed. The size is saved with your session.
+- **UI SCALE**: 75, 100, 125, 150 or 200 %. The default window is 1280 × 376 (the panel plus the tab strip). You can also drag the corner to any width from 960 to 2560; the shape stays fixed. The size is saved with your session. Right-click a size for the list.
 - **PATCH / MIGRATION**: a report on the last session or pattern loaded. A session saved by an earlier version of BUSHIDO is updated when it loads, and this box says what changed. Cables and step voltages are never changed.
 
 ---
