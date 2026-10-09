@@ -19,6 +19,7 @@ private:
 
 BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), proc(p)
 {
+    setLookAndFeel(&look);
     auto layout = PanelLayout::fromJson(juce::String::fromUTF8(BinaryData::bushido_layout_json, BinaryData::bushido_layout_jsonSize));
     auto bg = juce::Drawable::createFromImageData(BinaryData::bushido_panel_bg_svg, BinaryData::bushido_panel_bg_svgSize);   // vector: sharp at any size
     panel = std::make_unique<RackPanel>(layout, std::move(bg), static_cast<RackPanel::Binding&>(*this));
@@ -38,7 +39,7 @@ BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), pro
     screen->save = [this](int bank, const juce::String& name) { const int i = proc.savePattern(bank, name); if (i >= 0) proc.updateHostDisplay(); return i; };
     mainFace.addAndMakeVisible(*screen);
     mainFace.addMouseListener(&cables, true);   // cables see the pointer everywhere on the face (hover push-away), not only over jacks
-    proc.onStateLoaded = [this] { juce::MessageManager::callAsync([sp = juce::Component::SafePointer<BushidoEditor>(this)] { if (sp) { sp->cables.setPatch(sp->proc.getCables()); sp->strip.repaint(); sp->page->repaint(); } }); };
+    proc.onStateLoaded = [this] { juce::Component::SafePointer<BushidoEditor> sp(this); juce::MessageManager::callAsync([sp] { if (sp) { sp->cables.setPatch(sp->proc.getCables()); sp->strip.repaint(); sp->page->repaint(); } }); };
 
     page = std::make_unique<bushido_ui::TabPage>(static_cast<bushido_ui::TabHost&>(*this));
     addChildComponent(*page);
@@ -54,9 +55,18 @@ BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), pro
     getConstrainer()->setFixedAspectRatio(aspect);
     const int w = juce::jlimit(960, 2560, (int) proc.apvts.state.getProperty("uiWidth", 1280));
     setSize(w, stripHeight(w) + panelHeight(w));
+    refreshTimers(); startTimerHz(4);
 }
 
-BushidoEditor::~BushidoEditor() { proc.onStateLoaded = nullptr; mainFace.removeMouseListener(&cables); }
+void BushidoEditor::refreshTimers()
+{
+    const bool live = isShowing(), main = strip.current() == bushido_ui::MAIN;
+    panel->setLive(live && main);
+    screen->setLive(live && main);
+    page->setLive(live && ! main);
+}
+
+BushidoEditor::~BushidoEditor() { proc.onStateLoaded = nullptr; mainFace.removeMouseListener(&cables); setLookAndFeel(nullptr); }
 
 void BushidoEditor::resized()
 {
@@ -79,6 +89,7 @@ void BushidoEditor::showTab(int t)
     strip.setTab(t);
     mainFace.setVisible(t == bushido_ui::MAIN);
     page->setTab(t); page->setVisible(t != bushido_ui::MAIN);
+    refreshTimers();
 }
 
 void BushidoEditor::setScalePercent(int percent)

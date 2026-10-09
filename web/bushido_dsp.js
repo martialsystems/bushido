@@ -171,6 +171,12 @@ var BUSHIDO_DSP = (function () {
       sinceTick = 0; havePeriod = false;                          // the stopped time is not a clock period
       absorbUntil = n + 2;                                        // an EXT edge on this sample or the next 2 is step 1's own clock
     }
+    // HOST song position: song step k of the unpatched sequence, 12 steps (A) or 24 (A+B, ALT: row A then row B) from song step 0.
+    function locate(k) {
+      const len = mode() === 0 ? 12 : 24, s = ((k % len) + len) % len;
+      chan = Math.floor(s / 12); pos = s % 12; phase = 0; fire();
+      sinceTick = 0; havePeriod = false;                          // a jump is not a clock period
+    }
     function stop() { running = false; gateOn = false }           // JCS R5.4: gates and TRIGs go low now; lamps and CV hold
     function reset() { pos = 0; chan = 0; if (running) { phase = 0; fire() } else gateOn = false }
     function tick() {
@@ -233,14 +239,16 @@ var BUSHIDO_DSP = (function () {
       const doStep = edge(2, pv[STEP_IN]) || pressNow[1] > 0;
       const extClk = edge(0, pv[CLOCK_IN]);
 
-      // HOST (JCS R5.7): the step index is floor(ppq x q); a change of index is a tick. Transport start and stop apply START and STOP.
+      // HOST (JCS R5.7): the song step is k = floor(ppq x q), locked to song position: a transport start, loop or jump goes to
+      // the step k falls on (locate); the next song step is a tick. Transport stop applies STOP.
       let hostTick = false;
       if (hostValid) {
         const ppq = transport.ppq + hostOffset * transport.bpm / (60 * sr);
         const k = Math.floor(ppq * q + 1e-9), playing = !!transport.playing;
-        if (playing && !hostPlayingPrev) { if (!running) start(sampleCount); hostStep = k }
+        if (playing && !hostPlayingPrev) { if (!running) start(sampleCount); locate(k) }
         else if (!playing && hostPlayingPrev) { if (running) stop() }
-        else if (playing && running && k !== hostStep) { hostStep = k; hostTick = true }
+        else if (playing && running && k !== hostStep) { if (k === hostStep + 1) hostTick = true; else locate(k) }   // a loop or a jump
+        if (playing) hostStep = k;                                  // also while stopped, so START mid-song plays A1 and then ticks
         hostPlayingPrev = playing;
       }
       ++hostOffset;

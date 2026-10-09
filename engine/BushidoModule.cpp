@@ -43,6 +43,40 @@ void BushidoModule::prepare(double sampleRate, int)
     levelsPrimed = false;
     sampleCount = 0; absorbUntil = -1000; numEvents = 0;
     lastTempoCv = 1e30; lastTempoRate = -1.0;
+    slewPortaA = slewPortaB = rateTempo = -1.0f;                  // the coefficients depend on the sample rate
+}
+
+// PORTA law, kept bit-exact from v1 (user decision): tau = PORTA^2 x 2 s, k in double, the update in float.
+float BushidoModule::slewFor(float porta) const
+{
+    const double tau = (double) porta * (double) porta * 2.0;
+    return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr)));
+}
+
+// Stopped with nothing to do: no button press, no RESET, START or STEP edge, no transport start, no gate to rise or fall and
+// no step still settling. Then every sample of the block is the same except the CV slew and the mixer, and the per-sample loop
+// would only count time. Decides before any state changes; on true the edge detectors have consumed the block.
+bool BushidoModule::idleBlock(const float* const* in, int n, int pressed, bool hostValid)
+{
+    if (! idleSkip || running || pressed != 0 || gatePrev[0] || gatePrev[1]) return false;
+    if (hostValid && transport.playing && ! hostPlayingPrev) return false;          // the transport starts in this block
+    auto d = detect;                                                                 // trial run on copies: commit only if idle
+    for (int i = 0; i < n; ++i) {                                                    // advance all three, then test
+        const bool r = d[3].rising(in[RESET_IN][i]), s = d[1].rising(in[START_IN][i]), t = d[2].rising(in[STEP_IN][i]);
+        if (r || s || t) return false;
+    }
+    for (int i = 0; i < n; ++i) d[0].process(in[CLOCK_IN][i]);                       // a CLOCK edge does nothing while stopped
+    if (pos >= 0) {
+        if (samplesInStep + 1.0 < settle) return false;                              // the step's CV is still settling
+        if (gateOn) {                                                                // STEP while stopped: its gate may still be open
+            const bool cIsTime = p(C_MODE) > 0.5f;
+            const double period = haveAnyPeriod ? extPeriod : 1.0 / rateSteps;       // the loop's period while stopped
+            const double frac = cIsTime ? 0.05 + 0.9 * (double) p(STEPS + 24 + pos) : 0.5;
+            if (samplesInStep + 1.0 < settle + frac * period * sr) return false;    // samplesInStep only grows: closed now, closed all block
+        }
+    }
+    detect = d;
+    return true;
 }
 
 void BushidoModule::setParam(int i, float v)
@@ -72,6 +106,17 @@ void BushidoModule::start(long long n)                               // JCS R5.2
     phase = 0.0; fire();
     sinceTick = 0.0; havePeriod = false;          // the stopped time is not a clock period
     absorbUntil = n + 2;                          // an EXT edge on this sample or the next 2 is step 1's own clock
+}
+
+// HOST song position: song step k of the unpatched sequence, 12 steps (A) or 24 (A+B and ALT: row A, then row B) from
+// song step 0. Plays that step now, as START does for A1. Cables (TRIG -> RESET or STEP) shape the loop from there.
+void BushidoModule::locate(long long k)
+{
+    const int len = mode() == 0 ? 12 : 24;
+    const int s = (int) (((k % len) + len) % len);                     // floor modulo: a count-in before ppq 0 lands on the end
+    chan = s / 12; pos = s % 12;
+    phase = 0.0; fire();
+    sinceTick = 0.0; havePeriod = false;                               // a jump is not a clock period
 }
 
 void BushidoModule::stop()                                           // JCS R5.4: gates and TRIGs go low now; lamps and CV hold
@@ -116,10 +161,11 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
     const float rangeA = p(RANGE_A) > 0.5f ? jidai::jcs::kNominal : 1.0f, rangeB = p(RANGE_B) > 0.5f ? jidai::jcs::kNominal : 1.0f;   // 5 V or 1 V (JCS R1)
     const bool cIsTime = p(C_MODE) > 0.5f, external = p(SOURCE) > 0.5f;
     const bool host = external && p(EXT_SOURCE) > 0.5f, jackClock = external && ! host;
-    const double tempoRate = stepsPerSecond(p(TEMPO));                      // 0.5..32 steps/s, INT only; DIV does not change it
-    // PORTA law, kept bit-exact from v1 (user decision): tau = PORTA^2 x 2 s, k in double, the update in float.
-    auto slew = [this](float porta) { const double tau = (double) porta * (double) porta * 2.0; return tau < 1e-4 ? 1.0f : (float) (1.0 - std::exp(-1.0 / (tau * sr))); };
-    const float kA = slew(p(PORTA_A)), kB = slew(p(PORTA_B));
+    if (const float t = p(TEMPO); std::not_equal_to<float>{}(t, rateTempo)) { rateTempo = t; rateSteps = stepsPerSecond(t); }   // exact change test
+    const double tempoRate = rateSteps;                                     // 0.5..32 steps/s, INT only; DIV does not change it
+    if (const float a = p(PORTA_A); std::not_equal_to<float>{}(a, slewPortaA)) { slewPortaA = a; slewKA = slewFor(a); }
+    if (const float b = p(PORTA_B); std::not_equal_to<float>{}(b, slewPortaB)) { slewPortaB = b; slewKB = slewFor(b); }
+    const float kA = slewKA, kB = slewKB;
     settle = p(SETTLE) > 0.5f ? std::max(1.0, sr * 0.0006) : 2.0;           // VINTAGE keeps v1's exact 0.6 ms; TIGHT is 2 samples (JCS R5.5)
     const bool pulse = p(TRIG_MODE) > 0.5f;
     const double pulseLen = std::max(1.0, std::round(0.005 * sr));
@@ -131,22 +177,61 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
     const bool hostValid = host && transport.valid && transport.bpm > 0.0;
     if (! host) hostPlayingPrev = false;
 
+    if (idleBlock(in, n, pressNow[0] | pressNow[1] | pressNow[2], hostValid)) {
+        // The same results as the loop below, without its per-sample work: nothing ticks, no gate or TRIG is high.
+        if (hostValid) {
+            if (transport.playing)                                            // the song step at the block's last sample, as the loop leaves it
+                hostStep = (long long) std::floor((transport.ppq + (double) (hostOffset + n - 1) * transport.bpm / (60.0 * sr)) * q + 1e-9);
+            hostPlayingPrev = transport.playing;
+        }
+        hostOffset += n;
+        if (mode() == 0) chan = 0;
+        const int jk = outJacks();
+        if (pos >= 0) {                                                       // settled for the whole block (idleBlock)
+            const float knob = p(STEPS + 12 * chan + pos);
+            if (jk == 0) { const float v = knob * rangeA; tgtA = quantA ? (float) pitch::quantize(lawA, (double) v) : v; }
+            else         { const float v = knob * rangeB; tgtB = quantB ? (float) pitch::quantize(lawB, (double) v) : v; }
+            cvC = p(STEPS + 24 + pos) * jidai::jcs::kNominal;
+        }
+        if (cIsTime) cvC = 0.0f;
+        const float low = jidai::jcs::gateVolts(false);
+        for (int i = 0; i < n; ++i) {                                          // per sample only what still moves: time, CV slew, mixer
+            sinceTick += 1.0 / sr; samplesInStep += 1.0;
+            cvA += (tgtA - cvA) * kA; cvB += (tgtB - cvB) * kB;
+            lvl1 += (l1 - lvl1) * kMix; lvl2 += (l2 - lvl2) * kMix;
+            if (std::abs(l1 - lvl1) < 1e-9) lvl1 = l1;
+            if (std::abs(l2 - lvl2) < 1e-9) lvl2 = l2;
+            out[CV_A][i] = cvA; out[CV_B][i] = cvB;
+            out[MIX_OUT][i] = (float) ((double) in[MIX_IN1][i] * lvl1 + (double) in[MIX_IN2][i] * lvl2);
+        }
+        if (n == 1) {                                                          // a feedback cable runs the graph one sample at a time
+            out[CV_C][0] = cvC; out[GATE_A][0] = low; out[GATE_B][0] = low;
+            for (int s = 0; s < 12; ++s) out[TRIG1 + s][0] = low;
+        } else {                                                               // the rest is constant all block
+            std::fill(out[CV_C], out[CV_C] + n, cvC);
+            for (int j : { (int) GATE_A, (int) GATE_B }) std::fill(out[j], out[j] + n, low);
+            for (int s = 0; s < 12; ++s) std::fill(out[TRIG1 + s], out[TRIG1 + s] + n, low);
+        }
+        sampleCount += n; ++idleCount;
+    } else
     for (int i = 0; i < n; ++i, ++sampleCount) {
         const bool doReset = edge(3, in[RESET_IN][i]) || (i == 0 && pressNow[2] > 0);
         const bool doStart = edge(1, in[START_IN][i]) || (i == 0 && pressNow[0] > 0);
         const bool doStep  = edge(2, in[STEP_IN][i])  || (i == 0 && pressNow[1] > 0);
         const bool extClk  = edge(0, in[CLOCK_IN][i]);
 
-        // HOST (JCS R5.7): the step index is floor(ppq x q); a change of index is a tick. Transport start and stop
-        // apply the START and STOP rules, so the step position follows the host and cannot drift.
+        // HOST (JCS R5.7): the song step is k = floor(ppq x q). Locked to song position: when the transport starts, loops or
+        // jumps, BUSHIDO goes to the step that song step falls on (locate); the next song step is a tick. Transport stop
+        // applies the STOP rule, so the step position follows the host and cannot drift.
         bool hostTick = false;
         if (hostValid) {
             const double ppq = transport.ppq + (double) hostOffset * transport.bpm / (60.0 * sr);
             const long long k = (long long) std::floor(ppq * q + 1e-9);
             const bool playing = transport.playing;
-            if (playing && ! hostPlayingPrev) { if (! running) start(sampleCount); hostStep = k; }
+            if (playing && ! hostPlayingPrev) { if (! running) start(sampleCount); locate(k); }
             else if (! playing && hostPlayingPrev) { if (running) stop(); }
-            else if (playing && running && k != hostStep) { hostStep = k; hostTick = true; }
+            else if (playing && running && k != hostStep) { if (k == hostStep + 1) hostTick = true; else locate(k); }   // a loop or a jump: locate
+            if (playing) hostStep = k;                                       // also while stopped, so START mid-song plays A1 and then ticks
             hostPlayingPrev = playing;
         }
         ++hostOffset;

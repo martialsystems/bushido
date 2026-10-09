@@ -24,6 +24,12 @@ PatternScreen::PatternScreen(PanelLayout::Screen g, float designWidth) : scr(std
     setWantsKeyboardFocus(true); startTimerHz(4);
 }
 
+void PatternScreen::setLive(bool live)
+{
+    if (live == isTimerRunning()) return;
+    if (live) { startTimerHz(4); repaint(); } else stopTimer();
+}
+
 void PatternScreen::timerCallback()
 {
     if (mode != Mode::closed) { blink = ! blink; repaint(); }
@@ -34,6 +40,7 @@ void PatternScreen::drawDots(juce::Graphics& g, juce::Rectangle<float> a, const 
 {
     // When a dot is under 4 device pixels, the gap between dots only reads as speckle (each dot lands on a different
     // fraction of a pixel): draw the dots touching, as solid strokes, and start the text on a whole device pixel.
+    if (g.isClipEmpty()) return;                                                      // nothing to draw into (a tab page's tick)
     const float k = g.getInternalContext().getPhysicalPixelScaleFactor();             // device pixels per design unit
     auto snapped = [k](float v) { return k > 0 ? std::round(v * k) / k : v; };
     const float p = juce::jmin(a.getWidth() / (float) (n * 6), a.getHeight() / 8.0f);
@@ -52,6 +59,11 @@ void PatternScreen::drawDots(juce::Graphics& g, juce::Rectangle<float> a, const 
 
 static juce::String pad3(int n) { return juce::String(n).paddedLeft('0', 3); }
 
+juce::Font PatternScreen::listFont(float)
+{
+    return juce::Font(juce::FontOptions(juce::Font::getDefaultSansSerifFontName(), kListFont, juce::Font::plain));
+}
+
 juce::String PatternScreen::row(int bank, int i) const
 {
     const auto n = names ? names(bank) : juce::StringArray();
@@ -68,9 +80,6 @@ juce::Array<int> PatternScreen::matches() const
 
 juce::String PatternScreen::lcdText() const
 {
-    const juce::String cur(blink ? "_" : " ");
-    if (mode == Mode::search) return ("FIND " + query + cur).getLastCharacters(scr.chars);
-    if (mode == Mode::name) return (juce::String(view ? "B" : "A") + pad3((names ? names(view).size() : 0) + 1) + " " + nameBuf + cur).substring(0, scr.chars);
     if (message.isNotEmpty()) return message;
     const auto l = loaded ? loaded() : std::pair<int, int> { 0, 0 };
     const auto r = row(l.first, l.second);
@@ -130,7 +139,15 @@ void PatternScreen::paint(juce::Graphics& g)
 {
     g.addTransform(juce::AffineTransform::scale(scale()).translated((float) -getX(), (float) -getY()));   // design units -> this component
     shown = loaded ? loaded() : std::pair<int, int> { 0, 0 };
-    drawDots(g, scr.lcd.reduced(2, 1), lcdText(), scr.chars, kInk, 0.09f);            // the LCD glass is in the panel art
+    const Part screenPart = mode == Mode::closed ? Part::closedScreen : mode == Mode::search ? Part::findField : Part::nameField;
+    if (dotted(screenPart)) drawDots(g, scr.lcd.reduced(2, 1), lcdText(), scr.chars, kInk, 0.09f);   // the LCD glass is in the panel art
+    else {                                                                            // typing: plain text on the same glass
+        const juce::String cur(blink ? "|" : " ");
+        const auto t = mode == Mode::search ? "FIND  " + query + cur
+                                            : juce::String(view ? "B" : "A") + pad3((names ? names(view).size() : 0) + 1) + "  " + nameBuf + cur;
+        g.setColour(kInk); g.setFont(listFont(scale()));
+        g.drawText(t, scr.lcd.reduced(6, 0), juce::Justification::centredLeft, true);
+    }
     for (size_t i = 0; i < scr.banks.size(); ++i) {                                   // the lit lamp is the bank being browsed and saved to
         const auto& b = scr.banks[i]; const bool on = (int) i == view;
         if (on) { g.setColour(juce::Colour(0x55ff3b2b)); g.fillEllipse(b.cx - b.r * 2.2f, b.cy - b.r * 2.2f, b.r * 4.4f, b.r * 4.4f); }
@@ -144,20 +161,52 @@ void PatternScreen::paint(juce::Graphics& g)
         const juce::Rectangle<float> r(b.getX() + kPad, b.getY() + kPad + (float) k * kRow, b.getWidth() - kPad * 2, kRow - 3);
         if (h) g.setColour(kInk); else g.setGradientFill(lcdFill(r));
         g.fillRoundedRectangle(r, 1.5f);
-        drawDots(g, r.reduced(3, 1), txt, scr.chars, h ? kLit : kInk, h ? 0.08f : 0.09f);
+        if (dotted(Part::listRow)) { drawDots(g, r.reduced(3, 1), txt.toUpperCase(), scr.chars, h ? kLit : kInk, h ? 0.08f : 0.09f); return; }
+        g.setColour(h ? kLit : kInk); g.setFont(listFont(scale()));
+        g.drawText(txt, r.reduced(6, 0), juce::Justification::centredLeft, true);
     };
-    if (m.isEmpty()) drawRow(0, (names && names(view).size() > 0) ? juce::String(" NO MATCH") : juce::String(" BANK ") + (view ? "B" : "A") + " IS EMPTY", false);
+    if (m.isEmpty()) drawRow(0, (names && names(view).size() > 0) ? juce::String("   No match") : juce::String("   Bank ") + (view ? "B" : "A") + " is empty", false);
+    const auto all = names ? names(view) : juce::StringArray();
     for (int k = 0; k < scr.listRows && top + k < m.size(); ++k) { const int i = m[top + k];
-        drawRow(k, juce::String(l.first == view && l.second == i ? ">" : " ") + row(view, i), top + k == hi); }
+        drawRow(k, juce::String::fromUTF8(l.first == view && l.second == i ? "\xe2\x80\xa2 " : "   ") + pad3(i + 1) + "   " + all[i], top + k == hi); }
     if (m.size() > scr.listRows) {                                                    // scroll position
         const float h = b.getHeight() - 8;
         g.setColour(kGold.withAlpha(0.7f)); g.fillRoundedRectangle(b.getRight() - 4, b.getY() + 4 + h * (float) top / (float) m.size(), 2, h * (float) scr.listRows / (float) m.size(), 1);
     }
 }
 
+listmenu::Choice PatternScreen::listItems() const
+{
+    listmenu::Choice c; const auto l = loaded ? loaded() : std::pair<int, int> { -1, -1 };
+    for (int bank = 0; bank < 2; ++bank) {
+        const auto n = names ? names(bank) : juce::StringArray();
+        c.sections.add(juce::String("BANK ") + (bank ? "B" : "A")); c.sectionStart.push_back(c.items.size());
+        for (int i = 0; i < n.size(); ++i) {
+            if (l.first == bank && l.second == i) c.ticked = c.items.size();
+            c.items.add(juce::String(bank ? "B" : "A") + pad3(i + 1) + "  " + n[i]);
+        }
+    }
+    return c;
+}
+
+void PatternScreen::applyListChoice(int index)
+{
+    const int nA = names ? names(0).size() : 0, nB = names ? names(1).size() : 0;
+    if (index < 0 || index >= nA + nB) return;
+    const int bank = index < nA ? 0 : 1, i = bank ? index - nA : index;
+    view = bank; message.clear();
+    if (choose) choose(bank, i);
+    repaint();
+}
+
 void PatternScreen::mouseDown(const juce::MouseEvent& e)
 {
     const auto p = design(e);
+    if (e.mods.isPopupMenu() && mode == Mode::closed && (scr.bezel.contains(p) || scr.button.contains(p))) {   // right-click: every pattern
+        const auto area = localAreaToGlobal(scr.bezel.getUnion(scr.button).transformedBy(juce::AffineTransform::scale(scale()).translated((float) -getX(), (float) -getY())).getSmallestIntegerContainer());
+        listmenu::show(listItems(), *this, area, [this](int k) { applyListChoice(k); });
+        return;
+    }
     if (const int k = bankAt(p); k >= 0) { view = k; message.clear(); if (mode == Mode::search) { query.clear(); hi = top = 0; } repaint(); return; }
     if (mode == Mode::search) { const int r = rowAt(p); if (r >= 0 && choose) choose(view, matches()[r]); setMode(Mode::closed); return; }
     if (mode == Mode::name) { if (scr.save.contains(p)) doSave(); else setMode(Mode::closed); return; }
