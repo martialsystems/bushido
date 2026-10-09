@@ -18,8 +18,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       # MSVC (C++17): conforming lambda processor, for the SafePointer init-captures nested in lambdas
-      # (PluginEditor.cpp, ui/BushidoTabs.cpp). cl.exe reads CL; clang on macOS ignores it.
-      CL: /Zc:lambda
+      # (PluginEditor.cpp, ui/BushidoTabs.cpp). cl.exe reads CL (dash form: Git Bash rewrites a leading /); clang on macOS ignores it.
+      CL: -Zc:lambda
     steps:
       - uses: actions/checkout@v4
       - name: Fetch JUCE 8.0.4
