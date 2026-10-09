@@ -40,6 +40,7 @@ void PatternScreen::drawDots(juce::Graphics& g, juce::Rectangle<float> a, const 
 {
     // When a dot is under 4 device pixels, the gap between dots only reads as speckle (each dot lands on a different
     // fraction of a pixel): draw the dots touching, as solid strokes, and start the text on a whole device pixel.
+    if (g.isClipEmpty()) return;                                                      // nothing to draw into (a tab page's tick)
     const float k = g.getInternalContext().getPhysicalPixelScaleFactor();             // device pixels per design unit
     auto snapped = [k](float v) { return k > 0 ? std::round(v * k) / k : v; };
     const float p = juce::jmin(a.getWidth() / (float) (n * 6), a.getHeight() / 8.0f);

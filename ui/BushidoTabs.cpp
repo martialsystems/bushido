@@ -3,6 +3,7 @@
 #include "../engine/BushidoModule.h"
 #include "../rack/PitchLaw.h"
 #include <cmath>
+#include <map>
 
 namespace bushido_ui {
 
@@ -59,7 +60,11 @@ void TabPage::text(juce::Graphics& g, const juce::String& s, float x, float base
                                    : juce::Rectangle<float>(x - w / 2, top, w, h);
     g.drawText(s, r, juce::Justification(hz | juce::Justification::top), false);
     if (recorder != nullptr) {                         // the ink's extent (drawText puts the run inside r as justified)
-        const float tw = juce::GlyphArrangement::getStringWidth(f, s);
+        static std::map<juce::String, float> widths;   // measuring is the costly part of a tick: once per text and font
+        const auto wk = juce::String(size) + (bold ? "b" : "p") + juce::String(spacing) + "|" + s;
+        auto it = widths.find(wk);
+        if (it == widths.end()) { if (widths.size() > 4096) widths.clear(); it = widths.emplace(wk, juce::GlyphArrangement::getStringWidth(f, s)).first; }
+        const float tw = it->second;
         const float x0 = hz == juce::Justification::left ? x : hz == juce::Justification::right ? x - tw : x - tw / 2;
         mark({ x0 - 3, top - 1, tw + 6, h + 2 }, "t" + juce::String(size) + (bold ? "b" : "p") + c.toString() + s);
     }
