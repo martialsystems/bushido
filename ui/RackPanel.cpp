@@ -179,10 +179,9 @@ void RackPanel::paint(juce::Graphics& g)
             for (auto& r : px) for (int y = r.getY(); y < r.getBottom(); ++y)
                 std::memcpy(dst.getPixelPointer(r.getX(), y), src.getPixelPointer(r.getX(), y), (size_t) (r.getWidth() * src.pixelStride));
         }
-        juce::Graphics cg(cache);
-        cg.reduceClipRegion(px);
-        inImage(cg);
-        drawFace(cg, false, true);
+        // One rectangle clip at a time (px holds no overlaps, so nothing is drawn twice). Direct2D (Windows) draws
+        // under a many-rectangle clip through a layer, which rounds some pixels 1/255 away from a direct paint.
+        for (auto& r : px) { juce::Graphics cg(cache); cg.reduceClipRegion(r); inImage(cg); drawFace(cg, false, true); }
         cacheDirty.clear();
     }
     g.drawImageTransformed(cache, m.inverted());
