@@ -1,0 +1,28 @@
+name: Issue severity label
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  issues: write
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const m = body.match(/###\s*Severity\s*\n+\s*(Critical|High|Medium|Low)\b/i);
+            if (!m) return;
+            const want = `severity:${m[1].toLowerCase()}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.issue.number;
+            const current = context.payload.issue.labels.map(l => l.name);
+            for (const name of current) {
+              if (name.startsWith('severity:') && name !== want) {
+                await github.rest.issues.removeLabel({ owner, repo, issue_number, name });
+              }
+            }
+            if (!current.includes(want)) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [want] });
+            }

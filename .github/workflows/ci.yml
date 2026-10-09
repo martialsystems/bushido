@@ -1,0 +1,34 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch JUCE 8.0.4
+        shell: bash
+        run: git clone -b 8.0.4 --depth 1 https://github.com/juce-framework/JUCE.git ../JUCE
+      - name: Configure
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel 4
+      - name: Test
+        shell: bash
+        run: |
+          ctest --test-dir build -C Release --output-on-failure
+
