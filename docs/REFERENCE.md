@@ -40,13 +40,6 @@ the `≠` badge when a cable expects the other law). Both laws use the same refe
 | `MODE:START/STOP`, `MODE:STEP`, `MODE:RESET` | Buttons (same as the matching INPUTS jacks) |
 | `MIXER:LEVEL 1`, `MIXER:LEVEL 2` | Two-input mixer gains, 0..1, smoothed with a 10 ms one-pole (k = −expm1(−1 / (0.010 x sr))) so moves do not click |
 
-## List controls
-Every control that steps through or picks from a list follows one rule (ui/ListMenu.h): click = next (wraps), Shift-click = previous
-(wraps), right-click = the whole list as a menu with the current item ticked; the wheel is unchanged. Rockers and segmented buttons
-keep picking the half or segment you click; MIDI CH keeps its < > halves. The list controls: panel SOURCE, DIV, MODE, C MODE,
-RANGE A/B, BYPASS; STEPS QUANT A/B, PITCH LAW A/B, C MODE; CLOCK EXT SOURCE, HOST DIV, SETTLE, TRIG MODE; MIDI CH A/B, VELOCITY A/B;
-SETUP UI SCALE; the pattern screen (right-click: both banks). Knobs, buttons, jacks and cables are not list controls.
-
 ## Tab controls (format 1)
 The front panel is unchanged: every new control lives on a tab (MAIN · STEPS · CLOCK · MIDI · SETUP, a strip above the panel art;
 a non-MAIN tab replaces the whole face at the same size). The ids are appended after `CLOCK:DIV`, so the v1 parameter indices never move.

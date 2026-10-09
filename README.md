@@ -12,7 +12,7 @@ BUSHIDO is a hands-on step sequencer for your DAW. You build lines by turning kn
 - **A TRIG jack for every step.** Patch TRIG N+1 into RESET for an N-step loop, or patch any TRIG into STEP, START/STOP or (with SOURCE on EXT) CLOCK. Self-patch from the TRIG jacks only: a GATE patched back into STEP makes the sequence run away, and into CLOCK it stalls.
 - **TRIG STEP or PULSE.** In STEP mode each TRIG jack stays high for its whole step. In PULSE mode it fires a 5 ms trigger.
 - **Factory bank.** Bank A opens with INIT and 21 original patterns for electronic music: seven acid lines with slides and accents, plus house and rolling basslines, trance and broken arps, techno stabs, plucks and leads. Between them they use every play mode, both pitch laws, odd loop lengths, skipped steps, ratchets and swing from row C, gate-length grooves and HOST sync.
-- **Patterns.** Two banks, A and B, of up to 999 patterns each. Click the pattern screen and type to search, or use the arrow keys. Right-click it for a menu of every pattern. SAVE stores the panel, including its cables, as the next number in the lit bank. Saved patterns are shared by every BUSHIDO instance on the computer, and your host sees both banks as one program list.
+- **Patterns.** Two banks, A and B, of up to 999 patterns each. Click the pattern screen and type to search, or use the arrow keys. SAVE stores the panel, including its cables, as the next number in the lit bank. Saved patterns are shared by every BUSHIDO instance on the computer, and your host sees both banks as one program list.
 
 ### Clock
 - **INT, EXT or HOST.** The internal clock runs from 0.5 to 32 steps per second, and TEMPO CV bends it by one octave of rate per volt. Drag the BPM readout to set the tempo, and choose 1/8, 1/16 or 1/32 to set how many steps make a beat. EXT follows the CLOCK jack and shows the measured tempo.
@@ -38,8 +38,6 @@ The front panel stays exactly as drawn. A strip above it opens five tabs:
 - **CLOCK:** EXT source (JACK or HOST), SETTLE, TRIG mode and the measured EXT tempo.
 - **MIDI:** channel and velocity per row, and a monitor of the notes playing.
 - **SETUP:** UI scale (75 to 200 percent) and the report from the last loaded session.
-
-Every control that picks from a list (panel switches and rockers, tab settings) works the same way: click for the next setting, Shift-click for the previous one, right-click for the whole list with the current one ticked.
 
 ### Patching
 - Drag from any jack to another. Cables hang, swing and stack, and you can click a jack to pick or reorder its plugs.
