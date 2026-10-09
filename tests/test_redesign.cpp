@@ -313,6 +313,88 @@ static void testMigration()
       CHECK(exactEq(p["STEPS:LAW A"], 0.0f) && exactEq(p["STEPS:LAW B"], 1.0f), "verify: cables-to-law with a bare START/STOP cable; RONIN VCO:HZ/V gives LIN"); }
 }
 
+// ------------------------------------------------------------------ HOST locked to song position
+// Song step k = floor(ppq x q) (q = 2, 4, 8 steps per quarter for DIV 1/8, 1/16, 1/32). On a transport start, a loop or a jump
+// BUSHIDO plays step k of the unpatched sequence (12 steps in A, 24 in A+B and ALT); the next song step is a tick.
+struct StepHit { long long t; int chan, pos; };
+static std::vector<StepHit> hostRun(float div, float mode, long long n, std::function<Transport(long long)> trf, bool swingCable = false,
+                                    std::function<void(Rig&, long long)> act = nullptr)
+{
+    Rig r; r.sq.setParam(BushidoModule::SOURCE, 1.0f); r.sq.setParam(BushidoModule::EXT_SOURCE, 1.0f);
+    r.sq.setParam(BushidoModule::DIV, div); r.sq.setParam(BushidoModule::MODE, mode);
+    if (swingCable) {                                                   // the swing patch: CV C -> TEMPO CV, row C alternating 0 / 0.71 V
+        for (int s = 0; s < 12; ++s) r.sq.setParam(BushidoModule::STEPS + 24 + s, s % 2 ? 0.71f / 5.0f : 0.0f);
+        r.g.setCables({ { r.S, r.jack("OUTPUTS:CV C"), r.S, r.jack("CLOCK:TEMPO CV") } });
+    }
+    std::vector<int> tj; for (int s = 1; s <= 12; ++s) tj.push_back(r.jack((std::to_string(s) + ":TRIG").c_str()));
+    std::vector<StepHit> hits; int last = -1;
+    r.run(n, [&](long long t, int i) {
+        if (act) act(r, t);
+        int h = -1; for (int s = 0; s < 12; ++s) if (r.out(tj[(size_t) s], i) > 1) h = s;
+        const int key = h < 0 ? -1 : r.sq.currentChannel() * 12 + h;      // a new step: another TRIG, or the same TRIG on the other row
+        if (h >= 0 && key != last) hits.push_back({ t, r.sq.currentChannel(), h });
+        last = key; }, nullptr, trf);
+    return hits;
+}
+static std::string hitsText(const std::vector<StepHit>& h, size_t n)
+{
+    std::string s; for (size_t i = 0; i < std::min(n, h.size()); ++i) s += (i ? " " : "") + std::string(h[i].chan ? "B" : "A") + std::to_string(h[i].pos + 1);
+    return s;
+}
+
+static void testHostSongPosition()
+{
+    const float divs[] = { 0.0f, 0.5f, 1.0f }; const int qs[] = { 2, 4, 8 }; const char* dn[] = { "1/8", "1/16", "1/32" };
+    for (int d = 0; d < 3; ++d) {
+        const double stepSamples = 48000.0 * 60.0 / (120.0 * qs[d]);
+        // start at the top of the song
+        auto h0 = hostRun(divs[d], 0.0f, 4 * (long long) stepSamples, [](long long s) { return hostAt(s, true); });
+        CHECK(! h0.empty() && h0[0].t == 0 && h0[0].pos == 0 && h0[0].chan == 0, (std::string("HOST lock ") + dn[d] + ": transport start at ppq 0 plays A1").c_str());
+        // mid-bar start at beat 3 (ppq 2.0): song step 2q
+        for (float mode : { 0.0f, 0.5f, 1.0f }) {
+            const int len = mode < 0.25f ? 12 : 24, k = 2 * qs[d], sstep = k % len;
+            auto h = hostRun(divs[d], mode, 3 * (long long) stepSamples, [](long long s) { return hostAt(s, true, 120.0, 48000.0, 2.0); });
+            const bool ok = h.size() >= 2 && h[0].t == 0 && h[0].chan == sstep / 12 && h[0].pos == sstep % 12
+                            && h[1].pos == (sstep + 1) % 12 && h[1].t == (long long) stepSamples;
+            CHECK(ok, (std::string("HOST lock ") + dn[d] + (mode < 0.25f ? " A" : mode < 0.75f ? " A+B" : " ALT") + ": start at beat 3 (song step " + std::to_string(k)
+                       + ") plays " + hitsText(h, 3) + ", then ticks on the grid").c_str());
+        }
+        // a 1-bar DAW loop (ppq 0..4) wraps to song step 0: A1 again, every pass the same
+        const long long loopLen = (long long) (4 * 60.0 / 120.0 * 48000.0);
+        auto hl = hostRun(divs[d], 0.0f, 3 * loopLen, [loopLen](long long s) { return hostAt(s % loopLen, true); });
+        std::vector<StepHit> p1, p2; for (auto& x : hl) { if (x.t < loopLen) p1.push_back(x); else if (x.t < 2 * loopLen) p2.push_back(x); }
+        bool same = p1.size() == p2.size() && ! p2.empty() && p2[0].t == loopLen && p2[0].pos == 0;
+        for (size_t i = 0; same && i < p1.size(); ++i) same &= p1[i].pos == p2[i].pos && p2[i].t - p1[i].t == loopLen;
+        CHECK(same, (std::string("HOST lock ") + dn[d] + ": a 1-bar loop wraps to A1 on the loop start, every pass identical (" + std::to_string(p1.size()) + " steps per pass)").c_str());
+        // relocate: playing from ppq 0, the host jumps to ppq 9.5 at sample 48128; A+B: song step 9.5q mod 24
+        const long long jumpAt = 48128; const double ppqJ = 9.5;                     // a block start (the host hands the position per block)
+        auto hj = hostRun(divs[d], 0.5f, jumpAt + 3 * (long long) stepSamples, [&](long long s) { return s < jumpAt ? hostAt(s, true) : hostAt(s - jumpAt, true, 120.0, 48000.0, ppqJ); });
+        const int kj = (int) std::floor(ppqJ * qs[d]) % 24; StepHit after { -1, -1, -1 }; for (auto& x : hj) if (x.t >= jumpAt) { after = x; break; }
+        CHECK(after.t == jumpAt && after.chan == kj / 12 && after.pos == kj % 12,
+              (std::string("HOST lock ") + dn[d] + ": a jump to ppq 9.5 plays song step " + std::to_string((int) std::floor(ppqJ * qs[d])) + " = " + (kj >= 12 ? "B" : "A") + std::to_string(kj % 12 + 1) + " at once").c_str());
+    }
+    // swing patch (CV C -> TEMPO CV bends INT only): in HOST the steps stay on the song grid, mid-bar start still locks
+    {
+        auto h = hostRun(0.5f, 0.0f, 48000, [](long long s) { return hostAt(s, true, 120.0, 48000.0, 1.0); }, true);
+        bool grid = h.size() >= 6 && h[0].pos == 4;
+        for (size_t i = 1; i < h.size(); ++i) grid &= h[i].t == (long long) i * 6000 && h[i].pos == (int) ((4 + i) % 12);
+        CHECK(grid, ("HOST lock with the swing cable: start at ppq 1 plays A5, every step on the 1/16 grid (" + hitsText(h, 6) + ")").c_str());
+    }
+    // count-in: a start at ppq -1 (song step -4 at 1/16) lands on A9 and reaches A1 at ppq 0
+    {
+        auto h = hostRun(0.5f, 0.0f, 30000, [](long long s) { return hostAt(s, true, 120.0, 48000.0, -1.0); });
+        CHECK(h.size() >= 5 && h[0].pos == 8 && h[4].pos == 0 && h[4].t == 24000, ("HOST lock: a count-in from ppq -1 plays " + hitsText(h, 5) + ", A1 on the downbeat").c_str());
+    }
+    // START while the song plays (BUSHIDO was stopped) keeps the START rule: A1 now, then A2 on the next song step
+    {
+        auto h = hostRun(0.5f, 0.0f, 40000, [](long long s) { return hostAt(s, true, 120.0, 48000.0, 0.0); }, false, [](Rig& r, long long t) {
+            if (t == 1000) r.press("MODE:START/STOP");                    // stop (the transport started it)
+            if (t == 15000) r.press("MODE:START/STOP"); });               // start again mid-song
+        StepHit a { -1, -1, -1 }, b { -1, -1, -1 }; for (size_t i = 0; i + 1 < h.size(); ++i) if (h[i].t >= 15000) { a = h[i]; b = h[i + 1]; break; }
+        CHECK(a.pos == 0 && b.pos == 1 && b.t == 18000, "HOST: START mid-song plays A1 at once, then A2 on the next song step (the START rule)");
+    }
+}
+
 // ------------------------------------------------------------------ stopped fast path
 // The stopped fast path (BushidoModule::idleBlock) must give exactly the outputs of the full loop. Two engines, one with the
 // fast path and one without, get the same inputs, cables, knob moves, presses and transport; every output sample and every
@@ -352,6 +434,7 @@ static void testIdleSkipExact()
                 if (t == 140000 && ! sc.host) press(BushidoModule::BTN_START);         // stop again
                 if (t == 170000) press(BushidoModule::BTN_RESET);
                 if (t == 200000) sq.setParam(BushidoModule::TEMPO, 0.8f);
+                if (sc.host && (t == 120064 || t == 130048)) press(BushidoModule::BTN_START);   // STOP and START mid-song
                 if (sc.host) { Transport tr; tr.valid = true; tr.bpm = 120; tr.playing = t >= 100000 && t < 160000; tr.ppq = (double) t * 120.0 / (60.0 * 48000.0); tr.samplePos = t; sq.setTransport(tr); }
                 g.process(sc.block);
                 for (int j = 0; j < nj; ++j) { const float* o = g.output(S, j); outs[k][(size_t) j].insert(outs[k][(size_t) j].end(), o, o + sc.block); }
@@ -382,6 +465,7 @@ int main()
     testHostDefaults();
     testExtPinUnchanged();
     testMigration();
+    testHostSongPosition();
     testIdleSkipExact();
     std::printf(fails ? "%d FAILED\n" : "ALL PASSED\n", fails); return fails ? 1 : 0;
 }

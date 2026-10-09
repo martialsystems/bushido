@@ -105,6 +105,17 @@ void BushidoModule::start(long long n)                               // JCS R5.2
     absorbUntil = n + 2;                          // an EXT edge on this sample or the next 2 is step 1's own clock
 }
 
+// HOST song position: song step k of the unpatched sequence, 12 steps (A) or 24 (A+B and ALT: row A, then row B) from
+// song step 0. Plays that step now, as START does for A1. Cables (TRIG -> RESET or STEP) shape the loop from there.
+void BushidoModule::locate(long long k)
+{
+    const int len = mode() == 0 ? 12 : 24;
+    const int s = (int) (((k % len) + len) % len);                     // floor modulo: a count-in before ppq 0 lands on the end
+    chan = s / 12; pos = s % 12;
+    phase = 0.0; fire();
+    sinceTick = 0.0; havePeriod = false;                               // a jump is not a clock period
+}
+
 void BushidoModule::stop()                                           // JCS R5.4: gates and TRIGs go low now; lamps and CV hold
 {
     running = false; gateOn = false;
@@ -165,7 +176,11 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
 
     if (idleBlock(in, n, pressNow[0] | pressNow[1] | pressNow[2], hostValid)) {
         // The same results as the loop below, without its per-sample work: nothing ticks, no gate or TRIG is high.
-        if (hostValid) hostPlayingPrev = transport.playing;
+        if (hostValid) {
+            if (transport.playing)                                            // the song step at the block's last sample, as the loop leaves it
+                hostStep = (long long) std::floor((transport.ppq + (double) (hostOffset + n - 1) * transport.bpm / (60.0 * sr)) * q + 1e-9);
+            hostPlayingPrev = transport.playing;
+        }
         hostOffset += n;
         if (mode() == 0) chan = 0;
         const int jk = outJacks();
@@ -202,16 +217,18 @@ void BushidoModule::process(const float* const* in, float* const* out, int n)
         const bool doStep  = edge(2, in[STEP_IN][i])  || (i == 0 && pressNow[1] > 0);
         const bool extClk  = edge(0, in[CLOCK_IN][i]);
 
-        // HOST (JCS R5.7): the step index is floor(ppq x q); a change of index is a tick. Transport start and stop
-        // apply the START and STOP rules, so the step position follows the host and cannot drift.
+        // HOST (JCS R5.7): the song step is k = floor(ppq x q). Locked to song position: when the transport starts, loops or
+        // jumps, BUSHIDO goes to the step that song step falls on (locate); the next song step is a tick. Transport stop
+        // applies the STOP rule, so the step position follows the host and cannot drift.
         bool hostTick = false;
         if (hostValid) {
             const double ppq = transport.ppq + (double) hostOffset * transport.bpm / (60.0 * sr);
             const long long k = (long long) std::floor(ppq * q + 1e-9);
             const bool playing = transport.playing;
-            if (playing && ! hostPlayingPrev) { if (! running) start(sampleCount); hostStep = k; }
+            if (playing && ! hostPlayingPrev) { if (! running) start(sampleCount); locate(k); }
             else if (! playing && hostPlayingPrev) { if (running) stop(); }
-            else if (playing && running && k != hostStep) { hostStep = k; hostTick = true; }
+            else if (playing && running && k != hostStep) { if (k == hostStep + 1) hostTick = true; else locate(k); }   // a loop or a jump: locate
+            if (playing) hostStep = k;                                       // also while stopped, so START mid-song plays A1 and then ticks
             hostPlayingPrev = playing;
         }
         ++hostOffset;

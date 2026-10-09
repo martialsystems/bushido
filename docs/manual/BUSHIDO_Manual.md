@@ -285,7 +285,8 @@ MIDI note 48 is C3 in BUSHIDO. Some DAWs name MIDI octaves differently and may s
 
 In HOST mode, BUSHIDO reads the DAW's song position and steps on its grid of 1/8, 1/16 or 1/32 notes (HOST DIV). The step changes on its exact sample, so BUSHIDO never drifts from the DAW.
 
-- **Starting the transport** starts BUSHIDO at step A1, wherever in the song you start. Start playback on a bar line to keep the pattern on the bar.
+- **Locked to the song.** BUSHIDO counts steps from the start of the song: 12 in A, 24 in A+B and ALT (row A, then row B). When you start the transport, loop, or jump to another place, it plays the step that falls there at once. Start at beat 3 of bar 1 at 1/16 and you hear A9; every bar of a loop starts on the same step.
+- A cable from a TRIG jack to RESET or STEP shapes the loop from the step BUSHIDO lands on. For a short loop that always starts on the bar, start playback on a bar line where the count lands on A1.
 - **Stopping the transport** stops BUSHIDO.
 - The gate is open for half of one grid step (or the TIME length).
 - The BPM readout shows `HOST` and the DAW tempo.
@@ -294,7 +295,7 @@ In HOST mode, BUSHIDO reads the DAW's song position and steps on its grid of 1/8
 
 These rules are fixed. The CLOCK tab lists them.
 
-- Every start plays step A1 at once.
+- Every START (the button or the START/STOP jack) plays step A1 at once. A HOST transport start plays the step at the song position (5.3).
 - A start absorbs an EXT clock edge that arrives within 2 samples of it, so step 1 is never skipped when START and a clock edge arrive together.
 - A reset absorbs a clock edge that arrives at the same moment.
 - STOP sends gates and TRIGs low. CVs and step lamps hold.
@@ -465,7 +466,7 @@ To play a DAW instrument from the standalone app, use a virtual MIDI port: macOS
 | No notes reach the instrument | Check that the instrument track's MIDI input is set to BUSHIDO and that its channel matches (row A = 1, row B = 2 by default). Check that BYPASS is off. In ALT mode, row B plays on its own channel. |
 | Nothing plays when I press play in the DAW | With SOURCE on INT, BUSHIDO has its own START/STOP. To follow the DAW, set SOURCE to EXT and choose HOST on the CLOCK tab. |
 | On EXT JACK nothing moves | The CLOCK jack only clocks while running. Press START first, or patch a START/STOP signal. |
-| The pattern is offset from the bar in HOST mode | BUSHIDO starts at A1 wherever the transport starts. Start playback on a bar line. |
+| The pattern is offset from the bar in HOST mode | BUSHIDO follows the song position, counting 12 or 24 steps from the start of the song. A 12-step pattern drifts against 16-step bars by design. With a TRIG → RESET loop, start playback where the count lands on A1. |
 | My track's audio changed when I inserted BUSHIDO | The audio runs through BUSHIDO's mixer (section 7.2). Use an empty track, or turn the LEVELs to suit. |
 | Everything plays an octave or two too high | Under V/OCT, BUSHIDO's lowest note is C3 (0 V). Transpose the instrument down, or on RONIN use VCO RANGE 16' or 32'. |
 | A step makes no MIDI note | Under HZ/V LIN, a step at 0 V is a rest (with QUANT on, anything below 1/32 V). |

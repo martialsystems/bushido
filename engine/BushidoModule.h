@@ -124,6 +124,7 @@ private:
     float slewFor(float porta) const;
     void start(long long n);
     void stop();
+    void locate(long long songStep);
     void tick();
     void reset();
     void fire();

@@ -176,6 +176,23 @@ CHECK(B.create(48000).getParam(P.TRIG_MODE) === 0, "testTrigModeDefaultStep: a n
   CHECK(ok8 && t8[1] === 6400, "HOST 1/8 at 90 BPM: starting mid-step at ppq 0.3, the next tick lands on the host's next eighth (sample 6400), then every 16000");
   const n = new Rig(); n.set(P.SOURCE, 1); n.set(P.EXT_SOURCE, 1); n.press("MODE:START/STOP"); n.run(48000);
   CHECK(n.sq.currentStep() === 0 && n.sq.isRunning(), "HOST without a transport (the web page today): holds step 1 until a transport arrives, as the C++ does");
+  // locked to song position (testHostSongPosition in C++): start, mid-bar start, loop wrap and jump, at every DIV
+  const steps = (div, mode, n, trf) => { const r = new Rig(); r.set(P.SOURCE, 1); r.set(P.EXT_SOURCE, 1); r.set(P.DIV, div); r.set(P.MODE, mode); r.trf = trf;
+    const hits = []; let last = -1; r.run(n, t => { let h = -1; for (let s = 0; s < 12; s++) if (r.out((s + 1) + ":TRIG") > 1) h = s;
+      const ch = r.sq.state().chan, key = h < 0 ? -1 : ch * 12 + h; if (h >= 0 && key !== last) hits.push({ t, ch, h }); last = key }); return hits };
+  [[0, 2, "1/8"], [0.5, 4, "1/16"], [1, 8, "1/32"]].forEach(([div, qd, dn]) => {
+    const st = 48000 * 60 / (120 * qd), loopLen = 96000;
+    for (const mode of [0, 0.5, 1]) {
+      const len = mode < 0.25 ? 12 : 24, k = (2 * qd) % len, h = steps(div, mode, 3 * st, s => hostAt(s, true, 120, 48000, 2));
+      CHECK(h.length >= 2 && h[0].t === 0 && h[0].ch === Math.floor(k / 12) && h[0].h === k % 12 && h[1].t === st,
+            `HOST lock ${dn} ${["A", "A+B", "ALT"][mode * 2]}: start at beat 3 plays song step ${2 * qd} at once, then ticks on the grid`);
+    }
+    const hl = steps(div, 0, 2 * loopLen, s => hostAt(s % loopLen, true)); const p2 = hl.filter(x => x.t >= loopLen);
+    CHECK(p2.length > 0 && p2[0].t === loopLen && p2[0].h === 0 && p2.length === hl.length - p2.length, `HOST lock ${dn}: a 1-bar loop wraps to A1, every pass the same`);
+    const jumpAt = 48128, kj = Math.floor(9.5 * qd) % 24, hj = steps(div, 0.5, jumpAt + 3 * st, s => (s < jumpAt ? hostAt(s, true) : hostAt(s - jumpAt, true, 120, 48000, 9.5)));
+    const a = hj.find(x => x.t >= jumpAt);
+    CHECK(a && a.t === jumpAt && a.ch === Math.floor(kj / 12) && a.h === kj % 12, `HOST lock ${dn}: a jump to ppq 9.5 plays song step ${Math.floor(9.5 * qd)} at once`);
+  });
 }
 { let m = B.create(48000); m.applyNewInstanceDefaults(true, true);
   CHECK(m.getParam(P.SOURCE) === 1 && m.getParam(P.EXT_SOURCE) === 1, "testHostDefaultOnlyNewRackInstancePlaying: new rack instance, transport playing -> HOST");
