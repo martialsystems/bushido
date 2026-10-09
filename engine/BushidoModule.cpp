@@ -61,7 +61,10 @@ bool BushidoModule::idleBlock(const float* const* in, int n, int pressed, bool h
     if (! idleSkip || running || pressed != 0 || gatePrev[0] || gatePrev[1]) return false;
     if (hostValid && transport.playing && ! hostPlayingPrev) return false;          // the transport starts in this block
     auto d = detect;                                                                 // trial run on copies: commit only if idle
-    for (int i = 0; i < n; ++i) if (d[3].rising(in[RESET_IN][i]) | d[1].rising(in[START_IN][i]) | d[2].rising(in[STEP_IN][i])) return false;
+    for (int i = 0; i < n; ++i) {                                                    // advance all three, then test
+        const bool r = d[3].rising(in[RESET_IN][i]), s = d[1].rising(in[START_IN][i]), t = d[2].rising(in[STEP_IN][i]);
+        if (r || s || t) return false;
+    }
     for (int i = 0; i < n; ++i) d[0].process(in[CLOCK_IN][i]);                       // a CLOCK edge does nothing while stopped
     if (pos >= 0) {
         if (samplesInStep + 1.0 < settle) return false;                              // the step's CV is still settling
