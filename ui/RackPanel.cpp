@@ -1,9 +1,65 @@
 #include "RackPanel.h"
 #include "PatternScreen.h"
+#include <cstring>
 
 RackPanel::RackPanel(PanelLayout l, std::unique_ptr<juce::Drawable> b, Binding& bd) : lay(std::move(l)), bg(std::move(b)), bind(bd)
 {
-    setOpaque(true); startTimerHz(30);                 // LEDs and host automation
+    setOpaque(true); startTimerHz(30);                 // LEDs and host automation (the editor stops it while the panel is hidden)
+}
+
+void RackPanel::setLive(bool live)
+{
+    if (live == isTimerRunning()) return;
+    if (live) { startTimerHz(30); refresh(); } else stopTimer();
+}
+
+int RackPanel::controlIndex(const juce::String& id) const
+{
+    for (size_t i = 0; i < lay.controls.size(); ++i) if (lay.controls[i].id == id) return (int) i;
+    return -1;
+}
+
+juce::Rectangle<int> RackPanel::controlArea(int i) const
+{
+    const auto& c = lay.controls[(size_t) i];
+    juce::Rectangle<float> r;
+    if (c.kind == "readout") r = c.lcd;
+    else if (c.kind == "button") r = { c.cx - 14, c.cy - 14, 29, 29 };                       // key 26 x 26, 1 down when pressed
+    else if (c.style == "rocker") r = c.rect;
+    else if (c.style == "toggle") r = { c.cx - 17, c.cy - 7, 34, 13 };                       // lever to +-12, ball 3.6
+    else r = { c.cx - c.r - 4, c.cy - c.r - 4, 2 * c.r + 9, 2 * c.r + 10 };                  // knob, ring, shadow (+1, +2)
+    return r.expanded(2).transformedBy(juce::AffineTransform::scale(scale())).getSmallestIntegerContainer().expanded(1);
+}
+
+juce::Rectangle<int> RackPanel::ledArea(int i) const
+{
+    const auto& l = lay.leds[(size_t) i]; const float g = l.r * 2.2f;                         // the glow
+    return juce::Rectangle<float>(l.cx - g, l.cy - g, 2 * g, 2 * g).expanded(1).transformedBy(juce::AffineTransform::scale(scale())).getSmallestIntegerContainer().expanded(1);
+}
+
+void RackPanel::invalidate(juce::Rectangle<int> a)
+{
+    a = a.getIntersection(getLocalBounds());
+    if (a.isEmpty()) return;
+    cacheDirty.add(a); invalidated.add(a); repaint(a);
+}
+
+void RackPanel::refresh()
+{
+    if (shownCtl.size() != lay.controls.size()) shownCtl.assign(lay.controls.size(), {});
+    if (shownLed.size() != lay.leds.size()) shownLed.assign(lay.leds.size(), -1);
+    for (size_t i = 0; i < lay.controls.size(); ++i) {
+        const auto& c = lay.controls[i]; Shown now; now.known = true;
+        if (c.kind == "readout") now.text = bind.readoutText(c.id);
+        else if (c.kind == "button") now.pressed = (int) i == pressedIdx;
+        else now.v = bind.get(c.id);
+        auto& was = shownCtl[i];
+        if (! was.known || ! juce::exactlyEqual(was.v, now.v) || was.pressed != now.pressed || was.text != now.text) { was = now; invalidate(controlArea((int) i)); }
+    }
+    for (size_t i = 0; i < lay.leds.size(); ++i) {
+        const int on = bind.indicator(lay.leds[i].id) > 0.5f ? 1 : 0;
+        if (on != shownLed[i]) { shownLed[i] = on; invalidate(ledArea((int) i)); }
+    }
 }
 
 int RackPanel::controlAt(juce::Point<float> p) const
@@ -80,11 +136,67 @@ void RackPanel::drawKey(juce::Graphics& g, float cx, float cy, bool black, bool 
 
 void RackPanel::paint(juce::Graphics& g)
 {
+    refresh();                                         // a part that changed since the last tick is redrawn now (and repainted)
+    // The image holds the face in device pixels. It is drawn with the same transform steps a direct paint gets (device
+    // scale, then each parent's transform and origin, top-down), so each pixel is the one a direct paint makes, and
+    // showing it is a 1:1 copy. A parent that rotates or shears paints directly.
+    const float k = g.getInternalContext().getPhysicalPixelScaleFactor();
+    std::vector<juce::Component*> chain;               // this and its parents up to (not including) the top level
+    for (auto* c = static_cast<juce::Component*>(this); c->getParentComponent() != nullptr; c = c->getParentComponent()) chain.insert(chain.begin(), c);
+    bool direct = ! useCache || ! (k > 0);
+    CacheKey key { k, {}, getWidth(), getHeight(), {} };
+    auto m = juce::AffineTransform::scale(k);          // panel point -> device pixel, as the paint calls compose it
+    for (auto* c : chain) {
+        if (c->isTransformed()) { const auto t = c->getTransform(); if (! juce::exactlyEqual(t.mat01, 0.0f) || ! juce::exactlyEqual(t.mat10, 0.0f)) direct = true;
+                                  m = t.followedBy(m); key.xf.push_back(t); }
+        else key.xf.push_back({});
+        m = juce::AffineTransform::translation(c->getPosition().toFloat()).followedBy(m); key.chain.push_back(c->getPosition());
+    }
+    // The image starts at the top level's origin, so every part lands on the same device coordinates as in a direct
+    // paint of the window (the rasteriser's rounding depends on them).
+    const auto dev = getLocalBounds().toFloat().transformedBy(m).getSmallestIntegerContainer();
+    if (dev.getX() < 0 || dev.getY() < 0) direct = true;
+    // Two images: the art alone (drawn once per size), and the face (the art plus the parts). A changed part's area is
+    // copied back from the art and its parts drawn again, so the art never has to be drawn under a small clip.
+    if (direct) { drawFace(g, true, true); return; }
+    auto inImage = [&](juce::Graphics& ig) {           // the same steps the parents' paints take
+        if (! juce::exactlyEqual(k, 1.0f)) ig.addTransform(juce::AffineTransform::scale(k));
+        for (size_t i = 0; i < chain.size(); ++i) { if (chain[i]->isTransformed()) ig.addTransform(key.xf[i]); ig.setOrigin(key.chain[i]); }
+    };
+    if (! (key == cacheKey) || ! cache.isValid() || ! art.isValid()) {
+        cacheKey = key;
+        art = juce::Image(juce::Image::ARGB, juce::jmax(1, dev.getRight()), juce::jmax(1, dev.getBottom()), true);
+        { juce::Graphics ag(art); ag.reduceClipRegion(dev); inImage(ag); drawFace(ag, true, false); }   // the static art, once
+        cache = juce::Image(juce::Image::ARGB, art.getWidth(), art.getHeight(), true);
+        cacheDirty.clear(); cacheDirty.add(getLocalBounds());
+    }
+    if (! cacheDirty.isEmpty()) {
+        juce::RectangleList<int> px;                   // whole device pixels: the art copied back, the parts drawn over it
+        for (auto& r : cacheDirty) px.add(r.toFloat().transformedBy(m).getSmallestIntegerContainer().getIntersection(cache.getBounds()));
+        {
+            const juce::Image::BitmapData src(art, juce::Image::BitmapData::readOnly);
+            juce::Image::BitmapData dst(cache, juce::Image::BitmapData::writeOnly);
+            for (auto& r : px) for (int y = r.getY(); y < r.getBottom(); ++y)
+                std::memcpy(dst.getPixelPointer(r.getX(), y), src.getPixelPointer(r.getX(), y), (size_t) (r.getWidth() * src.pixelStride));
+        }
+        juce::Graphics cg(cache);
+        cg.reduceClipRegion(px);
+        inImage(cg);
+        drawFace(cg, false, true);
+        cacheDirty.clear();
+    }
+    g.drawImageTransformed(cache, m.inverted());
+}
+
+void RackPanel::drawFace(juce::Graphics& g, bool drawArt, bool drawParts)
+{
+    juce::Graphics::ScopedSaveState save(g);
     g.addTransform(juce::AffineTransform::scale(scale()));
     // The SVG is drawn in design units (its viewBox is the layout canvas), so it scales with the editor and stays sharp.
     // Not drawWithin(): that fits the drawing's content bounds, and the wear layer reaches past the panel edge.
     g.reduceClipRegion(juce::Rectangle<float>(0, 0, lay.width, lay.height).toNearestInt());
-    if (bg) bg->draw(g, 1.0f);
+    if (drawArt && bg) bg->draw(g, 1.0f);
+    if (! drawParts) return;
     for (size_t i = 0; i < lay.controls.size(); ++i) {
         const auto& c = lay.controls[i]; const float v = bind.get(c.id);
         if (c.kind == "readout") {                     // a longer text ("EXT 118.4") gets smaller cells in the same LCD
@@ -102,17 +214,47 @@ void RackPanel::paint(juce::Graphics& g)
     }
 }
 
+bool RackPanel::isListControl(int i) const
+{
+    if (i < 0 || i >= (int) lay.controls.size()) return false;
+    const auto& c = lay.controls[(size_t) i];
+    return c.kind == "switch" && c.positions >= 2;
+}
+
+listmenu::Choice RackPanel::listItems(int i) const
+{
+    listmenu::Choice ch; if (! isListControl(i)) return ch;
+    const auto& c = lay.controls[(size_t) i];
+    for (int k = 0; k < c.positions; ++k) ch.items.add(k < c.marks.size() ? c.marks[k] : juce::String(k + 1));
+    ch.ticked = (int) std::lround(bind.get(c.id) * (float) (c.positions - 1));
+    return ch;
+}
+
+void RackPanel::applyListChoice(int i, int index)
+{
+    if (! isListControl(i)) return;
+    const auto& c = lay.controls[(size_t) i];
+    if (index < 0 || index >= c.positions) return;
+    bind.gesture(c.id, true); bind.set(c.id, (float) index / (float) (c.positions - 1)); bind.gesture(c.id, false); refresh();
+}
+
+void RackPanel::showList(int i)
+{
+    listmenu::show(listItems(i), *this, localAreaToGlobal(controlArea(i)), [this, i](int index) { applyListChoice(i, index); });
+}
+
 void RackPanel::mouseDown(const juce::MouseEvent& e)
 {
     const int i = controlAt(toDesign(e.position)); if (i < 0) return;
     const auto& c = lay.controls[(size_t) i];
-    if (c.kind == "button") { pressedIdx = i; bind.press(c.id, true); repaint(); return; }
+    if (e.mods.isPopupMenu() && isListControl(i)) { showList(i); return; }   // right-click: the whole list
+    if (c.kind == "button") { pressedIdx = i; bind.press(c.id, true); refresh(); return; }
     if (c.kind == "readout") {                         // drag the digits like a knob: 1 unit per 2 px, Shift = 0.1
         if (! bind.readoutEnabled(c.id)) return;
         dragIdx = i; dragStartY = e.position.y; dragStartR = std::round(bind.readoutValue(c.id) * 10.0) / 10.0; dragMoved = false; bind.gesture(c.param, true); return;
     }
     if (c.style == "rocker") {                         // press the left half for the first position, the right half for the second
-        bind.gesture(c.id, true); bind.set(c.id, toDesign(e.position).x > c.cx ? 1.0f : 0.0f); bind.gesture(c.id, false); repaint(); return;
+        bind.gesture(c.id, true); bind.set(c.id, toDesign(e.position).x > c.cx ? 1.0f : 0.0f); bind.gesture(c.id, false); refresh(); return;
     }
     dragIdx = i; dragStartY = e.position.y; dragStartV = bind.get(c.id); dragMoved = false; bind.gesture(c.id, true);
 }
@@ -123,19 +265,22 @@ void RackPanel::mouseDrag(const juce::MouseEvent& e)
     const auto& c = lay.controls[(size_t) dragIdx]; const float dy = dragStartY - e.position.y;
     if (std::abs(dy) > 3) dragMoved = true;
     if (c.kind == "readout") { const double st = e.mods.isShiftDown() ? 0.1 : 1.0, v = dragStartR + (double) dy * (e.mods.isShiftDown() ? 0.05 : 0.5);
-        bind.setReadoutValue(c.id, std::round(v / st) * st); repaint(); return; }
+        bind.setReadoutValue(c.id, std::round(v / st) * st); refresh(); return; }
     const float range = c.kind == "switch" ? 60.0f : (e.mods.isShiftDown() ? 1000.0f : 200.0f);   // screen pixels for full travel
-    bind.set(c.id, snap(c, dragStartV + dy / range)); repaint();
+    bind.set(c.id, snap(c, dragStartV + dy / range)); refresh();
 }
 
-void RackPanel::mouseUp(const juce::MouseEvent&)
+void RackPanel::mouseUp(const juce::MouseEvent& e)
 {
-    if (pressedIdx >= 0) { bind.press(lay.controls[(size_t) pressedIdx].id, false); pressedIdx = -1; repaint(); return; }
+    if (pressedIdx >= 0) { bind.press(lay.controls[(size_t) pressedIdx].id, false); pressedIdx = -1; refresh(); return; }
     if (dragIdx < 0) return;
     const auto& c = lay.controls[(size_t) dragIdx];
-    if (c.kind == "readout") { bind.gesture(c.param, false); dragIdx = -1; repaint(); return; }
-    if (c.kind == "switch" && ! dragMoved) { const float step = 1.0f / (float) (c.positions - 1); float v = bind.get(c.id) + step; if (v > 1.0f + 1e-4f) v = 0; bind.set(c.id, snap(c, v)); }
-    bind.gesture(c.id, false); dragIdx = -1; repaint();
+    if (c.kind == "readout") { bind.gesture(c.param, false); dragIdx = -1; refresh(); return; }
+    if (c.kind == "switch" && ! dragMoved) {           // click: the next position, Shift-click: the previous one (both wrap)
+        const int n = c.positions, cur = (int) std::lround(bind.get(c.id) * (float) (n - 1));
+        bind.set(c.id, snap(c, (float) listmenu::step(cur, n, e.mods.isShiftDown()) / (float) (n - 1)));
+    }
+    bind.gesture(c.id, false); dragIdx = -1; refresh();
 }
 
 void RackPanel::mouseDoubleClick(const juce::MouseEvent& e)
@@ -144,9 +289,9 @@ void RackPanel::mouseDoubleClick(const juce::MouseEvent& e)
     const auto& c = lay.controls[(size_t) i]; if (c.kind == "button") return;
     if (c.kind == "readout") {                         // double-click resets the parameter behind the readout
         for (auto& k : lay.controls) if (k.id == c.param) { bind.gesture(k.id, true); bind.set(k.id, k.def); bind.gesture(k.id, false); }
-        repaint(); return;
+        refresh(); return;
     }
-    bind.gesture(c.id, true); bind.set(c.id, c.def); bind.gesture(c.id, false); repaint();
+    bind.gesture(c.id, true); bind.set(c.id, c.def); bind.gesture(c.id, false); refresh();
 }
 
 void RackPanel::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
@@ -155,7 +300,7 @@ void RackPanel::mouseWheelMove(const juce::MouseEvent& e, const juce::MouseWheel
     if (i < 0 || lay.controls[(size_t) i].kind == "button") { Component::mouseWheelMove(e, w); return; }   // not a control that turns: a host's scroll view gets the wheel
     const auto& c = lay.controls[(size_t) i];
     if (c.kind == "readout") { if (! bind.readoutEnabled(c.id)) return; const double st = e.mods.isShiftDown() ? 0.1 : 1.0;
-        bind.gesture(c.param, true); bind.setReadoutValue(c.id, std::round(bind.readoutValue(c.id) / st) * st + (w.deltaY > 0 ? st : -st)); bind.gesture(c.param, false); repaint(); return; }
+        bind.gesture(c.param, true); bind.setReadoutValue(c.id, std::round(bind.readoutValue(c.id) / st) * st + (w.deltaY > 0 ? st : -st)); bind.gesture(c.param, false); refresh(); return; }
     const float d = c.kind == "switch" ? (w.deltaY > 0 ? 1.0f : -1.0f) / (float) (c.positions - 1) : w.deltaY * (e.mods.isShiftDown() ? 0.05f : 0.25f);
-    bind.gesture(c.id, true); bind.set(c.id, snap(c, bind.get(c.id) + d)); bind.gesture(c.id, false); repaint();
+    bind.gesture(c.id, true); bind.set(c.id, snap(c, bind.get(c.id) + d)); bind.gesture(c.id, false); refresh();
 }

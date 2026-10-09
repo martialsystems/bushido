@@ -7,7 +7,7 @@
 
 // MAIN is today's panel and editor, untouched, under a tab strip (docs/REFERENCE.md, Tab controls): MAIN · STEPS · CLOCK · MIDI · SETUP.
 // The strip is 36 design px above the 1600 x 434 art; a non-MAIN tab replaces the whole face at the same size.
-class BushidoEditor : public juce::AudioProcessorEditor, private RackPanel::Binding, private bushido_ui::TabHost {
+class BushidoEditor : public juce::AudioProcessorEditor, private RackPanel::Binding, private bushido_ui::TabHost, private juce::Timer {
 public:
     explicit BushidoEditor(BushidoProcessor&);
     ~BushidoEditor() override;
@@ -15,6 +15,13 @@ public:
     void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff0c0c0d)); }
     CableLayer& cableLayer() { return cables; }
     RackPanel& rackPanel() { return *panel; }
+    bushido_ui::TabPage& tabPage() { return *page; }
+    PatternScreen& patternScreen() { return *screen; }
+    // The panel, page and pattern screen timers run only while the editor is on screen (not hidden, minimised or
+    // closed) and only for the face that is showing. Checked on visibility changes, tab changes and 4 times a second.
+    void refreshTimers();
+    void visibilityChanged() override { refreshTimers(); }
+    void parentHierarchyChanged() override { refreshTimers(); }
     void showTab(int tab);                                   // bushido_ui::Tab
     int  currentTab() const { return strip.current(); }
     void setScalePercent(int percent) override;              // 75 / 100 / 125 / 150 / 200 % of 1280 wide
@@ -32,6 +39,7 @@ private:
     CableLayer cables;
     std::unique_ptr<Swatches> swatches;
     std::unique_ptr<PatternScreen> screen;
+    void timerCallback() override { refreshTimers(); }
     float get(const juce::String& id) override;
     void set(const juce::String& id, float v) override;
     void gesture(const juce::String& id, bool begin) override;

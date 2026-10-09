@@ -23,6 +23,7 @@ juce::String noteText(int midi) { char buf[8]; return rack::pitch::noteName(midi
 }
 
 std::vector<float> TabPage::clipboard;
+std::vector<TabPage::Mark>* TabPage::recorder = nullptr;
 
 // ---------------------------------------------------------------- strip
 void TabStrip::paint(juce::Graphics& g)
@@ -57,6 +58,11 @@ void TabPage::text(juce::Graphics& g, const juce::String& s, float x, float base
                                    : hz == juce::Justification::right ? juce::Rectangle<float>(x - w, top, w, h)
                                    : juce::Rectangle<float>(x - w / 2, top, w, h);
     g.drawText(s, r, juce::Justification(hz | juce::Justification::top), false);
+    if (recorder != nullptr) {                         // the ink's extent (drawText puts the run inside r as justified)
+        const float tw = juce::GlyphArrangement::getStringWidth(f, s);
+        const float x0 = hz == juce::Justification::left ? x : hz == juce::Justification::right ? x - tw : x - tw / 2;
+        mark({ x0 - 3, top - 1, tw + 6, h + 2 }, "t" + juce::String(size) + (bold ? "b" : "p") + c.toString() + s);
+    }
 }
 
 void TabPage::plate(juce::Graphics& g)
@@ -82,6 +88,7 @@ void TabPage::block(juce::Graphics& g, juce::Rectangle<float> r, const juce::Str
 
 void TabPage::lcd(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& t, int chars)
 {
+    mark(r.expanded(1), "l" + juce::String(chars) + t);
     g.setColour(juce::Colour(0xff0a0a0b)); g.fillRoundedRectangle(r, 3);
     g.setColour(juce::Colour(0xff2a2a2c)); g.drawRoundedRectangle(r, 3, 1.2f);
     const auto glass = r.reduced(3);
@@ -100,23 +107,43 @@ void TabPage::segmented(juce::Graphics& g, juce::Rectangle<float> r, const juce:
     for (int i = 0; i < n; ++i) {
         const juce::Rectangle<float> c(r.getX() + w * (float) i, r.getY(), w, r.getHeight());
         const bool on = i == sel, off = i == disabledSegment;
+        mark(c, juce::String("s") + (on ? "1" : "0"));
         if (on) g.setGradientFill(juce::ColourGradient(juce::Colour(0xfffbf9f1), 0, c.getY(), juce::Colour(0xffdcd7c6), 0, c.getBottom(), false));
         else g.setColour(juce::Colour(0xff0e0e10));
         g.fillRoundedRectangle(c.reduced(0.6f), 2.5f);
         auto col = on ? juce::Colour(0xff141414) : kLabel; if (off) col = col.withAlpha(0.35f);
         text(g, labels[i], c.getCentreX(), c.getCentreY() + 3.6f, 10, col, true, 0.8f);
-        if (! off) hits.push_back({ c, [this, id, i, n](juce::Point<float>) { setParam(id, (float) i / (float) (n - 1)); }, {}, {}, {} });
+        if (! off) { auto h = listParam(c, id, labels, disabledSegment >= 0 ? std::vector<int> { disabledSegment } : std::vector<int> {});
+                     h.click = [this, id, i, n](juce::Point<float>) { setParam(id, (float) i / (float) (n - 1)); };   // a segment is picked directly
+                     h.step = {}; hits.push_back(h); }
     }
 }
 
 void TabPage::button(juce::Graphics& g, juce::Rectangle<float> r, const juce::String& label, std::function<void()> action, bool selected)
 {
+    mark(r.expanded(1), juce::String("b") + (selected ? "1" : "0"));
     if (selected) g.setColour(kGold);
     else g.setGradientFill(juce::ColourGradient(juce::Colour(0xff4a4a4e), r.getX(), r.getY(), juce::Colour(0xff0e0e10), r.getRight(), r.getBottom(), false));
     g.fillRoundedRectangle(r, 3);
     g.setColour(juce::Colours::black); g.drawRoundedRectangle(r, 3, 1.0f);
     text(g, label, r.getCentreX(), r.getCentreY() + 3.6f, 10, selected ? juce::Colour(0xff141414) : kLabel, true, 0.8f);
-    hits.push_back({ r, [action](juce::Point<float>) { action(); }, {}, {}, {} });
+    Hit h; h.r = r; h.click = [action](juce::Point<float>) { action(); }; hits.push_back(h);
+}
+
+// A parameter with a list of named settings: click = next, Shift-click = previous (both wrap), right-click = the list.
+TabPage::Hit TabPage::listParam(juce::Rectangle<float> r, const juce::String& id, const juce::StringArray& labels, std::vector<int> disabled)
+{
+    Hit h; h.r = r; h.listName = id;
+    const int n = labels.size();
+    auto current = [this, id, n] { return (int) std::lround(host.value(id) * (float) (n - 1)); };
+    h.list = [labels, disabled, current] { listmenu::Choice c; c.items = labels; c.ticked = current(); c.disabled = disabled; return c; };
+    h.choose = [this, id, n, disabled](int k) { if (k >= 0 && k < n && std::find(disabled.begin(), disabled.end(), k) == disabled.end()) setParam(id, (float) k / (float) (n - 1)); };
+    h.step = [this, id, n, current, disabled](bool back) {
+        int k = current();
+        for (int tries = 0; tries < n; ++tries) { k = listmenu::step(k, n, back); if (std::find(disabled.begin(), disabled.end(), k) == disabled.end()) break; }
+        setParam(id, (float) k / (float) (n - 1)); };
+    h.click = [step = h.step](juce::Point<float>) { step(false); };
+    return h;
 }
 
 // ---------------------------------------------------------------- page
@@ -126,8 +153,16 @@ TabPage::~TabPage() = default;
 void TabPage::setTab(int t)
 {
     tab = t; typing.reset(); dragHit = -1;
-    if (t == MAIN) stopTimer(); else startTimerHz(15);
+    setLive(live);
     repaint();
+}
+
+void TabPage::setLive(bool l)
+{
+    live = l;
+    const bool run = live && tab != MAIN;
+    if (run == isTimerRunning()) return;
+    if (run) { startTimerHz(15); repaint(); } else stopTimer();
 }
 
 void TabPage::setParam(const juce::String& id, float v)
@@ -137,7 +172,8 @@ void TabPage::setParam(const juce::String& id, float v)
 
 void TabPage::paint(juce::Graphics& g)
 {
-    hits.clear();
+    hits.clear(); recorded.clear();
+    const juce::ScopedValueSetter<std::vector<Mark>*> rec(recorder, &recorded);
     g.addTransform(juce::AffineTransform::scale(scale()));
     plate(g);
     switch (tab) { case STEPS: paintSteps(g); break; case CLOCK: paintClock(g); break; case MIDI: paintMidi(g); break; case SETUP: paintSetup(g); break; default: break; }
@@ -165,15 +201,15 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
     text(g, juce::String("ROW ") + kRow[row], cx, y + 26, 14, kLabel, true, 2.0f);
 
     const juce::Rectangle<float> left(44, y + 50, 80, 24), right(132, y + 50, 80, 24);
-    auto toggle = [this](const juce::String& id) { return [this, id](juce::Point<float>) { setParam(id, host.value(id) > 0.5f ? 0.0f : 1.0f); }; };
     if (! isC) {
         text(g, "QUANT", left.getCentreX(), y + 46, 9, kDim, true, 0.8f);
         text(g, "PITCH LAW", right.getCentreX(), y + 46, 9, kDim, true, 0.8f);
         lcd(g, left, quant ? "SEMI" : "OFF", 5);
         lcd(g, right, law == Law::VOct ? "V/OCT" : "LIN", 5);
-        hits.push_back({ left, toggle(rowParam("STEPS:QUANT", row)), {}, {}, {} });
-        hits.push_back({ right, toggle(rowParam("STEPS:LAW", row)), {}, {}, {} });
+        hits.push_back(listParam(left, rowParam("STEPS:QUANT", row), { "OFF", "SEMI" }));
+        hits.push_back(listParam(right, rowParam("STEPS:LAW", row), { "V/OCT", "LIN" }));
         if (host.lawMismatch(row)) {                           // a cable expects the other law (JCS R4: the role badge)
+            mark({ right.getRight() - 9, right.getY() - 7, 15, 15 }, "badge");
             g.setColour(kWarn); g.fillEllipse(right.getRight() - 8, right.getY() - 6, 13, 13);
             text(g, juce::String::fromUTF8("\xe2\x89\xa0"), right.getRight() - 1.5f, right.getY() + 4.5f, 10, juce::Colours::white, true, 0);
         }
@@ -190,7 +226,7 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
         text(g, "RANGE", right.getCentreX(), y + 46, 9, kDim, true, 0.8f);
         lcd(g, left, cTime ? "TIME" : "CV", 5);
         lcd(g, right, "5V", 5);
-        hits.push_back({ left, toggle("CH:C MODE"), {}, {}, {} });
+        hits.push_back(listParam(left, "CH:C MODE", { "CV", "TIME" }));
         text(g, cTime ? juce::String::fromUTF8("TIME: gate length 5\xe2\x80\x93" "95 %") : juce::String::fromUTF8("CV: 0\xe2\x80\x93" "5 V on CV C"), cx, y + 91, 9, kDim, false, 0.6f);
         text(g, cTime ? juce::String("never sent as CV") : juce::String::fromUTF8("VEL FROM C = round(1 + 126\xc2\xb7" "C/5)"), cx, y + 106, 9, kDim, false, 0.6f);
     }
@@ -204,7 +240,9 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
         const float knob = host.value(id);
         double v = (double) (knob * range); if (quant) v = rack::pitch::quantize(law, v);
         const juce::Rectangle<float> vr(x, y + 18, 82, 30), nr(x, y + 56, 82, 30);
-        if (s == pos && (isC || row == reading)) { g.setColour(kGold); g.drawRoundedRectangle(vr.getUnion(nr).expanded(4), 4, 1.4f); }
+        const bool lit = s == pos && (isC || row == reading);
+        mark(vr.getUnion(nr).expanded(6), juce::String("h") + (lit ? "1" : "0"));
+        if (lit) { g.setColour(kGold); g.drawRoundedRectangle(vr.getUnion(nr).expanded(4), 4, 1.4f); }
         lcd(g, vr, juce::String(v, 2) + "V", 5);
         lcd(g, nr, isC && cTime ? juce::String((int) std::round(100.0 * (0.05 + 0.9 * (double) knob))) + "%" : noteText(rack::pitch::midiNote(law, v)), 5);
         text(g, juce::String(s + 1), x + 41, y + 104, 10, kDim, true, 0.8f);
@@ -216,7 +254,7 @@ void TabPage::rowBlock(juce::Graphics& g, int row, juce::Rectangle<float> r)
             });
         };
         auto wheel = [this, id](int d) { setParam(id, host.value(id) + 0.01f * (float) d); };
-        hits.push_back({ vr.getUnion(nr), {}, id, wheel, type });
+        Hit h; h.r = vr.getUnion(nr); h.dragId = id; h.wheel = wheel; h.dbl = type; hits.push_back(h);
     }
 
     const float bx = 1381, by = y + 26;
@@ -335,9 +373,15 @@ void TabPage::paintMidi(juce::Graphics& g)
         text(g, "CHANNEL", cx - 100, 90, 10, kDim, true, 0.8f);
         const juce::Rectangle<float> chr(cx - 165, 98, 130, 34);
         lcd(g, chr, "< CH " + juce::String(ch) + " >", 9);
-        hits.push_back({ chr, [this, chId, chr](juce::Point<float> p) { const int c = 1 + (int) std::lround(host.value(chId) * 15.0f) + (p.x < chr.getCentreX() ? -1 : 1);
-                                                                        setParam(chId, (float) (juce::jlimit(1, 16, c) - 1) / 15.0f); },
-                         {}, [this, chId](int d) { const int c = 1 + (int) std::lround(host.value(chId) * 15.0f) + d; setParam(chId, (float) (juce::jlimit(1, 16, c) - 1) / 15.0f); }, {} });
+        {   // the < and > halves step down and up (no wrap); right-click lists all 16
+            juce::StringArray chans; for (int k = 1; k <= 16; ++k) chans.add("CH " + juce::String(k));
+            auto h = listParam(chr, chId, chans);
+            h.click = [this, chId, chr](juce::Point<float> p) { const int c = 1 + (int) std::lround(host.value(chId) * 15.0f) + (p.x < chr.getCentreX() ? -1 : 1);
+                                                               setParam(chId, (float) (juce::jlimit(1, 16, c) - 1) / 15.0f); };
+            h.step = {};
+            h.wheel = [this, chId](int d) { const int c = 1 + (int) std::lround(host.value(chId) * 15.0f) + d; setParam(chId, (float) (juce::jlimit(1, 16, c) - 1) / 15.0f); };
+            hits.push_back(h);
+        }
         text(g, "VELOCITY", cx + 100, 90, 10, kDim, true, 0.8f);
         segmented(g, { cx + 30, 103, 140, 24 }, { "100", "FROM C" }, rowParam("MIDI:VEL", row), cTime ? 1 : -1);
         const bool lin = host.value(rowParam("STEPS:LAW", row)) > 0.5f;
@@ -387,8 +431,13 @@ void TabPage::paintSetup(juce::Graphics& g)
     text(g, "UI SCALE", 410, 84, 9, kDim, true, 0.8f);
     const int cur = host.scalePercent();
     const int steps[] = { 75, 100, 125, 150, 200 };
+    juce::StringArray scaleNames; int curIdx = -1;
+    for (int i = 0; i < 5; ++i) { scaleNames.add(juce::String(steps[i]) + " %"); if (steps[i] == cur) curIdx = i; }
     for (int i = 0; i < 5; ++i) { const int pc = steps[i];
-        button(g, { 98 + 130.0f * (float) i, 92, 104, 26 }, juce::String(pc) + " %", [this, pc] { host.setScalePercent(pc); }, pc == cur); }
+        button(g, { 98 + 130.0f * (float) i, 92, 104, 26 }, juce::String(pc) + " %", [this, pc] { host.setScalePercent(pc); }, pc == cur);
+        auto& h = hits.back(); h.listName = "UI SCALE";                // each button picks directly; right-click lists the five
+        h.list = [scaleNames, curIdx] { listmenu::Choice c; c.items = scaleNames; c.ticked = curIdx; return c; };
+        h.choose = [this](int k) { const int pcs[] = { 75, 100, 125, 150, 200 }; if (k >= 0 && k < 5) host.setScalePercent(pcs[k]); }; }
     const int w = juce::roundToInt(1280.0 * cur / 100.0), h = juce::roundToInt(36.0 * w / 1600.0) + juce::roundToInt(434.0 * w / 1600.0);
     lcd(g, { 290, 146, 240, 36 }, juce::String(w) + " X " + juce::String(h), 11);
     text(g, juce::String::fromUTF8("default 1280 \xc3\x97 376: the panel (1280 \xc3\x97 347) plus a 29 px tab strip \xc2\xb7 960 to 2560 wide"), 410, 210, 11, kDim, false, 0.5f);
@@ -399,6 +448,7 @@ void TabPage::paintSetup(juce::Graphics& g)
     float y = 64;
     if (host.readOnly()) {
         const juce::Rectangle<float> ban(840, y, 700, 30);
+        mark(ban.expanded(1), "banner");
         g.setColour(juce::Colour(0xff3a1410)); g.fillRoundedRectangle(ban, 3);
         g.setColour(kWarn); g.drawRoundedRectangle(ban, 3, 1.4f);
         text(g, juce::String::fromUTF8("READ-ONLY \xc2\xb7 saved by a newer BUSHIDO \xc2\xb7 this session is handed back unchanged"), 1190, y + 19.5f, 11, kLabel, true, 0.6f);
@@ -419,8 +469,66 @@ void TabPage::paintSetup(juce::Graphics& g)
         g.setColour(kInk); g.setFont(mono);
         const auto t = i == maxLines - 1 && (int) lines.size() > maxLines ? juce::String::fromUTF8("\xe2\x80\xa6 ") + juce::String((int) lines.size() - i) + " more" : lines[(size_t) i];
         g.drawFittedText(t, lr.reduced(12, 3).toNearestInt(), juce::Justification::centredLeft, 1, 0.8f);
+        mark(lr.expanded(1), "m" + t);
     }
     text(g, juce::String::fromUTF8("the last load's report (format 0 \xe2\x86\x92 1); cables and knob volts never change"), 1190, 390, 10, kDim, false, 0.5f);
+}
+
+// ---------------------------------------------------------------- lists
+void TabPage::layout()
+{
+    juce::Image scratch(juce::Image::ARGB, 1, 1, true);
+    juce::Graphics g(scratch);
+    g.reduceClipRegion(juce::Rectangle<int>());        // nothing is drawn: the hits and marks are rebuilt
+    paint(g);
+}
+
+juce::Rectangle<int> TabPage::toComponent(juce::Rectangle<float> r) const
+{
+    return r.expanded(2).transformedBy(juce::AffineTransform::scale(scale())).getSmallestIntegerContainer().expanded(1).getIntersection(getLocalBounds());
+}
+
+juce::RectangleList<int> TabPage::refresh()
+{
+    layout();
+    juce::RectangleList<int> dirty;
+    if (recorded.size() != shown.size()) dirty.add(getLocalBounds());
+    else for (size_t i = 0; i < recorded.size(); ++i)
+        if (! (recorded[i] == shown[i])) { dirty.add(toComponent(recorded[i].r)); dirty.add(toComponent(shown[i].r)); }
+    shown = recorded;
+    for (auto& r : dirty) repaint(r);
+    return dirty;
+}
+
+juce::StringArray TabPage::listNames() const
+{
+    juce::StringArray a; for (auto& h : hits) if (h.list) a.addIfNotAlreadyThere(h.listName);
+    return a;
+}
+
+int TabPage::firstHitOf(const juce::String& name) const
+{
+    for (size_t i = 0; i < hits.size(); ++i) if (hits[i].list && hits[i].listName == name) return (int) i;
+    return -1;
+}
+
+listmenu::Choice TabPage::listItems(int list) const
+{
+    const int i = firstHitOf(listNames()[list]); return i < 0 ? listmenu::Choice {} : hits[(size_t) i].list();
+}
+
+void TabPage::applyListChoice(int list, int index)
+{
+    const int i = firstHitOf(listNames()[list]); if (i < 0) return;
+    auto f = hits[(size_t) i].choose; if (f) f(index);
+}
+
+void TabPage::stepList(int list, bool back)
+{
+    const int i = firstHitOf(listNames()[list]); if (i < 0) return;
+    const auto h = hits[(size_t) i];
+    if (h.step) h.step(back);
+    else if (h.click && ! back) h.click(h.r.getCentre());
 }
 
 // ---------------------------------------------------------------- mouse
@@ -435,6 +543,12 @@ void TabPage::mouseDown(const juce::MouseEvent& e)
     const int i = hitAt(design(e.position)); dragHit = -1;
     if (i < 0) return;
     const auto h = hits[(size_t) i];                   // a copy: the action may repaint
+    if (h.list && e.mods.isPopupMenu()) {               // right-click: the whole list
+        const auto area = localAreaToGlobal(h.r.transformedBy(juce::AffineTransform::scale(scale())).getSmallestIntegerContainer());
+        listmenu::show(h.list(), *this, area, h.choose);
+        return;
+    }
+    if (h.step && e.mods.isShiftDown()) { h.step(true); return; }
     if (h.dragId.isNotEmpty()) { dragHit = i; dragY = e.position.y; dragV = host.value(h.dragId); host.edit(h.dragId, true); return; }
     if (h.click) h.click(design(e.position));
 }

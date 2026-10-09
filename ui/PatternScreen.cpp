@@ -24,6 +24,12 @@ PatternScreen::PatternScreen(PanelLayout::Screen g, float designWidth) : scr(std
     setWantsKeyboardFocus(true); startTimerHz(4);
 }
 
+void PatternScreen::setLive(bool live)
+{
+    if (live == isTimerRunning()) return;
+    if (live) { startTimerHz(4); repaint(); } else stopTimer();
+}
+
 void PatternScreen::timerCallback()
 {
     if (mode != Mode::closed) { blink = ! blink; repaint(); }
@@ -155,9 +161,38 @@ void PatternScreen::paint(juce::Graphics& g)
     }
 }
 
+listmenu::Choice PatternScreen::listItems() const
+{
+    listmenu::Choice c; const auto l = loaded ? loaded() : std::pair<int, int> { -1, -1 };
+    for (int bank = 0; bank < 2; ++bank) {
+        const auto n = names ? names(bank) : juce::StringArray();
+        c.sections.add(juce::String("BANK ") + (bank ? "B" : "A")); c.sectionStart.push_back(c.items.size());
+        for (int i = 0; i < n.size(); ++i) {
+            if (l.first == bank && l.second == i) c.ticked = c.items.size();
+            c.items.add(juce::String(bank ? "B" : "A") + pad3(i + 1) + "  " + n[i]);
+        }
+    }
+    return c;
+}
+
+void PatternScreen::applyListChoice(int index)
+{
+    const int nA = names ? names(0).size() : 0, nB = names ? names(1).size() : 0;
+    if (index < 0 || index >= nA + nB) return;
+    const int bank = index < nA ? 0 : 1, i = bank ? index - nA : index;
+    view = bank; message.clear();
+    if (choose) choose(bank, i);
+    repaint();
+}
+
 void PatternScreen::mouseDown(const juce::MouseEvent& e)
 {
     const auto p = design(e);
+    if (e.mods.isPopupMenu() && mode == Mode::closed && (scr.bezel.contains(p) || scr.button.contains(p))) {   // right-click: every pattern
+        const auto area = localAreaToGlobal(scr.bezel.getUnion(scr.button).transformedBy(juce::AffineTransform::scale(scale()).translated((float) -getX(), (float) -getY())).getSmallestIntegerContainer());
+        listmenu::show(listItems(), *this, area, [this](int k) { applyListChoice(k); });
+        return;
+    }
     if (const int k = bankAt(p); k >= 0) { view = k; message.clear(); if (mode == Mode::search) { query.clear(); hi = top = 0; } repaint(); return; }
     if (mode == Mode::search) { const int r = rowAt(p); if (r >= 0 && choose) choose(view, matches()[r]); setMode(Mode::closed); return; }
     if (mode == Mode::name) { if (scr.save.contains(p)) doSave(); else setMode(Mode::closed); return; }

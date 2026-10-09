@@ -4,10 +4,13 @@
 // - Click the screen or the key: the list of the lit bank opens under the screen and the LCD becomes a search box. Type to filter,
 //   arrows or the wheel to move, click a row or Enter to load, Esc or a click elsewhere to close.
 // - Click lamp A or B: that bank is the one the list shows and SAVE writes to.
+// - Right-click the screen or the key: every pattern of both banks as a menu, the loaded one ticked (the suite's list rule,
+//   ListMenu.h). Pick one to load it.
 // - Click SAVE: the LCD shows the next number in the lit bank; type a name, Enter (or SAVE again) saves, Esc cancels.
 // While closed the component covers only the top-bar parts; while open it covers the whole editor, so an outside click closes it.
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "Layout.h"
+#include "ListMenu.h"
 
 class PatternScreen : public juce::Component, private juce::Timer {
 public:
@@ -19,6 +22,8 @@ public:
 
     void placeIn(juce::Rectangle<int> editorBounds);        // call from the editor's resized()
     bool isOpen() const { return mode != Mode::closed; }
+    void setLive(bool live);                                // the editor shows the screen: run the 4 Hz check, else stop it
+    bool isLive() const { return isTimerRunning(); }
 
     void paint(juce::Graphics&) override;
     void mouseDown(const juce::MouseEvent&) override;
@@ -26,6 +31,10 @@ public:
     void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
     bool keyPressed(const juce::KeyPress&) override;
     bool hitTest(int x, int y) override;
+
+    // The right-click list: bank A then bank B (a heading each), the loaded pattern ticked; apply loads one.
+    listmenu::Choice listItems() const;
+    void applyListChoice(int index);
 
     static void drawDots(juce::Graphics&, juce::Rectangle<float> area, const juce::String& text, int chars, juce::Colour ink, float ghost);
 

@@ -54,6 +54,15 @@ BushidoEditor::BushidoEditor(BushidoProcessor& p) : AudioProcessorEditor(p), pro
     getConstrainer()->setFixedAspectRatio(aspect);
     const int w = juce::jlimit(960, 2560, (int) proc.apvts.state.getProperty("uiWidth", 1280));
     setSize(w, stripHeight(w) + panelHeight(w));
+    refreshTimers(); startTimerHz(4);
+}
+
+void BushidoEditor::refreshTimers()
+{
+    const bool live = isShowing(), main = strip.current() == bushido_ui::MAIN;
+    panel->setLive(live && main);
+    screen->setLive(live && main);
+    page->setLive(live && ! main);
 }
 
 BushidoEditor::~BushidoEditor() { proc.onStateLoaded = nullptr; mainFace.removeMouseListener(&cables); }
@@ -79,6 +88,7 @@ void BushidoEditor::showTab(int t)
     strip.setTab(t);
     mainFace.setVisible(t == bushido_ui::MAIN);
     page->setTab(t); page->setVisible(t != bushido_ui::MAIN);
+    refreshTimers();
 }
 
 void BushidoEditor::setScalePercent(int percent)
