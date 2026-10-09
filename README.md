@@ -16,8 +16,8 @@ BUSHIDO is a hands-on step sequencer for your DAW. You build lines by turning kn
 
 ### Clock
 - **INT, EXT or HOST.** The internal clock runs from 0.5 to 32 steps per second, and TEMPO CV bends it by one octave of rate per volt. Drag the BPM readout to set the tempo, and choose 1/8, 1/16 or 1/32 to set how many steps make a beat. EXT follows the CLOCK jack and shows the measured tempo.
-- **HOST sync.** In HOST mode BUSHIDO steps on the DAW's grid of 1/8, 1/16 or 1/32 notes, read from the song position, so it never drifts. Each step changes on its exact sample. Starting the transport starts the sequence from A step 1, and stopping it stops the sequence.
-- **Clean starts.** Every start begins at A step 1 at once. On an external clock, step 1 is never skipped when START and a clock edge arrive together.
+- **HOST sync.** In HOST mode BUSHIDO steps on the DAW's grid of 1/8, 1/16 or 1/32 notes, read from the song position, so it never drifts. Each step changes on its exact sample. It is locked to the song position: when the transport starts, loops or jumps, BUSHIDO plays the step that falls there (counting 12 steps in A, 24 in A+B and ALT from the start of the song), and stopping the transport stops the sequence.
+- **Clean starts.** Every START (button or jack) begins at A step 1 at once. On an external clock, step 1 is never skipped when START and a clock edge arrive together.
 - **SETTLE TIGHT or VINTAGE.** In TIGHT mode a new step's CV and gate wait 2 samples. VINTAGE waits 0.6 ms, the timing of earlier versions.
 
 ### Pitch

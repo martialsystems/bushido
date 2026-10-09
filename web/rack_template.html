@@ -22,6 +22,10 @@ input[type=range]{accent-color:var(--gold);width:90px}
 #menu button.drag{background:#34343a;opacity:.85;cursor:grabbing}
 #menu .h{margin-left:auto;opacity:.45;letter-spacing:-1px}
 #menu i{width:12px;height:12px;border-radius:50%;flex:none}
+#lmenu{position:absolute;display:none;z-index:6;min-width:120px;background:#1b1b1e;border:1px solid #3a3a3e;border-radius:8px;padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+#lmenu button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;background:none;border:0;color:var(--fg);padding:6px 9px;border-radius:5px;cursor:pointer;font:inherit}
+#lmenu button:hover{background:#2c2c30}
+#lmenu .tk{width:12px;flex:none}
 .rack{display:flex;gap:12px;align-items:flex-start}
 #br{flex:0 0 212px;position:sticky;top:8px;background:#151517;border:1px solid #000;border-radius:6px;padding:14px 12px 16px;box-sizing:border-box;user-select:none;-webkit-user-select:none}
 #br.drop{border-color:#c8322a;box-shadow:0 0 0 1px #c8322a inset}
@@ -83,7 +87,7 @@ p.legal{font-size:.8rem;margin-top:16px}
   <div id="rows"></div>
   <div id="hint">Drag a row onto the rack to add it there, or click it to add one at the bottom.<br><br>Grab a device by its ear to move it. Drag it back here, or off the rack, to remove it.<br><br>« closes this browser to a strip; click the strip to open it again.</div></div>
   <div class="vl" aria-hidden="true">DEVICE BROWSER</div></aside>
-<div class="sc"><div id="stage"><svg id="sv" viewBox="0 0 1740 320"><defs id="df"></defs><g id="cabinet"></g><g id="devs"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="over"></g><g id="ins"></g></svg><div id="menu"></div></div></div>
+<div class="sc"><div id="stage"><svg id="sv" viewBox="0 0 1740 320"><defs id="df"></defs><g id="cabinet"></g><g id="devs"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="over"></g><g id="ins"></g></svg><div id="menu"></div><div id="lmenu"></div></div></div>
 </div>
 <div class="readout">
   <div class="cell"><span class="k" id="k-step">Playing</span><span class="v" id="r-step">stopped · press START</span></div>
@@ -352,7 +356,19 @@ sv.addEventListener("pointermove",e=>{pt(e);
   sv.style.cursor=m?(m.part=="ear"?"grab":"pointer"):qdev&&(qdev.ui.screen.onKey(qx,qy))?"pointer":(qdev&&qdev.ui.cursor(qx,qy))||(near()||grab?"grab":"default");
   if(down&&!grab&&Math.hypot(mx-down.x,my-down.y)>6){down.moved=true;const pl=plugsAt(down.j);if(pl.length&&!down.shift){const p=pl[pl.length-1];startGrab(p.i,p.e,false)}else newCable(down.j,false)}});
 sv.addEventListener("pointerleave",()=>{ptrIn=false;lab=null;if(!grab)setHov(null)});
-sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();audio();
+// The list rule (as in the plugin): click = next, Shift-click = previous, right-click = the whole list, the current item ticked.
+const lmenu=$("lmenu");
+function hideList(){lmenu.style.display="none"}
+function showList(items,ticked,e,apply){lmenu.innerHTML=items.map((t,k)=>`<button data-k="${k}"><span class="tk">${k==ticked?"\u2713":""}</span>${t}</button>`).join("");
+  const r=stage.getBoundingClientRect();lmenu.style.display="block";const mh=lmenu.offsetHeight,mw=lmenu.offsetWidth,x=e.clientX-r.left,y=e.clientY-r.top;
+  lmenu.style.left=Math.max(4,Math.min(x,r.width-mw-4))+"px";lmenu.style.top=Math.max(4,y+12+mh>r.height?y-mh-8:y+12)+"px";
+  lmenu.onclick=ev=>{const b=ev.target.closest("button[data-k]");if(!b)return;hideList();apply(+b.dataset.k)}}
+const listOf=c=>c.marks||Array.from({length:steps(c)},(_,k)=>String(k+1));
+sv.addEventListener("contextmenu",e=>{if(lmenu.style.display=="block")e.preventDefault()});
+lmenu.addEventListener("contextmenu",e=>e.preventDefault());
+addEventListener("pointerdown",e=>{if(!lmenu.contains(e.target)&&!sv.contains(e.target))hideList()});
+addEventListener("keydown",e=>{if(e.key=="Escape")hideList()});
+sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();hideList();audio();
   const o=openScreen();if(o){o.down(...loc(o.owner.d));return}            // an open list or name entry takes the click
   if(qdev){setFocus(qdev);if(qdev.ui.screen.down(qx,qy))return}
   if(grab&&grab.carry){drop();ignoreUp=true;return}
@@ -410,6 +426,9 @@ function frame(){const S=st&&st.devices||{};rack.forEach(d=>d.ui.frame(S[d.key])
 // search, arrows or scroll, then click a row or press Enter. SAVE adds the panel as the next number in the bank whose lamp is lit.
 // Saved entries stay in this browser (localStorage) and are shared by every device of a kind. Bank B starts with the rack patches.
 const RACKP=__RACKP__,PATTERNS=__PATTERNS__.patterns,BANKART=__BANKART__;
+// Lists and typed text (FIND, a new name) use a plain font; the closed screens keep the dot matrix.
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function plain(x,y,w,h,text,ink){return `<text x="${x}" y="${(y+h/2).toFixed(2)}" fill="${ink}" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Liberation Sans',Arial,sans-serif" font-size="15" dominant-baseline="central" style="white-space:pre">${esc(text)}</text>`}
 const pad3=n=>String(n).padStart(3,"0"),DD_ROW=21,DD_PAD=5,USER={};
 function userBank(store){if(!USER[store]){USER[store]={A:[],B:[]};try{const u=JSON.parse(localStorage.getItem(store)||"null");if(u&&Array.isArray(u.A)&&Array.isArray(u.B))USER[store]=u}catch(e){}}return USER[store]}
 const typed=e=>e.key.length==1&&!e.ctrlKey&&!e.metaKey&&!e.altKey?(e.key.toUpperCase() in FONT?e.key.toUpperCase():null):null;
@@ -429,15 +448,16 @@ class Screen{
     if(this.mode=="search")return ("FIND "+this.query+cur).slice(-n);
     if(this.mode=="name")return (this.view+pad3(this.list(this.view).length+1)+" "+this.nameBuf+cur).slice(0,n);
     return this.label()}
-  draw(){const r=this.G.lcd,t=this.text(),el=this.els[0];el.setAttribute("role","img");el.setAttribute("aria-label",this.mode?t:this.owner.d.title+" "+this.title+" "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09,this.chars);
+  draw(){const r=this.G.lcd,t=this.text(),el=this.els[0];el.setAttribute("role","img");el.setAttribute("aria-label",this.mode?t:this.owner.d.title+" "+this.title+" "+t);const typed=this.mode=="search"?"FIND  "+this.query+(this.blink?"|":" "):this.mode=="name"?this.view+pad3(this.list(this.view).length+1)+"  "+this.nameBuf+(this.blink?"|":" "):null;
+    el.innerHTML=typed!==null?plain(r[0]+6,r[1],r[2]-12,r[3],typed,"#1e2419"):dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09,this.chars);
     this.els[1].innerHTML=this.G.banks.map(k=>lamp(k.cx,k.cy,k.r,k.id==this.view)).join("")}
   rowAt(x,y){if(this.mode!="search")return -1;const b=this.box();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW),M=this.matches();return i>=0&&this.top+i<M.length&&i<ROWS?this.top+i:-1}
   drawList(){const el=this.els[2];if(this.mode!="search"){el.innerHTML="";return}const b=this.box(),M=this.matches(),L=this.list(this.view),n=this.chars;
     let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
     const row=(k,txt,hi)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+k*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3;
-      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,txt,hi?"#a6b192":"#1e2419",hi?.08:.09,n)};
-    if(!M.length)s+=row(0,L.length?" NO MATCH":" BANK "+this.view+" IS EMPTY",false);
-    M.slice(this.top,this.top+ROWS).forEach((i,k)=>{s+=row(k,(this.loaded.b==this.view&&this.loaded.i==i?">":" ")+this.row(this.view,i),this.top+k==this.hi)});
+      return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+plain(x+6,y,w-12,h,txt,hi?"#a6b192":"#1e2419")};
+    if(!M.length)s+=row(0,L.length?"   No match":"   Bank "+this.view+" is empty",false);
+    M.slice(this.top,this.top+ROWS).forEach((i,k)=>{s+=row(k,(this.loaded.b==this.view&&this.loaded.i==i?"\u2022 ":"   ")+pad3(i+1)+"   "+L[i].name,this.top+k==this.hi)});
     if(M.length>ROWS){const h=b[3]-8,y=b[1]+4+h*this.top/M.length;s+=`<rect x="${b[0]+b[2]-4}" y="${y.toFixed(1)}" width="2" height="${(h*ROWS/M.length).toFixed(1)}" rx="1" fill="#c29f4c" opacity=".7"/>`}   // scroll position
     el.innerHTML=s}
   keepHi(){if(this.hi<this.top)this.top=this.hi;if(this.hi>=this.top+ROWS)this.top=this.hi-ROWS+1}
@@ -536,15 +556,16 @@ class BushidoUI{
     this.setP(c.id,this.P[c.id]+(steps(c)>=2?-Math.sign(e.deltaY)/(steps(c)-1):-e.deltaY*(e.shiftKey?.0002:.001)));return true}
   dbl(x,y){const i=this.ctlAt(x,y);if(i<0||this.C[i].kind=="button")return;const id=this.C[i].kind=="readout"?this.C[i].param:this.C[i].id;this.setP(id,this.C[this.C.findIndex(c=>c.id==id)].def)}
   down(e,x,y){const ci=this.ctlAt(x,y);if(ci<0)return false;const c=this.C[ci];
+    if(e.button==2&&steps(c)>=2){const n=steps(c);showList(listOf(c),this.idx(c),e,k=>this.setP(c.id,k/(n-1)));return true}   // right-click: the list
     if(c.kind=="button"){this.pressed=ci;this.drawCtl(ci);sv.setPointerCapture(e.pointerId);kdrag={ui:this,press:ci};this.press(c.id);return true}
     if(c.style=="rocker"){this.setP(c.id,x>c.cx?1:0);return true}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
     if(c.kind=="readout"){if(this.P["CLOCK:SOURCE"]<=.5){kdrag={ui:this,i:ci,y:e.clientY,bpm:Math.round(this.bpmNow()*10)/10};sv.setPointerCapture(e.pointerId)}info.textContent=this.describe(c);return true}
-    kdrag={ui:this,i:ci,y:e.clientY,v:this.P[c.id],moved:false};sv.setPointerCapture(e.pointerId);return true}
+    kdrag={ui:this,i:ci,y:e.clientY,v:this.P[c.id],moved:false,shift:e.shiftKey};sv.setPointerCapture(e.pointerId);return true}
   dragMove(e,k){if(k.press!=null)return;const c=this.C[k.i],dy=k.y-e.clientY;
     if(k.bpm!==undefined){const b=k.bpm+(e.shiftKey?dy*.05:dy*.5),s=e.shiftKey?.1:1;this.setP("CLOCK:TEMPO",this.tempoFor(Math.round(b/s)*s),true);info.textContent=this.describe(c);return}
     if(Math.abs(dy)>3)k.moved=true;if(steps(c)<2||k.moved)this.setP(c.id,k.v+dy/(steps(c)>=2?60:e.shiftKey?1000:200))}
   dragUp(k){if(k.press!=null){this.pressed=null;this.drawCtl(k.press);return}const c=this.C[k.i];
-    if(k.bpm===undefined&&steps(c)>=2&&!k.moved){const n=steps(c)-1;this.setP(c.id,(Math.round(this.P[c.id]*n)+1)%(n+1)/n)}}   // a click steps a switch round
+    if(k.bpm===undefined&&steps(c)>=2&&!k.moved){const n=steps(c)-1;this.setP(c.id,(Math.round(this.P[c.id]*n)+(k.shift?n:1))%(n+1)/n)}}   // click: the next position, Shift-click: the previous one
   // A pattern sets every control except BYPASS and replaces this BUSHIDO's own cables (cables to other devices stay). It keeps running if it was.
   applyPattern(Q){const pm=this.migrated(Q);this.C.forEach(c=>{if(c.kind!="button"&&c.id!="TOP:BYPASS")this.setP(c.id,pm[c.id]??c.default,true)});
     replaceOwn(this.d,Q.cables.map(([a,b,c])=>({a:this.d.key+"/"+a,b:this.d.key+"/"+b,c})))}

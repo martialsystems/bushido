@@ -63,9 +63,12 @@ the settle in samples and the fixed transport rules; the MIDI tab the reference 
 - START toggles running. Every start, including one after a stop, begins at A step 1 at once. In EXT, a clock edge on the
   START sample or the next 2 samples is step 1's own clock and is absorbed, so A1 is never skipped when RUN and CLK arrive together.
 - STOP sends every gate and TRIG output low at once; the CVs and lamps hold.
-- **HOST** (SOURCE = EXT, EXT SOURCE = HOST): the step index is floor(ppq x q) with q = 2 / 4 / 8 from DIV; a change of index is a tick,
-  at its exact sample. Transport start applies the START rule and transport stop the STOP rule, so the steps follow the host and never drift
-  (120 BPM at 1/16 and 48 kHz ticks every 6000 samples).
+- **HOST** (SOURCE = EXT, EXT SOURCE = HOST): the song step is k = floor(ppq x q) with q = 2 / 4 / 8 from DIV; the next song step is a
+  tick, at its exact sample (120 BPM at 1/16 and 48 kHz ticks every 6000 samples). Locked to song position: a transport start, a loop
+  wrap or a jump (any change of k other than +1) plays song step k of the unpatched sequence at once, k mod 12 in A and k mod 24 in
+  A+B and ALT (0..11 row A, 12..23 row B), floor modulo, so a count-in before ppq 0 lands on the last steps. Cables (TRIG -> RESET or
+  STEP) shape the loop from there. Transport stop applies the STOP rule. START pressed while the song plays still begins at A1 (the
+  START rule) and then ticks on the song grid. TEMPO CV is ignored in HOST, so a swing patch from row C plays straight on the grid.
 - Each clock tick moves one step. After step 12 the MODE decides the next row (A: A again; A+B and ALT: the other row). Nothing stops
   the sequence except START/STOP. A+B and ALT read the rows in the same order but differ in where they play: A+B puts both rows on
   the A jacks, ALT keeps each row on its own jacks. RANGE and PORTA belong to the jacks, so row B in A+B uses RANGE A and PORTA A.

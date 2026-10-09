@@ -21,6 +21,10 @@ input[type=range]{accent-color:#c29f4c;width:90px}
 #menu button.drag{background:#34343a;opacity:.85;cursor:grabbing}
 #menu .h{margin-left:auto;opacity:.45;letter-spacing:-1px}
 #menu i{width:12px;height:12px;border-radius:50%;flex:none}
+#lmenu{position:absolute;display:none;z-index:6;min-width:120px;background:#1b1b1e;border:1px solid #3a3a3e;border-radius:8px;padding:4px;box-shadow:0 6px 20px rgba(0,0,0,.6)}
+#lmenu button{display:flex;gap:8px;align-items:center;width:100%;text-align:left;background:none;border:0;color:var(--fg);padding:6px 9px;border-radius:5px;cursor:pointer;font:inherit}
+#lmenu button:hover{background:#2c2c30}
+#lmenu .tk{width:12px;flex:none}
 .sc{overflow-x:auto}
 #stage{position:relative;width:100%;min-width:1100px;aspect-ratio:__W__/__H__;touch-action:none;user-select:none;-webkit-user-select:none}
 #stage img,#stage svg{position:absolute;left:0;top:0;width:100%;height:100%;display:block}
@@ -42,7 +46,7 @@ p.legal{font-size:.8rem;margin-top:16px}
   <span class="grp"><label for="vol">Volume</label><input type="range" id="vol" min="0" max="1" step="0.01" value="0.6"></span>
   <span id="info"></span>
 </div>
-<div class="sc"><div id="stage"><img src="__PANEL__" alt="BUSHIDO panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div></div></div>
+<div class="sc"><div id="stage"><img src="__PANEL__" alt="BUSHIDO panel" draggable="false"><svg id="sv" viewBox="0 0 __W__ __H__"><defs id="df"></defs><g id="lcd" role="img"></g><g id="banks"></g><g id="leds"></g><g id="ctl"></g><g id="cab" style="filter:drop-shadow(3px 5px 4px rgba(0,0,0,.6))"></g><g id="ring"></g><g id="dd"></g></svg><div id="menu"></div><div id="lmenu"></div></div></div>
 <div class="readout">
   <div class="cell"><span class="k">Playing</span><span class="v" id="r-step">stopped · press START</span></div>
   <div class="cell"><span class="k">CV A · Gate A</span><span class="v" id="r-a">0.00 V</span></div>
@@ -51,7 +55,7 @@ p.legal{font-size:.8rem;margin-top:16px}
   <div class="cell"><span class="k">MIDI out</span><span class="v" id="r-midi">–</span></div>
 </div>
 <p><b>Patterns:</b> two banks, A and B, of up to 999 patterns each; the lit lamp (A or B) is the bank you are browsing and saving to. Click the PATTERN screen or its key to open the list, then type to search (the screen shows what you type), use the arrow keys or scroll, and click a row or press Enter. A pattern sets the knobs, switches and cables. Bank A starts with the factory bank: INIT, then acid lines, basslines, arps, plucks, stabs and leads. <b>SAVE</b> stores the panel as the next number in the lit bank: type a name and press Enter (or SAVE again). Saved patterns stay in this browser. <b>BYPASS</b> (top left): click OFF or ON; while it is on the sequencer keeps stepping but its gates are muted.
-<b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> the green readout next to TEMPO is the same control in BPM; drag its digits (Shift = 0.1 BPM) or scroll. DIV sets the steps per beat (1/8, 1/16, 1/32): at 120 BPM and 1/16 the clock runs 8 steps per second. TEMPO CV still bends around it, and with SOURCE on EXT the readout shows EXT. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE or MODE to switch.
+<b>Play:</b> press START/STOP (its lamp lights while running), or Space. STEP and RESET work stopped or running. <b>Knobs:</b> drag up or down (Shift = fine), scroll, double-click resets. <b>BPM:</b> the green readout next to TEMPO is the same control in BPM; drag its digits (Shift = 0.1 BPM) or scroll. DIV sets the steps per beat (1/8, 1/16, 1/32): at 120 BPM and 1/16 the clock runs 8 steps per second. TEMPO CV still bends around it, and with SOURCE on EXT the readout shows EXT. Click a half of a RANGE rocker for 1 V or 5 V. Click C MODE, SOURCE, DIV or MODE for the next setting, Shift-click for the previous one; right-click any switch or rocker for the whole list.
 <b>Cables:</b> pick a color, then drag from a jack to another jack. Drag a plug to move it; drop it on empty space to unplug. Click a jack with cables to pick one from its stack or reorder it. Esc cancels. Patching works: TRIG N into INPUTS RESET makes an N−1 step loop, TRIG or GATE into STEP, START/STOP or CLOCK (SOURCE EXT) clock the sequencer, and CV into TEMPO CV bends the internal clock.
 <b>Sound:</b> two VCOs listen to CV A / GATE A and CV B / GATE B under each row's PITCH LAW, by default the rack pitch standard, V/OCT with 0 V = C3 = 130.81 Hz (MIDI 48), at the footage set above (8' = C3). The sequencer is the plugin's engine, sample for sample. In C MODE CV, CV C opens both filters. The mixer is an audio utility with no audio source on this page.</p>
 <p class="legal">© 2026 Martial Systems LLC · Jidai Collection. BUSHIDO is an original Martial Systems design inspired by classic Korg gear. Korg is a trademark of its owner. Martial Systems LLC is not affiliated with or endorsed by Korg.</p>
@@ -187,17 +191,30 @@ sv.addEventListener("pointermove",e=>{pt(e);if(kdrag&&kdrag.bpm!==undefined){con
   ptrIn=true;lab=labelAt(mx,my);setHov(near());sv.style.cursor=onScreenKey(mx,my)?"pointer":ctlAt(mx,my)>=0?(C[ctlAt(mx,my)].kind=="knob"||C[ctlAt(mx,my)].kind=="readout"?"ns-resize":"pointer"):near()>=0||grab?"grab":"default";
   if(down&&!grab&&Math.hypot(mx-down.x,my-down.y)>6){down.moved=true;const pl=plugsAt(down.j);if(pl.length&&!down.shift){const p=pl[pl.length-1];startGrab(p.i,p.e,false)}else newCable(down.j,false)}});
 sv.addEventListener("pointerleave",()=>{ptrIn=false;lab=null;if(!grab)setHov(-1)});
-sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();if(screenDown(mx,my))return;
+// The list rule (as in the plugin): click = next, Shift-click = previous, right-click = the whole list, the current item ticked.
+const lmenu=$("lmenu");
+function hideList(){lmenu.style.display="none"}
+function showList(items,ticked,e,apply){lmenu.innerHTML=items.map((t,k)=>`<button data-k="${k}"><span class="tk">${k==ticked?"\u2713":""}</span>${t}</button>`).join("");
+  const r=stage.getBoundingClientRect();lmenu.style.display="block";const mh=lmenu.offsetHeight,mw=lmenu.offsetWidth,x=e.clientX-r.left,y=e.clientY-r.top;
+  lmenu.style.left=Math.max(4,Math.min(x,r.width-mw-4))+"px";lmenu.style.top=Math.max(4,y+12+mh>r.height?y-mh-8:y+12)+"px";
+  lmenu.onclick=ev=>{const b=ev.target.closest("button[data-k]");if(!b)return;hideList();apply(+b.dataset.k)}}
+const listOf=c=>c.marks||Array.from({length:steps(c)},(_,k)=>String(k+1));
+sv.addEventListener("contextmenu",e=>{if(lmenu.style.display=="block")e.preventDefault()});
+lmenu.addEventListener("contextmenu",e=>e.preventDefault());
+addEventListener("pointerdown",e=>{if(!lmenu.contains(e.target)&&!sv.contains(e.target))hideList()});
+addEventListener("keydown",e=>{if(e.key=="Escape")hideList()});
+sv.addEventListener("pointerdown",e=>{pt(e);hideMenu();hideList();if(screenDown(mx,my))return;
   if(grab&&grab.carry){drop();ignoreUp=true;return}
   const ci=ctlAt(mx,my);
   if(ci>=0){const c=C[ci];
+    if(e.button==2&&steps(c)>=2){const n=steps(c);showList(listOf(c),idx(c),e,k=>setP(c.id,k/(n-1)));return}   // right-click: the list
     if(c.kind=="button"){pressed=ci;drawCtl(ci);sv.setPointerCapture(e.pointerId);press(c.id);return}
     if(c.style=="rocker"){setP(c.id,mx>c.cx?1:0);return}
     if(c.kind=="readout"){if(P["CLOCK:SOURCE"]<=.5){kdrag={i:ci,y:e.clientY,bpm:Math.round(bpmNow()*10)/10};sv.setPointerCapture(e.pointerId)}info.textContent=describe(c);return}                    // press the left half (1 V, OFF) or the right half (5 V, ON)
     kdrag={i:ci,y:e.clientY,v:P[c.id],moved:false};sv.setPointerCapture(e.pointerId);return}
   const h=near();if(h>=0){down={j:h,x:mx,y:my,moved:false,shift:e.shiftKey};sv.setPointerCapture(e.pointerId)}});
 sv.addEventListener("pointerup",e=>{pt(e);if(pressed!==null){const i=pressed;pressed=null;drawCtl(i);return}
-  if(kdrag){const c=C[kdrag.i];if(steps(c)>=2&&!kdrag.moved){const n=steps(c)-1;setP(c.id,(Math.round(P[c.id]*n)+1)%(n+1)/n)}kdrag=null;return}
+  if(kdrag){const c=C[kdrag.i];if(steps(c)>=2&&!kdrag.moved){const n=steps(c)-1;setP(c.id,(Math.round(P[c.id]*n)+(e.shiftKey?n:1))%(n+1)/n)}kdrag=null;return}
   if(ignoreUp){ignoreUp=false;down=null;return}
   if(grab&&!grab.carry){drop();down=null;return}
   if(down&&!down.moved&&plugsAt(down.j).length)showMenu(down.j);down=null});
@@ -284,19 +301,24 @@ function matches(){const L=bankList(view),q=query.trim();return L.map((p,i)=>i).
 function dots(x,y,w,h,text,ink,ghost,n=NCH){const p=Math.min(w/(n*6),h/8),d=p*.86,ox=x+(w-n*6*p)/2+p*.5,oy=y+(h-7*p)/2;let g="",l="";
   for(let c=0;c<n;c++){const f=FONT[text[c]||" "]||FONT[" "];for(let r=0;r<7;r++)for(let b=0;b<5;b++){const s=`<rect x="${(ox+(c*6+b)*p).toFixed(2)}" y="${(oy+r*p).toFixed(2)}" width="${d.toFixed(2)}" height="${d.toFixed(2)}"/>`;if((f[r]>>(4-b))&1)l+=s;else g+=s}}
   return `<g fill="${ink}" opacity="${ghost}">${g}</g><g fill="${ink}" opacity=".9">${l}</g>`}
+// Lists and typed text (FIND, a new name) use a plain font; the closed screens keep the dot matrix.
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function plain(x,y,w,h,text,ink){return `<text x="${x}" y="${(y+h/2).toFixed(2)}" fill="${ink}" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Liberation Sans',Arial,sans-serif" font-size="15" dominant-baseline="central" style="white-space:pre">${esc(text)}</text>`}
 function lcdText(){const cur=blink?"_":" ";
   if(scrMode=="search")return ("FIND "+query+cur).slice(-NCH);
   if(scrMode=="name")return (view+pad3(bankList(view).length+1)+" "+nameBuf+cur).slice(0,NCH);
   return plabel()}
-function drawLCD(){const r=SCREEN.lcd,t=lcdText(),el=$("lcd");el.setAttribute("aria-label",scrMode?t:"Pattern "+t);el.innerHTML=dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09);drawBanks()}
+function drawLCD(){const r=SCREEN.lcd,t=lcdText(),el=$("lcd");el.setAttribute("aria-label",scrMode?t:"Pattern "+t);
+  const typed=scrMode=="search"?"FIND  "+query+(blink?"|":" "):scrMode=="name"?view+pad3(bankList(view).length+1)+"  "+nameBuf+(blink?"|":" "):null;
+  el.innerHTML=typed!==null?plain(r[0]+6,r[1],r[2]-12,r[3],typed,"#1e2419"):dots(r[0]+2,r[1]+1,r[2]-4,r[3]-2,t,"#1e2419",.09);drawBanks()}
 function drawBanks(){$("banks").innerHTML=SCREEN.banks.map(k=>{const on=k.id==view;return (on?`<circle cx="${k.cx}" cy="${k.cy}" r="${k.r*3.4}" fill="url(#lg)"/>`:"")+`<circle cx="${k.cx}" cy="${k.cy}" r="${k.r}" fill="${on?"#ff4a36":"#4a0c08"}"/>`+(on?`<circle cx="${k.cx-k.r*.3}" cy="${k.cy-k.r*.3}" r="${k.r*.35}" fill="#ffd2c8" opacity=".8"/>`:"")}).join("")}
 function ddRowAt(x,y){if(scrMode!="search")return -1;const b=ddBox();if(!inR(b,x,y))return -1;const i=Math.floor((y-b[1]-DD_PAD)/DD_ROW),M=matches();return i>=0&&ddTop+i<M.length&&i<ROWS?ddTop+i:-1}
 function drawDD(){const el=$("dd");if(scrMode!="search"){el.innerHTML="";return}const b=ddBox(),M=matches(),L=bankList(view);
   let s=`<rect x="${b[0]}" y="${b[1]}" width="${b[2]}" height="${b[3]}" rx="4" fill="#0a0a0b" stroke="#c29f4c" stroke-width="1.2"/>`;
   const row=(k,txt,hi)=>{const x=b[0]+DD_PAD,y=b[1]+DD_PAD+k*DD_ROW,w=b[2]-DD_PAD*2,h=DD_ROW-3;
-    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+dots(x+3,y+1,w-6,h-2,txt,hi?"#a6b192":"#1e2419",hi?.08:.09)};
-  if(!M.length)s+=row(0,L.length?" NO MATCH":" BANK "+view+" IS EMPTY",false);
-  M.slice(ddTop,ddTop+ROWS).forEach((i,k)=>{s+=row(k,(loaded.b==view&&loaded.i==i?">":" ")+prow(view,i),ddTop+k==ddHi)});
+    return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1.5" fill="${hi?"#1e2419":"url(#lcdg)"}"/>`+plain(x+6,y,w-12,h,txt,hi?"#a6b192":"#1e2419")};
+  if(!M.length)s+=row(0,L.length?"   No match":"   Bank "+view+" is empty",false);
+  M.slice(ddTop,ddTop+ROWS).forEach((i,k)=>{s+=row(k,(loaded.b==view&&loaded.i==i?"\u2022 ":"   ")+pad3(i+1)+"   "+L[i].name,ddTop+k==ddHi)});
   if(M.length>ROWS){const h=b[3]-8,y=b[1]+4+h*ddTop/M.length;s+=`<rect x="${b[0]+b[2]-4}" y="${y.toFixed(1)}" width="2" height="${(h*ROWS/M.length).toFixed(1)}" rx="1" fill="#c29f4c" opacity=".7"/>`}   // scroll position
   el.innerHTML=s}
 function keepHiVisible(){if(ddHi<ddTop)ddTop=ddHi;if(ddHi>=ddTop+ROWS)ddTop=ddHi-ROWS+1}
