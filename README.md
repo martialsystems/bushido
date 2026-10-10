@@ -1,4 +1,4 @@
-# BUSHIDO
+# Bushido
 
 **A 3 x 12 step sequencer with patch cables on the panel, from the Martial Systems Jidai Collection.**
 
