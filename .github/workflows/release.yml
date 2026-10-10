@@ -11,6 +11,7 @@ jobs:
   build:
     name: Build (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -34,8 +35,15 @@ jobs:
         run: |
           out="../../../BUSHIDO-${{ matrix.platform }}.zip"
           cd build/BUSHIDO_artefacts/Release
-          formats=$(ls -d VST3 AU AAX Standalone 2>/dev/null)
-          if [ "$RUNNER_OS" = "Windows" ]; then 7z a "$out" $formats; else zip -ry "$out" $formats; fi
+          formats=()
+          for dir in VST3 AU AAX Standalone; do
+            if [ -d "$dir" ]; then formats+=("$dir"); fi
+          done
+          if [ ${#formats[@]} -eq 0 ]; then
+            echo "No plugin bundle was built." >&2
+            exit 1
+          fi
+          if [ "$RUNNER_OS" = "Windows" ]; then 7z a "$out" "${formats[@]}"; else zip -ry "$out" "${formats[@]}"; fi
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}
