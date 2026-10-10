@@ -1,4 +1,8 @@
-Download: [Mac](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-macOS.zip), [Windows](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-Windows.zip).
+Download the collection: [JIDAI RACK for Mac](https://github.com/martialsystems/jidai-collection/releases/latest/download/JIDAI-RACK-macOS.zip), [Windows](https://github.com/martialsystems/jidai-collection/releases/latest/download/JIDAI-RACK-Windows.zip).
+
+BUSHIDO on its own: [Mac](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-macOS.zip), [Windows](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-Windows.zip).
+
+Use JIDAI RACK. BUSHIDO is already in it, and its pitch and gate patch into RONIN and the other devices. The BUSHIDO download is the sequencer by itself, sending MIDI to other instruments in your DAW.
 
 > **Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
 
