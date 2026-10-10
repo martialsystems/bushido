@@ -1,16 +1,17 @@
-Download the collection: [JIDAI RACK for Mac](https://github.com/martialsystems/jidai-collection/releases/latest/download/JIDAI-RACK-macOS.zip), [Windows](https://github.com/martialsystems/jidai-collection/releases/latest/download/JIDAI-RACK-Windows.zip).
-
-BUSHIDO on its own: [Mac](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-macOS.zip), [Windows](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-Windows.zip).
-
-Use JIDAI RACK. BUSHIDO is already in it, and its pitch and gate patch into RONIN and the other devices. The BUSHIDO download is the sequencer by itself, sending MIDI to other instruments in your DAW.
-
-> **Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
-
 # BUSHIDO
 
 **A 3 x 12 step sequencer with patch cables on the panel, from the Martial Systems Jidai Collection.**
 
+
 BUSHIDO is a hands-on step sequencer for your DAW. You build lines by turning knobs, and you change how they play by pulling cables between jacks on the panel. It is made for musicians who like sequencing the analog way: set twelve steps, start the clock, and patch a trigger back into RESET until the loop feels right. In the Jidai rack its control voltages patch straight into the rest of the collection, and in any DAW it sends MIDI to your instruments.
+
+## Download:
+
+- [Mac](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-macOS.zip)
+- [Windows](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-Windows.zip)
+- [Full Collection](https://github.com/martialsystems/jidai-collection)
+
+**Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
 
 ## Features
 
