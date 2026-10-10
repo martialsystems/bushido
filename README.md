@@ -9,7 +9,8 @@ BUSHIDO is a hands-on step sequencer for your DAW. You build lines by turning kn
 
 - [Mac](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-macOS.zip)
 - [Windows](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-Windows.zip)
-- [Full Collection](https://github.com/martialsystems/jidai-collection)
+  
+- [Jidai Collection](https://github.com/martialsystems/jidai-collection)
 
 **Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
 
