@@ -1,3 +1,5 @@
+Download: [Mac](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-macOS.zip), [Windows](https://github.com/martialsystems/bushido/releases/latest/download/BUSHIDO-Windows.zip).
+
 > **Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
 
 # BUSHIDO

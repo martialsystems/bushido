@@ -1,5 +1,6 @@
 name: Release
 # Push a tag like v0.1.0 to build macOS + Windows and attach zips to a DRAFT release.
+# Asset names stay BUSHIDO-macOS.zip and BUSHIDO-Windows.zip so the README download links keep working on later tags.
 # Builds are unsigned: code signing / notarization is a follow-up.
 on:
   push:
@@ -31,7 +32,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          out="../../../BUSHIDO-${GITHUB_REF_NAME}-${{ matrix.platform }}.zip"
+          out="../../../BUSHIDO-${{ matrix.platform }}.zip"
           cd build/BUSHIDO_artefacts/Release
           formats=$(ls -d VST3 AU AAX Standalone 2>/dev/null)
           if [ "$RUNNER_OS" = "Windows" ]; then 7z a "$out" $formats; else zip -ry "$out" $formats; fi
