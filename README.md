@@ -14,6 +14,8 @@ BUSHIDO is a hands-on step sequencer for your DAW. You build lines by turning kn
 
 **Found a bug?** Please [open a GitHub issue](https://github.com/martialsystems/bushido/issues/new/choose) and fill in the bug report form.
 
+**Download the Manual** [Here](https://github.com/martialsystems/Bushido/blob/main/docs/manual/BUSHIDO_Manual.pdf).
+
 ## Features
 
 ### Steps and patterns
