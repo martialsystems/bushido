@@ -117,14 +117,20 @@ node web/test_bushido_parity.js
 
 `ctest` runs the engine, cable, sequencer and plugin suites. The Node tests cover the browser version. `test_bushido_parity.js` compiles the C++ engine with g++ (set `CXX` to use another compiler) and checks that the browser engine matches it sample for sample, factory patterns included. After you change the browser engine, or the factory bank (edit and run `python3 panel/build_patterns.py`), rebuild the pages with `python3 web/build_web.py` and `python3 web/build_rack.py`.
 
-## The Jidai Collection
-
-BUSHIDO is one unit of the Martial Systems Jidai Collection, alongside [RONIN](https://github.com/martialsystems/Ronin), [SHOGUN](https://github.com/martialsystems/shogun) and [ORIGAMI](https://github.com/martialsystems/origami).
-
 ## Documentation
 
 - [`docs/REFERENCE.md`](docs/REFERENCE.md): every control, mode, timing rule and the saved-state format.
 - [`docs/EMBEDDING.md`](docs/EMBEDDING.md): reusing the engine, patch graph and cable model in another host.
+
+## The Jidai Collection
+
+The Jidai Collection is Martial Systems' line of patchable instruments. They share one cable standard, so any output can be patched into any input across units.
+
+- **BUSHIDO:** a 3 × 12 analog-style step sequencer.
+- **RONIN:** the semi-modular synthesizer and effect.
+- **SHOGUN:** a 16-voice analog-style drum machine with a full patch bay.
+- **Origami** the triple wave folder, available as a standalone effect and as a rack device.
+- **JIDAI:** the rack that hosts the collection side by side.
 
 ## Legal
 
